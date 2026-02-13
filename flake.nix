@@ -28,7 +28,7 @@
       # ----------------------------------------------------------
       # Toggle: set to false to disable CUDA/NVIDIA dependencies
       # ----------------------------------------------------------
-      enableCuda = true;
+      enableCuda = false;
 
       mkEnvFromChannel = (nixpkgs-channel:
         flake-utils.lib.eachDefaultSystem (system:
