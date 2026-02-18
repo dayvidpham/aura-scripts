@@ -273,6 +273,13 @@ path. Each entry records:
 Stale sessions (record exists but tmux is dead) are detected automatically and
 can be overwritten with `--restart`.
 
+**Prompt files.** The generated prompt is written to
+`~/.aura/state/aura-swarm-prompt/<repo-hash>-<timestamp>-prompt.md` before
+launch. The tmux command references this file via `$(cat ...)` shell expansion
+rather than embedding the prompt inline, avoiding tmux's command length limit.
+Role instructions (from `.claude/commands/aura:<role>.md`) are referenced by
+their original path. Prompt files persist as an audit trail.
+
 ### Tmux session naming
 
 Format: `epic-<suffix>--<hex4>`, where `<suffix>` is extracted from the epic ID
