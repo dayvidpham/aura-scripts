@@ -54,7 +54,7 @@ class SessionResult(NamedTuple):
 VALID_ROLES = frozenset(["architect", "supervisor", "reviewer", "worker"])
 
 # Valid permission modes - dangerously-skip-permissions is FORBIDDEN
-ALLOWED_PERMISSION_MODES = frozenset(["default", "acceptEdits", "plan"])
+ALLOWED_PERMISSION_MODES = frozenset(["default", "acceptEdits", "bypassPermissions", "plan"])
 
 # Valid models
 VALID_MODELS = frozenset(["sonnet", "opus", "haiku"])

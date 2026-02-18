@@ -47,11 +47,56 @@ Copy or include this file in your project's CLAUDE.md alongside project-specific
 
 **The rule:** Ask "which one stays open until the other finishes?" That one is the parent. `bd dep add <stays-open> --blocked-by <must-finish-first>`.
 
+### Correct: `--blocked-by` points at what must finish first
+
+```bash
+# "REQUEST is blocked by URE" — URE must complete before REQUEST can close
+bd dep add request-id --blocked-by ure-id
+
+# "PROPOSAL is blocked by IMPL PLAN"
+bd dep add proposal-id --blocked-by impl-plan-id
+
+# "IMPL PLAN is blocked by each slice"
+bd dep add impl-plan-id --blocked-by slice-1-id
+bd dep add impl-plan-id --blocked-by slice-2-id
+
+# "slice is blocked by its leaf tasks"
+bd dep add slice-1-id --blocked-by leaf-task-a-id
+bd dep add slice-1-id --blocked-by leaf-task-b-id
+```
+
+Produces the correct tree (leaf work at the bottom, user request at the top):
+
+```
+REQUEST
+  └── blocked by URE
+        └── blocked by PROPOSAL
+              └── blocked by IMPL PLAN
+                    ├── blocked by slice-1
+                    │     ├── blocked by leaf-task-a
+                    │     └── blocked by leaf-task-b
+                    └── blocked by slice-2
+                          ├── blocked by leaf-task-c
+                          └── blocked by leaf-task-d
+```
+
+### Wrong: reversed direction
+
+```bash
+# WRONG — this says "URE is blocked by REQUEST", meaning the request
+# must finish before requirements gathering can start (backwards)
+bd dep add ure-id --blocked-by request-id
+```
+
+**Rule of thumb:** The `--blocked-by` target is always the thing you do *first*. Work flows bottom-up; closure flows top-down.
+
 ### Agent Orchestration
 
 **Given** you need to launch parallel agents for an epic **then** use `aura-swarm start --epic <id>` to create worktree-based agent sessions. Use `aura-swarm status` to monitor. **SHOULD NOT** launch long-running supervisors or workers as Task tool subagents.
 
-**Given** you need ad-hoc parallel agents (e.g., reviewers) **then** use `launch-parallel.py --role <role> -n <count> --prompt "..."`. This launches Claude in tmux sessions with role instructions from `.claude/commands/aura:{role}.md`.
+**Given** you need a separate supervisor or architect to plan a new epic **then** use `launch-parallel.py --role <role> -n 1 --prompt "..."` to launch in a tmux session. **SHOULD** only use `launch-parallel.py` for long-running supervisor/architect agents that need persistent context. **SHOULD NOT** use `launch-parallel.py` for reviewer rounds.
+
+**Given** you need reviewer rounds (plan review or code review) **then** spawn reviewers as subagents (via the Task tool) or coordinate via TeamCreate. Reviewers are short-lived and should stay in-session for direct result collection. **SHOULD NOT** use `launch-parallel.py` for reviewers.
 
 **Given** inter-agent communication is needed **then** use beads for coordination (`bd comments add`, `bd update --notes`, `bd show`). **SHOULD NOT** reference `aura agent send/broadcast/inbox` — that CLI does not exist.
 

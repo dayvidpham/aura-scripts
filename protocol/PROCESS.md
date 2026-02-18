@@ -92,11 +92,7 @@ See: [.claude/commands/aura:architect:propose-plan.md](.claude/commands/aura:arc
 
 Architect spawns **3 independent reviewers** in parallel (not sequentially).
 
-Use `launch-parallel.py` to spawn reviewers in tmux sessions:
-```bash
-~/codebases/dayvidpham/aura-scripts/launch-parallel.py \
-  --role reviewer -n 3 --prompt "Review PROPOSE_PLAN task <task-id>..."
-```
+Spawn reviewers as **subagents** (via the Task tool) or coordinate via **TeamCreate**. Reviewers are short-lived — keep them in-session for direct result collection. Do NOT use `launch-parallel.py` for reviewer rounds.
 
 > **CRITICAL: No Fake Reviews**
 >
@@ -677,7 +673,7 @@ Provide context for next session:
 | Bash | Run tests to verify claims |
 | Skill: aura:reviewer:review-plan | Evaluate proposal |
 | Skill: aura:reviewer:vote | Cast vote |
-| Skill: aura:reviewer:comment | Leave RFC comment |
+| Skill: aura:reviewer:comment | Leave structured review comment (via Beads) |
 
 ### Supervisor Tools & Skills
 
@@ -692,11 +688,13 @@ Provide context for next session:
 
 **Agent launching:**
 ```bash
-# Launch workers via launch-parallel.py (NOT Task tool for long-running agents)
-~/codebases/dayvidpham/aura-scripts/launch-parallel.py --role worker -n 3 --prompt "..."
+# Launch supervisor/architect via launch-parallel.py (long-running, needs own tmux session)
+~/codebases/dayvidpham/aura-scripts/launch-parallel.py --role supervisor -n 1 --prompt "..."
 
 # Or use aura-swarm for epic-based worktree workflow
 ~/codebases/dayvidpham/aura-scripts/aura-swarm start --epic <id>
+
+# For reviewers: use subagents (Task tool) or TeamCreate — NOT launch-parallel.py
 ```
 
 ### Worker Tools & Skills

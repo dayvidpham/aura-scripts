@@ -1,0 +1,277 @@
+# Supervisor: Plan Tasks
+
+Break RATIFIED_PLAN into vertical slice Implementation tasks for workers.
+
+## When to Use
+
+Received handoff from architect with RATIFIED_PLAN task ID and placeholder IMPLEMENTATION_PLAN task.
+
+## Given/When/Then/Should
+
+**Given** IMPLEMENTATION_PLAN placeholder **when** planning **then** decompose into vertical slices (production code paths) **should never** decompose into horizontal layers (files)
+
+**Given** RATIFIED_PLAN features/commands **when** creating tasks **then** assign one vertical slice per worker (full end-to-end) **should never** assign horizontal layers (types worker, tests worker, impl worker)
+
+**Given** vertical slice **when** defining **then** specify production code path and backward planning approach **should never** leave workers guessing what end users will run
+
+**Given** validation_checklist **when** distributing **then** include production code verification **should never** allow test-only validation
+
+## Critical: Vertical Slices, Not Horizontal Layers
+
+**ANTI-PATTERN (causes dual-export problem):**
+```
+Task A: Layer 1 - types.ts (all types)
+Task B: Layer 2 - service.test.ts (all tests)
+Task C: Layer 3 - service.ts (all implementation)
+Task D: Layer 4 - CLI wiring
+```
+
+**Problem:** No worker owns full production code path → dual-export anti-pattern
+
+**CORRECT PATTERN:**
+```
+Slice 1: "feature list command" (Worker A owns full vertical)
+  - ListOptions, ListEntry types (L1)
+  - Tests importing `cli-tool feature list` CLI (L2)
+  - service.listItems() implementation (L3)
+  - featureCommandCli.command('list').action() wiring (L3)
+
+Slice 2: "feature detail command" (Worker B owns full vertical)
+  - DetailView types (L1)
+  - Tests importing `cli-tool feature detail` CLI (L2)
+  - service.getItemDetail() implementation (L3)
+  - featureCommandCli.command('detail').action() wiring (L3)
+```
+
+## Steps
+
+1. **Read RATIFIED_PLAN task:**
+   ```bash
+   bd show <ratified-plan-id>
+   ```
+
+2. **Identify production code paths** (what end users will actually run):
+   - CLI commands: `cli-tool feature`, `cli-tool feature list`, `cli-tool feature detail`
+   - API endpoints: `POST /api/items`, `GET /api/items/:id`
+   - Background jobs: `sync-daemon`, `backup-daemon`
+
+3. **Decompose into vertical slices** (one per production code path):
+   - Each slice = one command/endpoint/job
+   - Each slice owned by ONE worker
+   - Each slice goes from types → tests → implementation → wiring
+
+4. **Identify shared infrastructure** (optional Layer 0):
+   - Common types used across ALL slices (e.g., base error enums)
+   - Shared utilities (not specific to one slice)
+   - If significant, create Layer 0 tasks (parallel, no deps)
+
+5. **Create vertical slice tasks:**
+   ```bash
+   bd create --type=task \
+     --labels="aura:impl,slice:feature-list" \
+     --title="[SLICE] Implement 'cli-tool feature list' command (full vertical)" \
+     --description="$(cat <<'EOF'
+   ## Production Code Path
+
+   **End user runs:** `./bin/cli-tool feature list`
+
+   ## Worker Owns (Full Vertical Slice)
+
+   Plan backwards from production code path:
+   1. End: CLI entry point `featureCommandCli.command('list').action(...)`
+   2. Back: Service call `createFeatureService().listItems(options)`
+   3. Back: Service method `listItems(options: ListOptions): ListEntry[]`
+   4. Back: Types `ListOptions`, `ListEntry`
+
+   ## Files You Own (Within These Files)
+
+   - src/feature/types.ts (ListOptions, ListEntry ONLY)
+   - tests/unit/cli/commands/feature-list.test.ts (import actual CLI)
+   - src/feature/service.ts (listItems method ONLY)
+   - src/cli/commands/feature.ts (list subcommand wiring ONLY)
+
+   ## Implementation Order (Layers Within Your Slice)
+
+   **Layer 1: Types** (your slice only)
+   - Create ListOptions, ListEntry
+   - Do NOT add types for other slices (e.g., DetailView)
+
+   **Layer 2: Tests** (importing production code)
+   - Import actual CLI: `import { featureCommandCli } from '...'`
+   - Test the actual command users will run
+   - Tests will FAIL - expected, no implementation yet
+
+   **Layer 3: Implementation + Wiring**
+   - Implement service.listItems() method
+   - Wire CLI action with createFeatureService({ real deps })
+   - No TODO placeholders
+   - Tests should now PASS
+
+   ## Validation
+
+   Before marking complete:
+   - [ ] Production code verified via code inspection (no TODOs, real deps wired)
+   - [ ] Tests import actual CLI (not test-only export)
+   - [ ] No dual-export anti-pattern
+   - [ ] No TODO placeholders
+   - [ ] Service wired with real dependencies (fs, logger, etc.)
+   EOF
+   )" \
+     --design='{
+       "productionCodePath": "cli-tool feature list",
+       "validation_checklist": [
+         "npm run typecheck passes",
+         "npm run test:unit passes",
+         "Production code verified via code inspection",
+         "Tests import production CLI (featureCommandCli)",
+         "No TODO placeholders in CLI action",
+         "Service wired with real dependencies"
+       ],
+       "acceptance_criteria": [{
+         "given": "user runs cli-tool feature list",
+         "when": "command executes",
+         "then": "shows list from actual service",
+         "should_not": "have dual-export (test vs production paths)"
+       }],
+       "ratified_plan": "<ratified-plan-id>"
+     }'
+
+   bd dep add <slice-task-id> <impl-plan-id>
+   ```
+
+6. **Update IMPLEMENTATION_PLAN with vertical slice breakdown:**
+   ```bash
+   bd update <impl-plan-id> --description="$(cat <<'EOF'
+   ## Vertical Slice Decomposition
+
+   Each worker owns ONE production code path (full vertical slice from CLI → service → types).
+
+   ### Shared Infrastructure (Layer 0 - optional)
+   - Common types: SortOrder, OutputFormat, ErrorCode enums
+   - Implemented first, parallel
+
+   ### Vertical Slices (parallel, after Layer 0)
+
+   **Slice 1: "cli-tool feature" (default command)**
+   - Worker: A
+   - Production path: `./bin/cli-tool feature`
+   - Owns: default action, recent items logic
+   - Task: aura-xxx
+
+   **Slice 2: "cli-tool feature list"**
+   - Worker: B
+   - Production path: `./bin/cli-tool feature list`
+   - Owns: ListOptions types, list tests, listItems() method, list CLI wiring
+   - Task: aura-yyy
+
+   **Slice 3: "cli-tool feature detail"**
+   - Worker: C
+   - Production path: `./bin/cli-tool feature detail <id>`
+   - Owns: DetailView types, detail tests, getItemDetail() method, detail CLI wiring
+   - Task: aura-zzz
+
+   **Slice 4: "cli-tool feature search"**
+   - Worker: D
+   - Production path: `./bin/cli-tool feature search`
+   - Owns: SearchQuery types, search tests, searchItems() method, search CLI wiring
+   - Task: aura-www
+
+   ## Execution Order
+
+   1. Layer 0 (if needed): Shared infrastructure (parallel)
+   2. Slices 1-4: Each worker implements their vertical slice (parallel)
+      - Within each slice: Types (L1) → Tests (L2) → Impl+Wiring (L3)
+
+   ## Validation
+
+   All production code paths verified via code inspection:
+   - ./bin/cli-tool feature
+   - ./bin/cli-tool feature list
+   - ./bin/cli-tool feature detail <id>
+   - ./bin/cli-tool feature search
+   EOF
+   )"
+   ```
+
+## Vertical Slice Task Structure
+
+```json
+{
+  "slice": "feature-list",
+  "productionCodePath": "cli-tool feature list",
+  "taskId": "aura-xxx",
+  "workerOwns": {
+    "endPoint": "featureCommandCli.command('list').action(...)",
+    "types": ["ListOptions", "ListEntry"],
+    "tests": ["tests/unit/cli/commands/feature-list.test.ts"],
+    "implementation": [
+      "service.listItems() method",
+      "CLI list action with createFeatureService({ real deps })"
+    ]
+  },
+  "planningApproach": "Backwards from production code path",
+  "validation_checklist": [
+    "npm run typecheck passes",
+    "npm run test:unit passes",
+    "Production code works: ./bin/aura sessions list",
+    "Tests import production CLI (not test-only export)",
+    "No TODO placeholders",
+    "Service wired with real dependencies"
+  ],
+  "acceptance_criteria": [{
+    "given": "user runs aura sessions list",
+    "when": "command executes",
+    "then": "shows session list from actual service",
+    "should_not": "have dual-export or TODO placeholders"
+  }],
+  "ratified_plan": "<ratified-plan-id>"
+}
+```
+
+## Layer Cake Within Each Vertical Slice
+
+Each worker implements their slice in layers (TDD approach):
+
+```
+Worker A's Slice: "aura sessions list"
+  Layer 1: Types (ListOptions, SessionListEntry only)
+  Layer 2: Tests (import sessionsCommandCli, test list action)
+           → Tests will FAIL (expected - no impl yet)
+  Layer 3: Implementation + Wiring
+           - service.listSessions() method
+           - CLI action: createSessionsService({ fs, logger, parser })
+           - Wire action to call service
+           → Tests should now PASS
+```
+
+**Important:** Layer 2 tests failing is expected. Worker knows tests define the contract, implementation comes in Layer 3.
+
+## Red Flags vs Green Flags
+
+**Red flags (horizontal layer decomposition):**
+- Tasks organized by layer: "Layer 1 all types", "Layer 2 all tests"
+- Worker assigned "all types" or "all tests" instead of feature slice
+- No production code path specified per task
+- Tasks describe "file to modify" not "production code path to deliver"
+
+**Green flags (vertical slice decomposition):**
+- Each task specifies production code path (e.g., "aura sessions list")
+- Worker owns full vertical (types → tests → impl → wiring)
+- Task description says "plan backwards from end point"
+- Validation checklist includes "production code works: ./bin/aura <command>"
+- Workers can execute independently (parallel slices)
+
+## Shared Infrastructure (Layer 0)
+
+If multiple slices share common infrastructure:
+
+```
+Layer 0 Tasks (parallel, implemented first):
+- Common enums: SortOrder, OutputFormat, SessionsErrorCode
+- Common types: ParseHealth (used by all slices)
+- Shared utilities: isSidechainSession(), getGitBranch()
+```
+
+Then vertical slices proceed in parallel, depending on Layer 0.
+
+**Key insight:** Shared infrastructure is the exception, not the rule. Most types/logic belong to specific slices.

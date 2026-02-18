@@ -325,6 +325,7 @@ class BeadTask(NamedTuple):
     description: str
     status: str
     dependencies: list[str]
+    relation: str  # "blocker" (blocks the epic) or "dependent" (blocked by the epic)
 
 
 def bd_show_json(task_id: str) -> dict[str, Any] | None:
@@ -383,23 +384,16 @@ def discover_urd(epic_id: str, explicit_urd: str | None) -> str | None:
             to_check.append(dep["id"])
             visited.add(dep["id"])
 
-    # Check one more level: dependents and dependencies of our deps
+    # Check one more level: transitive walk through dependencies
+    # (dependents key is absent when nothing depends on the issue)
     for dep_id in to_check:
         dep_data = bd_show_json(dep_id)
         if dep_data is None:
             continue
-        for related in dep_data.get("dependents", []):
-            if isinstance(related, dict) and "id" in related:
-                rid = related["id"]
-                if rid in visited or rid == epic_id:
-                    continue
-                visited.add(rid)
-                if _is_urd(related):
-                    return rid
         for related in dep_data.get("dependencies", []):
             if isinstance(related, dict) and "id" in related:
                 rid = related["id"]
-                if rid in visited:
+                if rid in visited or rid == epic_id:
                     continue
                 visited.add(rid)
                 if _is_urd(related):
@@ -408,31 +402,55 @@ def discover_urd(epic_id: str, explicit_urd: str | None) -> str | None:
     return None
 
 
+def _extract_ids(entries: list[Any]) -> list[str]:
+    """Extract IDs from a list of beads dependency/dependent dicts."""
+    return [d["id"] for d in entries if isinstance(d, dict) and "id" in d]
+
+
 def discover_tasks(epic_id: str, explicit_task_ids: list[str] | None) -> list[BeadTask]:
     """Discover tasks for an epic.
 
-    If explicit_task_ids are given, fetch those.
-    Otherwise, look at the epic's dependents (children).
+    If explicit_task_ids are given, fetch those (relation defaults to "blocker").
+    Otherwise, collect from both dependency directions:
+      - dependencies: things that block the epic (must finish first)
+      - dependents:   things blocked by the epic (downstream work)
+
+    Beads JSON schema:
+      dependencies = things that block me   → relation="blocker"
+      dependents   = things I block         → relation="dependent"
+    The 'dependents' key is absent when nothing depends on the issue.
     """
     if explicit_task_ids:
-        task_ids = explicit_task_ids
+        id_to_relation = {tid: "blocker" for tid in explicit_task_ids}
     else:
-        # Get the epic and extract its dependents
         epic = bd_show_json(epic_id)
         if epic is None:
             print(f"Warning: Could not fetch epic {epic_id} from beads", file=sys.stderr)
             return []
-        dependents = epic.get("dependents", [])
-        task_ids = [d["id"] for d in dependents if isinstance(d, dict) and "id" in d]
+
+        id_to_relation: dict[str, str] = {}
+        for d in epic.get("dependencies", []):
+            if isinstance(d, dict) and "id" in d:
+                id_to_relation[d["id"]] = "blocker"
+        for d in epic.get("dependents", []):
+            if isinstance(d, dict) and "id" in d and d["id"] not in id_to_relation:
+                id_to_relation[d["id"]] = "dependent"
+
+        if id_to_relation:
+            blockers = [tid for tid, r in id_to_relation.items() if r == "blocker"]
+            dependents = [tid for tid, r in id_to_relation.items() if r == "dependent"]
+            if blockers:
+                print(f"  Blockers (must complete first): {', '.join(blockers)}")
+            if dependents:
+                print(f"  Dependents (downstream work):   {', '.join(dependents)}")
 
     tasks: list[BeadTask] = []
-    for tid in task_ids:
+    for tid, relation in id_to_relation.items():
         data = bd_show_json(tid)
         if data is None:
             print(f"Warning: Could not fetch task {tid}", file=sys.stderr)
             continue
-        deps = data.get("dependencies", [])
-        dep_ids = [d["id"] for d in deps if isinstance(d, dict) and "id" in d]
+        dep_ids = _extract_ids(data.get("dependencies", []))
         tasks.append(
             BeadTask(
                 id=data["id"],
@@ -440,6 +458,7 @@ def discover_tasks(epic_id: str, explicit_task_ids: list[str] | None) -> list[Be
                 description=data.get("description", ""),
                 status=data.get("status", "unknown"),
                 dependencies=dep_ids,
+                relation=relation,
             )
         )
     return tasks
@@ -493,12 +512,12 @@ Use Agent Teams (TeamCreate) to coordinate implementation of these tasks.
 def build_task_table(tasks: list[BeadTask]) -> str:
     """Build a compact markdown table of tasks."""
     lines = [
-        "| ID | Title | Status | Dependencies |",
-        "|----|-------|--------|--------------|",
+        "| ID | Title | Status | Relation | Dependencies |",
+        "|----|-------|--------|----------|--------------|",
     ]
     for t in tasks:
         deps = ", ".join(t.dependencies) if t.dependencies else "-"
-        lines.append(f"| {t.id} | {t.title} | {t.status} | {deps} |")
+        lines.append(f"| {t.id} | {t.title} | {t.status} | {t.relation} | {deps} |")
     return "\n".join(lines)
 
 
@@ -580,11 +599,27 @@ def cmd_start(args: argparse.Namespace) -> int:
     sessions = SessionsFile(git_root)
 
     # Check for existing active session
+    restart: bool = args.restart
     existing = sessions.find_session(epic_id)
-    if existing and check_tmux_session_exists(existing.tmux_session):
-        print(f"Epic {epic_id} already has an active session: {existing.tmux_session}")
-        print(f"  Attach with: aura-swarm attach {epic_id}")
-        return 1
+    if existing:
+        tmux_alive = check_tmux_session_exists(existing.tmux_session)
+        if tmux_alive and not restart:
+            print(f"Epic {epic_id} already has an active session: {existing.tmux_session}")
+            print(f"  Attach with: aura-swarm attach {epic_id}")
+            print(f"  Or use --restart to stop it and start fresh.")
+            return 1
+        if restart or not tmux_alive:
+            # Stop existing session (kill tmux if alive, remove record)
+            if tmux_alive:
+                if dry_run:
+                    print(f"  [dry-run] Would stop existing session: {existing.tmux_session}")
+                else:
+                    run_command(["tmux", "kill-session", "-t", existing.tmux_session], capture=True)
+                    print(f"Stopped existing session: {existing.tmux_session}")
+            else:
+                print(f"Cleaned up stale session record for {epic_id}")
+            if not dry_run:
+                sessions.remove_session(epic_id)
 
     # ── Step 1: Epic branch + worktree setup ──
 
@@ -642,6 +677,10 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     prompt = build_prompt(epic_id, epic_data, tasks, urd_id)
 
+    user_prompt: str | None = args.prompt_addon
+    if user_prompt:
+        prompt += f"\n\n## Additional Instructions\n\n{user_prompt}\n"
+
     if dry_run:
         print()
         print("Generated prompt:")
@@ -674,12 +713,15 @@ def cmd_start(args: argparse.Namespace) -> int:
     print(f"\nLaunching Claude ({model}, role={role})...")
     print(f"  Role instructions: {instructions_path}")
 
+    permission_mode: str = args.permission_mode
+
     result = launch_tmux_session(
         session_name=launched_session,
         working_dir=worktree_path,
         role_instructions=role_instructions,
         prompt=prompt,
         model=model,
+        permission_mode=permission_mode,
     )
     if not result.success:
         print(f"Error launching tmux session: {result.error}", file=sys.stderr)
@@ -1103,6 +1145,8 @@ def build_parser() -> argparse.ArgumentParser:
             Examples:
               aura-swarm start --epic aura-dyu                  # Launch with default settings
               aura-swarm start --epic aura-dyu --model opus     # Use opus model
+              aura-swarm start --epic aura-dyu --restart        # Stop existing + start fresh
+              aura-swarm start --epic aura-dyu --prompt-addon "Fix reviewer findings"  # Add custom instructions
               aura-swarm start --epic aura-dyu --dry-run        # Preview without launching
               aura-swarm start --epic aura-dyu task-1 task-2    # Explicit task list
               aura-swarm status                                 # Show active sessions
@@ -1153,6 +1197,23 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Model to use (default: {DEFAULT_MODEL})",
     )
     start_p.add_argument("--skill", help="Skill to invoke at start")
+    start_p.add_argument(
+        "--restart",
+        action="store_true",
+        default=False,
+        help="Stop existing session and start fresh (new Claude instance with clean context)",
+    )
+    start_p.add_argument(
+        "--prompt-addon",
+        default=None,
+        help="Additional instructions appended to the auto-generated prompt",
+    )
+    start_p.add_argument(
+        "--permission-mode",
+        default="acceptEdits",
+        choices=["acceptEdits", "bypassPermissions", "default", "plan"],
+        help="Claude permission mode (default: acceptEdits)",
+    )
     start_p.add_argument(
         "--urd",
         help="User Requirements Document beads ID (auto-discovered if not set)",
