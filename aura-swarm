@@ -47,7 +47,7 @@ from typing import Any, NamedTuple
 VALID_ROLES = frozenset(["architect", "supervisor", "reviewer", "worker"])
 VALID_MODELS = frozenset(["sonnet", "opus", "haiku"])
 AURA_STATE_DIR = Path.home() / ".aura" / "swarm"
-AURA_PROMPT_STATE_DIR = Path.home() / ".aura" / "state" / "aura-swarm-prompt"
+AURA_PROMPT_STATE_DIR = Path.home() / ".local" / "state" / "aura" / "aura-swarm" / "prompt"
 DEFAULT_WORKTREE_DIR = "worktree"
 DEFAULT_ROLE = "supervisor"
 DEFAULT_MODEL = "sonnet"
@@ -235,7 +235,7 @@ def get_role_instructions(role: str, working_dir: Path) -> tuple[str | None, Pat
 
 
 def write_prompt_file(repo_hash: str, prompt: str) -> Path:
-    """Write prompt to ~/.aura/state/aura-swarm-prompt/.
+    """Write prompt to ~/.local/state/aura/aura-swarm/prompt/.
 
     Returns the absolute Path. Files persist as an audit trail.
     """
@@ -258,7 +258,7 @@ def launch_tmux_session(
 ) -> LaunchResult:
     """Launch a Claude agent in a detached tmux session.
 
-    Writes the prompt to ~/.aura/state/aura-swarm-prompt/ and uses
+    Writes the prompt to ~/.local/state/aura/aura-swarm/prompt/ and uses
     $(cat /path) shell expansion in the tmux command to avoid command length limits.
     Role instructions are already on disk — referenced directly.
     """
