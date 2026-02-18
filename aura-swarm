@@ -47,6 +47,7 @@ from typing import Any, NamedTuple
 VALID_ROLES = frozenset(["architect", "supervisor", "reviewer", "worker"])
 VALID_MODELS = frozenset(["sonnet", "opus", "haiku"])
 AURA_STATE_DIR = Path.home() / ".aura" / "swarm"
+AURA_PROMPT_STATE_DIR = Path.home() / ".aura" / "state" / "aura-swarm-prompt"
 DEFAULT_WORKTREE_DIR = "worktree"
 DEFAULT_ROLE = "supervisor"
 DEFAULT_MODEL = "sonnet"
@@ -232,24 +233,47 @@ def get_role_instructions(role: str, working_dir: Path) -> tuple[str | None, Pat
     return None, None
 
 
+def write_prompt_file(repo_hash: str, prompt: str) -> Path:
+    """Write prompt to ~/.aura/state/aura-swarm-prompt/.
+
+    Returns the absolute Path. Files persist as an audit trail.
+    """
+    AURA_PROMPT_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    prompt_path = AURA_PROMPT_STATE_DIR / f"{repo_hash}-{timestamp}-prompt.md"
+    prompt_path.write_text(prompt)
+    return prompt_path
+
+
 def launch_tmux_session(
     *,
     session_name: str,
     working_dir: Path,
-    role_instructions: str,
+    repo_hash: str,
+    instructions_path: Path,
     prompt: str,
     model: str,
     permission_mode: str = "acceptEdits",
 ) -> LaunchResult:
-    """Launch a Claude agent in a detached tmux session."""
-    escaped_prompt = prompt.replace("'", "'\"'\"'")
-    escaped_instructions = role_instructions.replace("'", "'\"'\"'")
+    """Launch a Claude agent in a detached tmux session.
 
+    Writes the prompt to ~/.aura/state/aura-swarm-prompt/ and uses
+    $(cat /path) shell expansion in the tmux command to avoid command length limits.
+    Role instructions are already on disk — referenced directly.
+    """
+    try:
+        prompt_path = write_prompt_file(repo_hash, prompt)
+    except OSError as e:
+        return LaunchResult(session_name, success=False, error=f"Failed to write prompt file: {e}")
+
+    # Use $(cat '...') so tmux stores only a short template string.
+    # The shell spawned inside the tmux window expands the file contents at runtime,
+    # bypassing tmux's command length limit entirely.
     claude_cmd = (
         f"claude --model {model} "
-        f"--append-system-prompt '{escaped_instructions}' "
+        f"--append-system-prompt \"$(cat '{instructions_path}')\" "
         f"--permission-mode {permission_mode} "
-        f"'{escaped_prompt}'"
+        f"\"$(cat '{prompt_path}')\""
     )
     full_cmd = f"{claude_cmd}; echo ''; echo 'Session complete. Press Enter to close.'; read"
 
@@ -714,11 +738,13 @@ def cmd_start(args: argparse.Namespace) -> int:
     print(f"  Role instructions: {instructions_path}")
 
     permission_mode: str = args.permission_mode
+    repo_hash = hashlib.sha256(str(git_root).encode()).hexdigest()[:16]
 
     result = launch_tmux_session(
         session_name=launched_session,
         working_dir=worktree_path,
-        role_instructions=role_instructions,
+        repo_hash=repo_hash,
+        instructions_path=instructions_path,
         prompt=prompt,
         model=model,
         permission_mode=permission_mode,
