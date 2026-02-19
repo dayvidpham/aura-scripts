@@ -52,7 +52,7 @@ bd create --labels aura:impl:slice,slice-A \
   --design='{"validation_checklist":["Types defined","Tests written (import production code)","Implementation complete","Wiring complete","Production code path verified"],"acceptance_criteria":[{"given":"X","when":"Y","then":"Z"}],"ratified_plan":"<ratified-plan-id>"}' \
   --assignee worker-1
 
-bd dep add {{slice-A-id}} {{impl-plan-id}}
+bd dep add {{impl-plan-id}} --blocked-by {{slice-A-id}}
 ```
 
 ## Assigning Workers via Slots
@@ -89,7 +89,7 @@ Slices can have dependencies on each other (sync points):
 
 ```bash
 # Slice B depends on Slice A completing first
-bd dep add {{slice-B-id}} {{slice-A-id}}
+bd dep add {{slice-A-id}} --blocked-by {{slice-B-id}}
 ```
 
 Minimize inter-slice dependencies when possible.

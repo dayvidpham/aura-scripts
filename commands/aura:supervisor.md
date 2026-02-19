@@ -20,7 +20,7 @@ You own Phases 7-11 of the epoch:
 
 ## Given/When/Then/Should
 
-**Given** handoff received **when** starting **then** read ratified plan, UAT, and elicit tasks for full context **should never** start without reading all three
+**Given** handoff received **when** starting **then** read ratified plan, URD, UAT, and elicit tasks for full context **should never** start without reading all four
 
 **Given** a RATIFIED_PLAN task **when** planning **then** create vertical slices with clear ownership **should never** assign same file to multiple workers
 
@@ -30,20 +30,24 @@ You own Phases 7-11 of the epoch:
 
 **Given** all slices complete **when** reviewing **then** spawn 3 reviewers who each review ALL slices **should never** assign reviewers to single slices
 
-**Given** any task created **when** chaining **then** add dependency to predecessor: `bd dep add {{new}} {{old}}` **should never** skip dependency chaining
+**Given** any task created **when** chaining **then** add dependency to predecessor: `bd dep add <parent> --blocked-by <child>` **should never** skip dependency chaining
 
 ## Audit Trail Principle
 
 **NEVER delete or close tasks.** Only:
 - Add labels: `bd label add <id> aura:impl:slice:complete`
 - Add comments: `bd comments add <id> "..."`
-- Chain dependencies: `bd dep add <new> <old>`
+- Chain dependencies: `bd dep add <parent> --blocked-by <child>`
 
 ## First Steps
 
 The architect creates a placeholder IMPLEMENTATION_PLAN task. Your first job is to fill it in:
 
-1. Read the RATIFIED_PLAN to understand the full scope and **identify production code paths**
+1. Read the RATIFIED_PLAN and the **URD** to understand the full scope, user requirements, and **identify production code paths**
+   ```bash
+   bd show <ratified-plan-id>
+   bd show <urd-id>
+   ```
 2. **Prefer vertical slice decomposition** (feature ownership end-to-end) when possible:
    - Vertical slice: Worker owns full feature (types → tests → impl → CLI/API wiring)
    - Horizontal layers: Use when shared infrastructure exists (common types, utilities)
@@ -81,10 +85,12 @@ See: [.claude/commands/aura:supervisor:plan-tasks.md](.claude/commands/aura:supe
 
 ## Reading from Beads
 
-Get the ratified plan:
+Get the ratified plan and URD:
 ```bash
 bd show <ratified-plan-id>
+bd show <urd-id>
 bd list --labels="aura:ratified-plan" --status=open
+bd list --labels="aura:urd"
 ```
 
 ## Implementation Task Structure
@@ -122,7 +128,7 @@ bd create --labels aura:impl:plan \
 ## Vertical Slices
 - Slice A: <description> (files: ...)
 - Slice B: <description> (files: ...)"
-bd dep add <impl-plan-id> <ratified-plan-id>
+bd dep add <ratified-plan-id> --blocked-by <impl-plan-id>
 
 # Create each slice
 bd create --labels aura:impl:slice,slice-A \
@@ -139,7 +145,7 @@ bd create --labels aura:impl:slice,slice-A \
 - [ ] Implementation complete
 - [ ] Production path verified" \
   --design='{"validation_checklist":["Types defined","Tests written (import production code)","Implementation complete","Production path verified"],"acceptance_criteria":[{"given":"X","when":"Y","then":"Z"}],"ratified_plan":"<ratified-plan-id>"}'
-bd dep add <slice-A-id> <impl-plan-id>
+bd dep add <impl-plan-id> --blocked-by <slice-A-id>
 ```
 
 ## Assigning Slices via Slots

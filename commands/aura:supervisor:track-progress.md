@@ -14,6 +14,8 @@ Workers spawned, monitoring for completions and blockers.
 
 **Given** worker blocked **when** handling **then** resolve or reassign immediately **should never** leave workers waiting
 
+**Given** requirements question arises **when** resolving **then** consult the URD (`bd show <urd-id>`) for the single source of truth **should never** guess at user intent without checking URD
+
 ## Beads Status Queries
 
 ```bash

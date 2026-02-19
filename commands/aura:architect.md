@@ -31,7 +31,7 @@ You own Phases 1-6 of the epoch:
 
 **Given** UAT passed **when** ratifying **then** add `aura:plan:ratify` label to proposal **should never** close or delete the task
 
-**Given** any task created **when** chaining **then** add dependency to predecessor: `bd dep add {{new}} {{old}}` **should never** skip dependency chaining
+**Given** any task created **when** chaining **then** add dependency to predecessor: `bd dep add <parent> --blocked-by <child>` **should never** skip dependency chaining
 
 ## State Flow
 
@@ -43,7 +43,7 @@ Idle → Eliciting → Drafting → AwaitingReview → AwaitingUAT → Ratified 
 - Add labels: `bd label add <id> <label>`
 - Add comments: `bd comments add <id> "..."`
 - Update status: `bd update <id> --status in_progress`
-- Chain dependencies: `bd dep add <new> <old>`
+- Chain dependencies: `bd dep add <parent> --blocked-by <child>`
 
 ## Beads Task Creation (12-Phase)
 
@@ -62,8 +62,21 @@ Run `/aura:user:elicit` first, then capture results:
 bd create --labels aura:user:elicit \
   --title "ELICIT: <feature>" \
   --description "<questions and user responses verbatim>"
-bd dep add <elicit-id> <request-id>
+bd dep add <request-id> --blocked-by <elicit-id>
 # Result: task-eli
+```
+
+### Phase 2.5: URD (User Requirements Document)
+Create the URD as the single source of truth after elicitation:
+```bash
+bd create --labels aura:urd \
+  --title "URD: <feature>" \
+  --description "<structured requirements, priorities, design choices, MVP goals, end-vision>"
+
+# Peer reference links (NOT blocking)
+bd dep relate <urd-id> <request-id>
+bd dep relate <urd-id> <elicit-id>
+# Result: task-urd
 ```
 
 ### Phase 3: PROPOSAL Task
@@ -73,7 +86,7 @@ bd create --labels aura:plan:proposal,proposal-1 \
   --title "PROPOSAL-1: <feature>" \
   --description "<plan content in markdown>" \
   --design='{"validation_checklist":["item1","item2"],"acceptance_criteria":[{"given":"X","when":"Y","then":"Z"}],"tradeoffs":[{"decision":"X","rationale":"Y"}]}'
-bd dep add <proposal-id> <elicit-id>
+bd dep add <elicit-id> --blocked-by <proposal-id>
 # Result: task-prop
 ```
 
@@ -83,7 +96,7 @@ Each reviewer creates their own task:
 bd create --labels aura:plan:review,proposal-1:review-1 \
   --title "REVIEW-1: proposal-1" \
   --description "VOTE: <ACCEPT|REVISE> - <justification>"
-bd dep add <review-id> <proposal-id>
+bd dep add <proposal-id> --blocked-by <review-id>
 ```
 
 ### Phase 5: UAT Task
@@ -92,7 +105,11 @@ After all 3 reviewers ACCEPT, run `/aura:user:uat`:
 bd create --labels aura:user:uat,proposal-1:uat-1 \
   --title "UAT-1: <feature>" \
   --description "<demonstrative examples and user responses>"
-bd dep add <uat-id> <last-review-id>
+bd dep add <last-review-id> --blocked-by <uat-id>
+
+# Update URD with UAT results
+bd comments add <urd-id> "UAT results: <summary of user acceptance/feedback>"
+bd dep relate <urd-id> <uat-id>
 ```
 
 ### Phase 6: RATIFY
@@ -100,6 +117,10 @@ Add label to proposal (DO NOT close or create new task):
 ```bash
 bd label add <proposal-id> aura:plan:ratify
 bd comments add <proposal-id> "RATIFIED: All 3 reviewers ACCEPT, UAT passed"
+
+# Update URD with ratification
+bd comments add <urd-id> "Ratified: scope confirmed as <summary>"
+bd dep relate <urd-id> <proposal-id>
 ```
 
 ## Plan Structure

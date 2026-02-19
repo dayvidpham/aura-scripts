@@ -126,9 +126,38 @@ A: {{user's verbatim input}}" \
   --assignee architect
 
 # Chain dependency
-bd dep add {{elicit-task-id}} {{request-task-id}}
+bd dep add {{request-task-id}} --blocked-by {{elicit-task-id}}
 ```
+
+## Creating the URD
+
+After the elicit task is created, create the URD as the single source of truth for user requirements:
+
+```bash
+bd create --labels aura:urd \
+  --title "URD: {{feature name}}" \
+  --description "## Requirements
+{{structured requirements extracted from URE survey}}
+
+## Priorities
+{{user-stated priorities from survey responses}}
+
+## Design Choices
+{{design decisions surfaced during elicitation}}
+
+## MVP Goals
+{{minimum viable scope identified}}
+
+## End-Vision Goals
+{{user's ultimate vision for the feature}}"
+
+# Link URD to related tasks (peer reference, NOT blocking)
+bd dep relate <urd-id> <request-task-id>
+bd dep relate <urd-id> <elicit-task-id>
+```
+
+Record the URD task ID — pass it to the architect for Phase 3.
 
 ## Next Phase
 
-After elicitation, invoke `/aura:architect` to begin proposal creation (Phase 3).
+After elicitation and URD creation, invoke `/aura:architect` to begin proposal creation (Phase 3). Pass the URD ID so the architect can reference it.

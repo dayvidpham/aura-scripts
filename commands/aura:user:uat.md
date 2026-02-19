@@ -22,6 +22,8 @@ Conduct UAT at key checkpoints (after plan review, after implementation) to veri
 
 **Given** user rejects **when** impl UAT **then** return to relevant slice **should never** proceed to landing
 
+**Given** UAT completes **when** results are captured **then** update the URD with UAT results via `bd comments add <urd-id> "UAT: <summary>"` and `bd dep relate <urd-id> <uat-id>` **should never** leave the URD out of date after UAT
+
 ## UAT Phases
 
 ### Plan UAT (Phase 5)
@@ -194,7 +196,11 @@ bd create --labels aura:user:uat,proposal-{{N}}:uat-{{M}} \
 ## Final Decision
 {{ACCEPT or REVISE with verbatim reason}}"
 
-bd dep add {{uat-task-id}} {{last-review-task-id}}
+bd dep add {{last-review-task-id}} --blocked-by {{uat-task-id}}
+
+# Update URD with plan UAT results
+bd comments add {{urd-id}} "Plan UAT: {{ACCEPT or REVISE}} - {{summary of key decisions}}"
+bd dep relate {{urd-id}} {{uat-task-id}}
 ```
 
 ```bash
@@ -215,7 +221,11 @@ bd create --labels aura:impl:uat \
 ## Final Decision
 {{ACCEPT or REVISE}}"
 
-bd dep add {{impl-uat-task-id}} {{last-code-review-task-id}}
+bd dep add {{last-code-review-task-id}} --blocked-by {{impl-uat-task-id}}
+
+# Update URD with implementation UAT results
+bd comments add {{urd-id}} "Impl UAT: {{ACCEPT or REVISE}} - {{summary of findings}}"
+bd dep relate {{urd-id}} {{impl-uat-task-id}}
 ```
 
 ## Handling REVISE

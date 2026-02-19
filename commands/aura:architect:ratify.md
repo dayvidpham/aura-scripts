@@ -37,10 +37,16 @@ All 3 reviewers have voted ACCEPT on the PROPOSE_PLAN task.
      --description="<final plan content>" \
      --design='{"validation_checklist":[...],"signoffs":["reviewer-1","reviewer-2","reviewer-3"],"acceptance_criteria":[...]}'
 
-   bd dep add <ratified-plan-id> <propose-plan-id>
+   bd dep add <propose-plan-id> --blocked-by <ratified-plan-id>
    ```
 
-4. Close PROPOSE_PLAN task:
+4. Update URD with ratification:
+   ```bash
+   bd comments add <urd-id> "Ratified: scope confirmed. Ratified plan: <ratified-plan-id>"
+   bd dep relate <urd-id> <ratified-plan-id>
+   ```
+
+5. Close PROPOSE_PLAN task:
    ```bash
    bd close <propose-plan-id> --reason="Ratified as <ratified-plan-id>"
    ```

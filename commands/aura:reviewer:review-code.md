@@ -16,7 +16,7 @@ Assigned to review code implementation.
 
 ## Steps
 
-1. Read code changes
+1. Read code changes and the URD (`bd show <urd-id>`) for requirements context
 2. Run `npm run typecheck` and `npm run test:unit`
 3. Apply specialization checklist
 4. **Verify production code paths work** (see below)

@@ -34,7 +34,7 @@ You participate in:
 bd create --labels aura:plan:review,proposal-1:review-{{N}} \
   --title "REVIEW-{{N}}: proposal-1" \
   --description "VOTE: {{ACCEPT|REVISE}} - {{justification}}"
-bd dep add <review-id> <proposal-id>
+bd dep add <proposal-id> --blocked-by <review-id>
 ```
 
 ## End-User Alignment Criteria
@@ -66,9 +66,10 @@ Ask these questions for every plan:
 
 ## Beads Review Process
 
-Read the plan:
+Read the plan and URD:
 ```bash
 bd show <task-id>
+bd show <urd-id>   # Read URD for user requirements context
 ```
 
 Add review comment with vote:

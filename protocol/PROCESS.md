@@ -49,6 +49,66 @@ Add label: `aura:plan:request`
 
 **Who:** Usually user or coordinator creates this.
 
+**Next:** Architect runs `/aura:user:elicit` for URE survey (Phase 2), then creates the URD.
+
+### User Requirements Document (URD)
+
+**What:** A single Beads task (label `aura:urd`) that serves as the single source of truth for user requirements, priorities, design choices, MVP goals, and end-vision goals.
+
+**Lifecycle:**
+- **Created** in Phase 2 (`aura:user:elicit`) with structured requirements from the URE survey
+- **Linked** via `bd dep relate` (NOT `--blocked-by`) to REQUEST, ELICIT, PROPOSAL, IMPL_PLAN, and UAT tasks
+- **Updated** via `bd comments add` whenever requirements/scope change (UAT results, ratification, user feedback)
+- **Consulted** by architects, reviewers, and supervisors as the single source of truth for "what does the user want?"
+
+**Why `relate` not `blocked-by`:** The URD is a peer reference document, not a blocking dependency. No phase waits on it; it accumulates information as phases progress.
+
+```bash
+# Create URD after elicitation
+bd create --labels aura:urd \
+  --title "URD: {{feature name}}" \
+  --description "## Requirements
+{{structured requirements from URE survey}}
+
+## Priorities
+{{user-stated priorities}}
+
+## Design Choices
+{{design decisions from elicitation}}
+
+## MVP Goals
+{{minimum viable scope}}
+
+## End-Vision Goals
+{{user's ultimate vision}}"
+
+# Link URD to related tasks (peer reference, not blocking)
+bd dep relate <urd-id> <request-id>
+bd dep relate <urd-id> <elicit-id>
+```
+
+**Don't Forget About the URD!** Every agent should consult the URD before making decisions. When in doubt about requirements, `bd show <urd-id>` is your first stop.
+
+### Dependencies
+
+The canonical dependency chain flows top-down (parents blocked by children):
+
+```
+REQUEST
+  └── blocked by ELICIT
+        └── blocked by PROPOSAL
+              └── blocked by RATIFIED_PLAN
+                    └── blocked by IMPL_PLAN
+                          ├── blocked by slice-1
+                          │     ├── blocked by leaf-task-a
+                          │     └── blocked by leaf-task-b
+                          └── blocked by slice-2
+
+URD ←──── bd dep relate ────→ (REQUEST, ELICIT, PROPOSAL, IMPL_PLAN, UAT)
+```
+
+**Rule:** `bd dep add <stays-open> --blocked-by <must-finish-first>`. The `--blocked-by` target is always the thing you do first. Work flows bottom-up; closure flows top-down.
+
 **Next:** Architect spawns `/aura:architect:propose-plan` skill to explore and propose.
 
 ### PROPOSE_PLAN Task
@@ -77,7 +137,7 @@ bd create --type=feature --priority=2 \
 
 Link dependency:
 ```bash
-bd dep add <propose-plan-id> <request-plan-id>
+bd dep add <request-plan-id> --blocked-by <propose-plan-id>
 ```
 
 **Next:** Architect runs `/aura:architect:request-review` to spawn 3 reviewers in **PARALLEL**.
@@ -165,7 +225,7 @@ bd create --type=feature --priority=2 \
   --add-label "aura:plan:ratified"
 
 # Link to propose plan:
-bd dep add <ratified-plan-id> <propose-plan-id>
+bd dep add <propose-plan-id> --blocked-by <ratified-plan-id>
 
 # Close propose plan:
 bd close <propose-plan-id> --reason="Ratified as aura-xxxx"

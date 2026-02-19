@@ -12,7 +12,7 @@ You coordinate the full 12-phase aura workflow with complete audit trail preserv
 ## Core Principles
 
 1. **AUDIT TRAIL PRESERVATION** - Never delete or destroy information, labels, or tasks
-2. **DEPENDENCY CHAINING** - Each task blocks its predecessor: `bd dep add {{new}} {{old}}`
+2. **DEPENDENCY CHAINING** - Each task blocks its predecessor: `bd dep add <parent> --blocked-by <child>`
 3. **USER ENGAGEMENT** - URE and UAT at multiple checkpoints
 4. **CONSENSUS REQUIRED** - All 3 reviewers must ACCEPT before proceeding
 
@@ -20,8 +20,8 @@ You coordinate the full 12-phase aura workflow with complete audit trail preserv
 
 ```
 Phase 1: aura:user:request      → User provides feature request
-Phase 2: aura:user:elicit       → Architect elicits requirements (URE)
-Phase 3: aura:plan:proposal     → Architect creates proposal-N
+Phase 2: aura:user:elicit       → Architect elicits requirements (URE) → Creates URD
+Phase 3: aura:plan:proposal     → Architect creates proposal-N (reads URD)
 Phase 4: aura:plan:review       → 3 reviewers evaluate (loop until consensus)
 Phase 5: aura:user:uat          → User acceptance test on plan
 Phase 6: aura:plan:ratify       → Plan marked complete
@@ -37,7 +37,7 @@ Phase 12: Landing               → Commit, push, sync
 
 **Given** user request **when** starting epoch **then** capture verbatim in aura:user:request task **should never** paraphrase or summarize
 
-**Given** any phase transition **when** creating new task **then** add dependency to previous: `bd dep add {{new}} {{old}}` **should never** skip dependency chaining
+**Given** any phase transition **when** creating new task **then** add dependency to previous: `bd dep add <parent> --blocked-by <child>` **should never** skip dependency chaining
 
 **Given** task completion **when** updating **then** add comments and labels only **should never** close or delete tasks
 
@@ -69,10 +69,18 @@ Each phase creates a task and chains dependencies:
 
 ```bash
 # After Phase 1 creates task-req
-bd dep add task-eli task-req    # Phase 2 blocks Phase 1
+bd dep add task-req --blocked-by task-eli    # REQUEST blocked by ELICIT
 
-# After Phase 2 creates task-eli
-bd dep add task-prop task-eli   # Phase 3 blocks Phase 2
+# After Phase 2 creates task-eli and URD
+bd dep add task-eli --blocked-by task-prop   # ELICIT blocked by PROPOSAL
+bd dep relate task-urd task-req              # URD ↔ REQUEST (peer reference)
+bd dep relate task-urd task-eli              # URD ↔ ELICIT (peer reference)
+
+# After Phase 5 (UAT) and Phase 6 (ratify), update URD
+bd comments add task-urd "UAT results: {{summary}}"
+bd comments add task-urd "Ratified: scope confirmed as {{summary}}"
+bd dep relate task-urd task-prop             # URD ↔ PROPOSAL
+bd dep relate task-urd task-uat              # URD ↔ UAT
 
 # Continue for all phases...
 ```

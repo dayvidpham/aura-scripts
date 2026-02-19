@@ -109,11 +109,15 @@ bd dep relate {{UAT_TASK_ID}} {{PROPOSAL_TASK_ID}}
 # 3. Record post-UAT addenda as comments (user feedback after main survey)
 bd comments add {{UAT_TASK_ID}} "UAT ADDENDUM (user-initiated, verbatim): {{VERBATIM}}"
 
-# 4. After UAT passes, ratify the proposal
+# 4. Update URD with UAT results
+bd comments add {{URD_TASK_ID}} "UAT {{PHASE}}: {{VERDICT}} - {{key design decisions summary}}"
+bd dep relate {{URD_TASK_ID}} {{UAT_TASK_ID}}
+
+# 5. After UAT passes, ratify the proposal
 bd label add {{PROPOSAL_TASK_ID}} aura:plan:ratify
 bd comments add {{PROPOSAL_TASK_ID}} "RATIFIED: All 3 reviewers ACCEPT, UAT passed ({{UAT_TASK_ID}})."
 
-# 5. If UAT fails (REVISE), return to proposal phase
+# 6. If UAT fails (REVISE), return to proposal phase
 #    - Do NOT ratify
 #    - Create a new REVISION task related to the proposal
 #    - Record the specific component and verbatim feedback

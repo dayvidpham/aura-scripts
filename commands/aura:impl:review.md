@@ -38,6 +38,7 @@ Supervisor spawns 3 parallel reviewers:
   --role reviewer -n 3 \
   --skill aura:reviewer:review-code \
   --prompt "You are Reviewer {{N}}.
+URD: {{urd-id}} (read with bd show {{urd-id}} for user requirements context)
 Review ALL slices: {{slice-A-id}}, {{slice-B-id}}, {{slice-C-id}}
 For each slice, run: bd show {{slice-id}}
 Create a review task for each slice you review."
@@ -47,12 +48,13 @@ Create a review task for each slice you review."
 
 Each reviewer checks each slice for:
 
-1. **Requirements Alignment**
+1. **Requirements Alignment (check URD)**
    - Does implementation match ratified plan?
    - Are all acceptance criteria met?
+   - Read URD (`bd show <urd-id>`) for requirements traceability
 
-2. **User Vision**
-   - Does it fulfill the user's original request?
+2. **User Vision (check URD)**
+   - Does it fulfill the user's original request (as documented in URD)?
    - Does it match UAT expectations?
 
 3. **MVP Scope**
@@ -94,7 +96,7 @@ bd create --labels aura:impl:review,slice-A:review-1 \
 ## VOTE: {{ACCEPT or REVISE}}
 Reason: {{justification}}"
 
-bd dep add {{review-task-id}} {{slice-A-id}}
+bd dep add {{slice-A-id}} --blocked-by {{review-task-id}}
 ```
 
 ## Consensus Check

@@ -72,6 +72,7 @@ All work flows through Beads with standardized ALL_CAPS titles and hierarchical 
 | PROPOSE_PLAN: Description | `aura:plan:propose` | Architect's full technical proposal | Architect |
 | REVISION_1/2/N: Description | `aura:plan:revision` | Architect revises after reviewer feedback | Architect (loop if needed) |
 | REVIEW_1/2/3: Description | `aura:review` | Reviewer assessment | Reviewers (spawned by architect) |
+| URD: Description | `aura:urd` | Single source of truth for user requirements, priorities, design choices, MVP goals | Architect (after Phase 2 URE) |
 | RATIFIED_PLAN: Description | `aura:plan:ratified` | Consensus reached; ready for implementation | Architect (after all 3 reviewers ACCEPT) |
 
 ### Implementation Phase Tasks
@@ -121,6 +122,14 @@ All implementation tasks use this structure in the `design` field:
 ```
 
 ---
+
+## User Requirements Document (URD)
+
+**Given** Phase 2 (URE) completes **when** creating the URD **then** use label `aura:urd` and include structured requirements (priorities, design choices, MVP goals, end-vision goals) **should never** leave requirements scattered across REQUEST and ELICIT tasks without a URD
+
+**Given** a URD exists **when** linking to other tasks **then** use `bd dep relate` (peer reference) to connect URD ↔ REQUEST, ELICIT, PROPOSAL, IMPL_PLAN, and UAT tasks **should never** use `--blocked-by` for URD links — it is a reference document, not a blocking dependency
+
+**Given** scope changes at any phase **when** updating requirements **then** add a comment to the URD via `bd comments add <urd-id> "..."` **should never** leave the URD out of date when UAT results, ratification, or user feedback modify requirements
 
 ## Documentation Standards
 

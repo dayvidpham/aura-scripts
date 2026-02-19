@@ -55,12 +55,13 @@ When reviewing plans, explicitly ask:
 
 ## Steps
 
-1. Read the PROPOSE_PLAN task:
+1. Read the PROPOSE_PLAN task and URD:
    ```bash
    bd show <task-id>
+   bd show <urd-id>   # Read URD for user requirements context
    ```
 
-2. Apply end-user alignment criteria
+2. Apply end-user alignment criteria (check against URD requirements)
 
 3. Check validation_checklist items are verifiable
 

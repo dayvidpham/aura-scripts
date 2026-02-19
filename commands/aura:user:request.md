@@ -51,5 +51,5 @@ After capturing the request, invoke `/aura:user:elicit` to begin requirements el
 
 The elicit task will block this request task:
 ```bash
-bd dep add {{elicit-task-id}} {{request-task-id}}
+bd dep add {{request-task-id}} --blocked-by {{elicit-task-id}}
 ```

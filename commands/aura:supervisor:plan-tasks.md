@@ -45,9 +45,10 @@ Slice 2: "feature detail command" (Worker B owns full vertical)
 
 ## Steps
 
-1. **Read RATIFIED_PLAN task:**
+1. **Read RATIFIED_PLAN and URD tasks:**
    ```bash
    bd show <ratified-plan-id>
+   bd show <urd-id>
    ```
 
 2. **Identify production code paths** (what end users will actually run):
@@ -136,7 +137,7 @@ Slice 2: "feature detail command" (Worker B owns full vertical)
        "ratified_plan": "<ratified-plan-id>"
      }'
 
-   bd dep add <slice-task-id> <impl-plan-id>
+   bd dep add <impl-plan-id> --blocked-by <slice-task-id>
    ```
 
 6. **Update IMPLEMENTATION_PLAN with vertical slice breakdown:**
@@ -224,7 +225,8 @@ Slice 2: "feature detail command" (Worker B owns full vertical)
     "then": "shows session list from actual service",
     "should_not": "have dual-export or TODO placeholders"
   }],
-  "ratified_plan": "<ratified-plan-id>"
+  "ratified_plan": "<ratified-plan-id>",
+  "urd": "<urd-id>"
 }
 ```
 

@@ -90,6 +90,16 @@ bd dep add ure-id --blocked-by request-id
 
 **Rule of thumb:** The `--blocked-by` target is always the thing you do *first*. Work flows bottom-up; closure flows top-down.
 
+### User Requirements Document (URD)
+
+**Given** Phase 2 (URE) completes **when** requirements are captured **then** create a URD task (label `aura:urd`) as the single source of truth for user requirements **should never** scatter requirements across multiple unlinked tasks
+
+**Given** a URD exists **when** any phase creates or updates requirements **then** update the URD via `bd comments add <urd-id> "..."` **should never** leave the URD stale when scope changes
+
+**Given** a URD exists **when** architects, reviewers, or supervisors need to understand user intent **then** read the URD with `bd show <urd-id>` **should never** rely solely on the original REQUEST task for requirements
+
+**Given** a URD is created **when** linking to other tasks **then** use `bd dep relate <urd-id> <other-task-id>` (peer reference, NOT `--blocked-by`) **should never** make the URD a blocking dependency — it is a living reference document
+
 ### Agent Orchestration
 
 **Given** you need to launch parallel agents for an epic **then** use `aura-swarm start --epic <id>` to create worktree-based agent sessions. Use `aura-swarm status` to monitor. **SHOULD NOT** launch long-running supervisors or workers as Task tool subagents.
@@ -171,6 +181,8 @@ All work flows through Beads tasks:
 ```
 REQUEST_PLAN (user prompt)
     |
+ELICIT (URE survey) → creates URD (single source of truth)
+    |                      ↕ bd dep relate (peer reference)
 PROPOSE_PLAN (architect drafts full plan)
     |
 REVIEW_1, REVIEW_2, REVIEW_3 (parallel, vote ACCEPT/REVISE)

@@ -78,8 +78,18 @@ EOF
   --design='{"validation_checklist":["Item 1","Item 2","Item 3"],"tradeoffs":[{"decision":"Use A","rationale":"Because..."}],"acceptance_criteria":[{"given":"X","when":"Y","then":"Z","should_not":"W"}]}'
 ```
 
+## Before Creating the Proposal
+
+Read the URD to understand user requirements before drafting:
+```bash
+bd show <urd-id>
+```
+
+The URD contains the structured requirements, priorities, design choices, and MVP goals from the URE survey. Your proposal must trace back to these requirements.
+
 ## Plan Structure
 
+- **Requirements Traceability: URD:** `<urd-id>`
 - Problem Space (axes, has-a/is-a)
 - Engineering Tradeoffs (table with decisions)
 - MVP Milestone (scope with tradeoff rationale)

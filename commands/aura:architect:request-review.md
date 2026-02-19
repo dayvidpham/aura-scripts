@@ -15,12 +15,12 @@ Plan draft complete, ready for review.
 ## Steps
 
 1. Verify PROPOSE_PLAN task is complete with all sections
-2. Spawn three reviewers with the task ID:
+2. Spawn three reviewers with the task ID and URD reference:
 
 ```
-Task(description: "Reviewer 1: review plan", prompt: "Review PROPOSE_PLAN task <task-id>. Apply end-user alignment criteria...", subagent_type: "reviewer")
-Task(description: "Reviewer 2: review plan", prompt: "Review PROPOSE_PLAN task <task-id>. Apply end-user alignment criteria...", subagent_type: "reviewer")
-Task(description: "Reviewer 3: review plan", prompt: "Review PROPOSE_PLAN task <task-id>. Apply end-user alignment criteria...", subagent_type: "reviewer")
+Task(description: "Reviewer 1: review plan", prompt: "Review PROPOSE_PLAN task <task-id>. URD: <urd-id> (read for requirements context). Apply end-user alignment criteria...", subagent_type: "reviewer")
+Task(description: "Reviewer 2: review plan", prompt: "Review PROPOSE_PLAN task <task-id>. URD: <urd-id> (read for requirements context). Apply end-user alignment criteria...", subagent_type: "reviewer")
+Task(description: "Reviewer 3: review plan", prompt: "Review PROPOSE_PLAN task <task-id>. URD: <urd-id> (read for requirements context). Apply end-user alignment criteria...", subagent_type: "reviewer")
 ```
 
 3. Wait for all 3 reviewers to vote ACCEPT

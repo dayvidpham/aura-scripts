@@ -37,12 +37,13 @@ Store the returned task ID for subsequent steps.
 
 ### 2. Architect Proposes
 
-Invoke architect to explore codebase and create PROPOSE_PLAN:
+Invoke architect to explore codebase and create PROPOSE_PLAN. Pass the URD ID so the architect references the single source of truth:
 
 ```
 Task(
   description: "Architect: propose plan",
   prompt: "Create PROPOSE_PLAN for REQUEST_PLAN <request-plan-id>.
+    URD: <urd-id> (read with bd show <urd-id> for requirements context)
     Include: problem space (axes, has-a/is-a), engineering tradeoffs table,
     MVP milestone, public interfaces, types/enums, validation checklist,
     BDD acceptance criteria, files affected.
@@ -123,6 +124,7 @@ On user approval:
 ## Verification Checklist
 
 - [ ] REQUEST_PLAN task exists with user prompt
+- [ ] URD task exists with structured requirements from URE
 - [ ] PROPOSE_PLAN has problem space, tradeoffs, interfaces, checklist, BDD criteria
 - [ ] 3 reviewer comments with ACCEPT votes
 - [ ] User approved via AskUserQuestion
@@ -149,6 +151,9 @@ IDLE
   │ user request
   ↓
 REQUEST_PLAN created
+  │ URE survey (Phase 2)
+  ↓
+URD created (single source of truth)
   │ architect explores
   ↓
 PROPOSE_PLAN created

@@ -23,10 +23,13 @@ Plan ratified and user has approved proceeding with implementation.
      --title="Implementation: <feature name>" \
      --description="Placeholder - supervisor will fill in layer structure and spawn workers"
 
-   bd dep add <impl-plan-id> <ratified-plan-id>
+   bd dep add <ratified-plan-id> --blocked-by <impl-plan-id>
+
+   # Link URD to impl-plan (peer reference)
+   bd dep relate <urd-id> <impl-plan-id>
    ```
 
-   **Note:** This is intentionally minimal. The supervisor reads the RATIFIED_PLAN and fills in the IMPLEMENTATION_PLAN with the actual layer-cake structure and task breakdown.
+   **Note:** This is intentionally minimal. The supervisor reads the RATIFIED_PLAN and the URD, then fills in the IMPLEMENTATION_PLAN with the actual layer-cake structure and task breakdown.
 
 2. Launch supervisor using the Python script:
    ```bash
@@ -58,6 +61,7 @@ Implement the ratified plan for <feature name>.
 ## Context
 - RATIFIED_PLAN: <ratified-plan-id>
 - IMPLEMENTATION_PLAN: <impl-plan-id>
+- URD: <urd-id> (read with `bd show <urd-id>` for user requirements)
 - Plan file: <path if applicable>
 
 ## Summary
