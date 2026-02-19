@@ -47,7 +47,7 @@ from typing import Any, NamedTuple
 VALID_ROLES = frozenset(["architect", "supervisor", "reviewer", "worker"])
 VALID_MODELS = frozenset(["sonnet", "opus", "haiku"])
 AURA_STATE_DIR = Path.home() / ".aura" / "swarm"
-AURA_PROMPT_STATE_DIR = Path.home() / ".local" / "state" / "aura" / "aura-swarm" / "prompt"
+AURA_PROMPT_STATE_DIR = Path.home() / ".local" / "share" / "aura" / "aura-swarm" / "prompts"
 DEFAULT_WORKTREE_DIR = "worktree"
 DEFAULT_ROLE = "supervisor"
 DEFAULT_MODEL = "sonnet"
