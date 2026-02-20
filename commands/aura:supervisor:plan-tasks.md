@@ -71,7 +71,7 @@ SLICE-2: "feature detail command" (Worker B owns full vertical)
 5. **Create vertical slice tasks:**
    ```bash
    bd create --type=task \
-     --labels="aura:p9-impl:s1-slice" \
+     --labels="aura:p9-impl:s9-slice" \
      --title="SLICE-1: Implement 'cli-tool feature list' command (full vertical)" \
      --description="$(cat <<'EOF'
    ---

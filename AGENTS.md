@@ -78,9 +78,12 @@ aura-scripts/
 ├── flake.nix               # Nix flake packaging + Home Manager module
 ├── nix/hm-module.nix       # Home Manager module for config sync
 ├── protocol/               # Reusable Aura Protocol documentation
+│   ├── README.md           # Protocol entry point and quick-start guide
 │   ├── CLAUDE.md           # Core agent directive (philosophy, constraints, roles)
 │   ├── CONSTRAINTS.md      # Coding standards, checklists, naming conventions
-│   └── PROCESS.md          # Step-by-step workflow (single source of truth)
+│   ├── PROCESS.md          # Step-by-step workflow (single source of truth)
+│   ├── AGENTS.md           # Role taxonomy (phases, tools, handoffs per agent)
+│   └── SKILLS.md           # Command reference (all /aura:* skills by phase)
 ├── commands/               # Slash commands for Claude CLI (~/.claude/commands/)
 │   └── aura:*.md           # Role-specific agent instructions
 ├── agents/                 # Custom agent definitions (~/.claude/agents/)

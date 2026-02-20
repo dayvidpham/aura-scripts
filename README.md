@@ -503,28 +503,32 @@ protocol.
 
 | File                                              | Purpose                                              |
 |---------------------------------------------------|------------------------------------------------------|
+| [`protocol/README.md`](protocol/README.md)        | Protocol entry point and quick-start guide            |
 | [`protocol/CLAUDE.md`](protocol/CLAUDE.md)        | Core agent directive: philosophy, constraints, roles  |
 | [`protocol/CONSTRAINTS.md`](protocol/CONSTRAINTS.md) | Coding standards, checklists, naming conventions  |
 | [`protocol/PROCESS.md`](protocol/PROCESS.md)      | Step-by-step workflow execution (single source of truth) |
+| [`protocol/AGENTS.md`](protocol/AGENTS.md)        | Role taxonomy: phases, tools, handoffs per agent      |
+| [`protocol/SKILLS.md`](protocol/SKILLS.md)        | Command reference: all `/aura:*` skills by phase      |
 | [`protocol/UAT_TEMPLATE.md`](protocol/UAT_TEMPLATE.md) | User Acceptance Test structured output template |
 | [`protocol/UAT_EXAMPLE.md`](protocol/UAT_EXAMPLE.md) | Worked UAT example                               |
 
-### Workflow phases
+### Workflow phases (v2, 12-phase)
 
 ```
-REQUEST_PLAN  →  PROPOSE_PLAN  →  REVIEW (×3, parallel)  →  RATIFIED_PLAN
-                                     ↺ revise if any REVISE
-                                                                    ↓
-                                                           IMPLEMENTATION_PLAN
-                                                                    ↓
-                                                     VERTICAL SLICES (parallel)
-                                                        L1: Types
-                                                        L2: Tests (fail — expected)
-                                                        L3: Implementation (tests pass)
-                                                                    ↓
-                                                           CODE REVIEW (×3)
-                                                                    ↓
-                                                                 ACCEPT
+Phase 1:  REQUEST (classify → research || explore)
+Phase 2:  ELICIT (URE survey) → URD (single source of truth)
+Phase 3:  PROPOSAL-N (architect proposes)
+Phase 4:  PROPOSAL-N-REVIEW-{axis}-{round} (3 reviewers: A/B/C, ACCEPT/REVISE)
+            ↺ revise → PROPOSAL-N+1 if any REVISE
+Phase 5:  Plan UAT (user acceptance test)
+Phase 6:  Ratification (old proposals marked aura:superseded)
+Phase 7:  Handoff (architect → supervisor)
+Phase 8:  IMPL_PLAN (supervisor decomposes into vertical slices)
+Phase 9:  SLICE-N (parallel workers, each owns one production code path)
+            Within each slice: Types (L1) → Tests (L2, fail expected) → Impl (L3, tests pass)
+Phase 10: Code review (3 reviewers, severity tree: BLOCKER/IMPORTANT/MINOR)
+Phase 11: Implementation UAT
+Phase 12: Landing (commit, push, hand off)
 ```
 
 ---
@@ -549,10 +553,10 @@ are invoked as `/aura:<command>` in Claude sessions.
 
 | Command                          | Phase | Description                     |
 |----------------------------------|-------|---------------------------------|
-| `aura:architect:propose-plan`    | 3     | Create PROPOSE_PLAN task        |
-| `aura:architect:request-review`  | 4     | Spawn 3 parallel reviewers      |
-| `aura:architect:ratify`          | 6     | Create RATIFIED_PLAN            |
-| `aura:architect:handoff`         | 6     | Hand off to supervisor           |
+| `aura:architect:propose-plan`    | 3     | Create PROPOSAL-N task          |
+| `aura:architect:request-review`  | 4     | Spawn 3 axis-specific reviewers |
+| `aura:architect:ratify`          | 6     | Ratify proposal (label `aura:p6-plan:s6-ratify`) |
+| `aura:architect:handoff`         | 7     | Hand off to supervisor          |
 
 ### Supervisor skills
 
@@ -606,9 +610,12 @@ aura-scripts/
 ├── nix/hm-module.nix          Home Manager module implementation
 ├── pyproject.toml             Python project metadata (v0.1.0)
 ├── protocol/                  Reusable Aura Protocol documentation
+│   ├── README.md              Protocol entry point and quick-start
 │   ├── CLAUDE.md              Core agent directive
 │   ├── CONSTRAINTS.md         Coding standards and checklists
-│   ├── PROCESS.md             Workflow execution guide
+│   ├── PROCESS.md             Workflow execution guide (single source of truth)
+│   ├── AGENTS.md              Role taxonomy (phases, tools, handoffs)
+│   ├── SKILLS.md              Command reference (all /aura:* skills)
 │   ├── UAT_TEMPLATE.md        UAT structured output template
 │   └── UAT_EXAMPLE.md         Worked UAT example
 ├── commands/                  Slash commands for ~/.claude/commands/

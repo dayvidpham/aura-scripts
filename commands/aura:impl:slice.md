@@ -36,7 +36,7 @@ After supervisor decomposes the ratified plan:
 
 ```bash
 # Create SLICE-1
-bd create --labels "aura:p9-impl:s1-slice" \
+bd create --labels "aura:p9-impl:s9-slice" \
   --title "SLICE-1: <slice name>" \
   --description "---
 references:

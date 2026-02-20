@@ -146,7 +146,7 @@ references:
 bd dep add <request-id> --blocked-by <impl-plan-id>
 
 # Create each slice
-bd create --labels "aura:p9-impl:s1-slice" \
+bd create --labels "aura:p9-impl:s9-slice" \
   --title "SLICE-1: <slice name>" \
   --description "---
 references:
