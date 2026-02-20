@@ -6,16 +6,16 @@ Check current Aura Protocol status via Beads.
 
 1. Check for active plans:
    ```bash
-   bd list --labels="aura:propose-plan" --status=open
-   bd list --labels="aura:ratified-plan" --status=open
+   bd list --labels="aura:p3-plan:s3-propose" --status=open
+   bd list --labels="aura:p6-plan:s6-ratify" --status=open
    ```
 
 2. Check implementation progress:
    ```bash
-   bd list --labels="aura:impl-plan" --status=open
-   bd list --labels="aura:impl" --status=in_progress
-   bd list --labels="aura:impl" --status=blocked
-   bd list --labels="aura:impl" --status=done
+   bd list --labels="aura:p8-impl:s8-plan" --status=open
+   bd list --labels="aura:p9-impl:s9-slice" --status=in_progress
+   bd list --labels="aura:p9-impl:s9-slice" --status=blocked
+   bd list --labels="aura:p9-impl:s9-slice" --status=done
    ```
 
 3. Get project stats:
@@ -30,12 +30,12 @@ Check current Aura Protocol status via Beads.
 ```
 ## Aura Protocol Status
 
-**Phase:** {RequestPlan | ProposePlan | Review | Ratified | Implementation}
+**Phase:** {Phase 1: Request | Phase 3: Propose | Phase 4: Review | Phase 6: Ratified | Phase 9: Implementation}
 **Active Plan:** {task-id or "None"}
 
 ### Plans
-- [propose-plan-id] Status: {open|closed}
-- [ratified-plan-id] Status: {open|closed}
+- [proposal-id] Status: {open|closed}
+- [ratified-id] Status: {open|closed}
 
 ### Implementation Progress
 - IMPL_PLAN: {task-id}
