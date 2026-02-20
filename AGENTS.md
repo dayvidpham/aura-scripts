@@ -73,7 +73,7 @@ bd dep add ure-id --blocked-by request-id
 
 ```
 aura-plugins/
-├── scripts/                # Operational tooling (add to PATH)
+├── bin/                    # Operational tooling (add to PATH)
 │   ├── aura-parallel       # Parallel agent launcher for tmux sessions (Python)
 │   └── aura-swarm          # Epic-based worktree agent launcher (Python)
 ├── flake.nix               # Nix flake packaging + Home Manager module

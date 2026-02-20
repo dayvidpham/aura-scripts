@@ -42,14 +42,14 @@
           builtins.replaceStrings
             [ "#!/usr/bin/env python3" ]
             [ "#!${pkgs.python3}/bin/python3" ]
-            (builtins.readFile ./scripts/aura-parallel)
+            (builtins.readFile ./bin/aura-parallel)
         );
 
         aura-swarm = pkgs.writeScriptBin "aura-swarm" (
           builtins.replaceStrings
             [ "#!/usr/bin/env python3" ]
             [ "#!${pkgs.python3}/bin/python3" ]
-            (builtins.readFile ./scripts/aura-swarm)
+            (builtins.readFile ./bin/aura-swarm)
         );
 
         default = pkgs.symlinkJoin {

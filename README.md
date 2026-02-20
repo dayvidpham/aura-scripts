@@ -118,8 +118,8 @@ Both scripts are standalone Python 3.10+ with no external dependencies:
 ```bash
 git clone https://github.com/dayvidpham/aura-plugins
 cd aura-plugins
-chmod +x scripts/aura-swarm scripts/aura-parallel
-# Add scripts/ to PATH or symlink into a PATH directory
+chmod +x bin/aura-swarm bin/aura-parallel
+# Add bin/ to PATH or symlink into a PATH directory
 ```
 
 ## Prerequisites
@@ -644,7 +644,7 @@ aura-plugins/
 ├── .claude-plugin/            Plugin manifests
 │   ├── marketplace.json
 │   └── plugin.json
-├── scripts/                   Operational tooling (add to PATH)
+├── bin/                       Operational tooling (add to PATH)
 │   ├── aura-parallel          Parallel tmux session launcher
 │   └── aura-swarm             Epic-based worktree agent launcher
 ├── skills/                    Plugin skills (SKILL.md per directory)
