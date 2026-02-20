@@ -2,6 +2,8 @@
 
 Implement your vertical slice (full production code path from CLI/API → service → types).
 
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-9-worker-slices)** <- Phase 9
+
 ## When to Use
 
 You have a Beads task ID for a vertical slice and are ready to implement end-to-end.
@@ -18,7 +20,7 @@ You have a Beads task ID for a vertical slice and are ready to implement end-to-
 
 **Given** dependencies **when** designing **then** inject all deps for testability **should never** hard-code `new`
 
-**Given** external input **when** processing **then** validate with Zod `.safeParse()` **should never** trust raw JSON
+**Given** external input **when** processing **then** validate with schema/validation tooling **should never** trust raw input
 
 See the project's `AGENTS.md` and `~/.claude/CLAUDE.md` for coding standards.
 
@@ -78,8 +80,8 @@ See the project's `AGENTS.md` and `~/.claude/CLAUDE.md` for coding standards.
    - tradeoffs from ratified plan
 
 4. Verify quality gates:
-   - `npm run typecheck` passes
-   - `npm run test:unit` passes
+   - Type checking passes
+   - Tests pass
 
 ## Checklist
 
@@ -91,8 +93,7 @@ See the project's `AGENTS.md` and `~/.claude/CLAUDE.md` for coding standards.
 - [ ] No dual-export anti-pattern (one code path for tests and production)
 - [ ] No TODO placeholders in production code
 - [ ] Service wired with real dependencies (not mocks in production)
-- [ ] `npm run typecheck` passes
-- [ ] `npm run test:unit` passes
+- [ ] Quality gates pass (type checking + tests)
 - [ ] Production code path verified (via code inspection: no TODOs, real deps wired, tests import production code)
 
 ## Next

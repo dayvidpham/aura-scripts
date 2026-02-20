@@ -2,6 +2,8 @@
 
 Report blocker preventing progress.
 
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-9-worker-slices)** <- Phase 9
+
 ## When to Use
 
 Cannot proceed due to missing dependency, unclear requirement, or need changes in another file.

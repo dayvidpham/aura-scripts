@@ -8,6 +8,10 @@ tools: Bash, AskUserQuestion
 
 Conduct UAT at key checkpoints (after plan review, after implementation) to verify alignment with user's vision and MVP requirements.
 
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-5-plan-uat)** <- Phase 5 (Plan UAT) and Phase 11 (Impl UAT)
+
+See `CONSTRAINTS.md` for coding standards.
+
 ## Given/When/Then/Should
 
 **Given** reviewers reach consensus **when** conducting UAT **then** show demonstrative examples **should never** ask abstract questions
@@ -22,17 +26,17 @@ Conduct UAT at key checkpoints (after plan review, after implementation) to veri
 
 **Given** user rejects **when** impl UAT **then** return to relevant slice **should never** proceed to landing
 
-**Given** UAT completes **when** results are captured **then** update the URD with UAT results via `bd comments add <urd-id> "UAT: <summary>"` and `bd dep relate <urd-id> <uat-id>` **should never** leave the URD out of date after UAT
+**Given** UAT completes **when** results are captured **then** update the URD with UAT results via `bd comments add <urd-id> "UAT: <summary>"` **should never** leave the URD out of date after UAT
 
 ## UAT Phases
 
-### Plan UAT (Phase 5)
+### Plan UAT (Phase 5 — `aura:p5-user:s5-uat`)
 After 3 reviewers ACCEPT the proposal, present each major design decision to the user one at a time. For each component:
 1. Show the proposed interface definition (code snippet)
 2. Show a motivating example (how a user would use it)
 3. Ask about the specific design choices made (tradeoffs, alternatives considered)
 
-### Implementation UAT (Phase 11)
+### Implementation UAT (Phase 11 — `aura:p11-user:s11-uat`)
 After code review consensus, demonstrate what was actually built component by component. For each component:
 1. Run the actual command / show real output
 2. Compare against the original proposal
@@ -169,63 +173,73 @@ Capture the questions shown AND the user's verbatim responses. Do not paraphrase
 
 ```bash
 # For Plan UAT (Phase 5)
-bd create --labels aura:user:uat,proposal-{{N}}:uat-{{M}} \
-  --title "UAT-{{M}}: Plan acceptance for {{feature}}" \
-  --description "## Components Reviewed
+bd create --labels "aura:p5-user:s5-uat" \
+  --title "UAT: Plan acceptance for <feature>" \
+  --description "---
+references:
+  request: <request-task-id>
+  urd: <urd-task-id>
+  proposal: <proposal-N-id>
+---
+## Components Reviewed
 
-### Component: {{component-name}}
+### Component: <component-name>
 **Definition shown:**
 \`\`\`
-{{interface/type/signature shown to user}}
+<interface/type/signature shown to user>
 \`\`\`
 
 **Motivating example shown:**
 \`\`\`
-{{before/after or input/output example}}
+<before/after or input/output example>
 \`\`\`
 
-**Question asked:** {{exact question text}}
-**Options presented:** {{exact option labels and descriptions}}
-**User response:** {{verbatim selection(s)}}
+**Question asked:** <exact question text>
+**Options presented:** <exact option labels and descriptions>
+**User response:** <verbatim selection(s)>
 
 ---
 
-### Component: {{next-component}}
+### Component: <next-component>
 ...
 
 ## Final Decision
-{{ACCEPT or REVISE with verbatim reason}}"
+<ACCEPT or REVISE with verbatim reason>"
 
-bd dep add {{last-review-task-id}} --blocked-by {{uat-task-id}}
+bd dep add <proposal-id> --blocked-by <uat-task-id>
 
 # Update URD with plan UAT results
-bd comments add {{urd-id}} "Plan UAT: {{ACCEPT or REVISE}} - {{summary of key decisions}}"
-bd dep relate {{urd-id}} {{uat-task-id}}
+bd comments add <urd-id> "Plan UAT: <ACCEPT or REVISE> - <summary of key decisions>"
 ```
 
 ```bash
 # For Implementation UAT (Phase 11)
-bd create --labels aura:impl:uat \
-  --title "IMPL-UAT: {{feature}}" \
-  --description "## Components Demonstrated
+bd create --labels "aura:p11-user:s11-uat" \
+  --title "UAT: Implementation acceptance for <feature>" \
+  --description "---
+references:
+  request: <request-task-id>
+  urd: <urd-task-id>
+  impl_plan: <impl-plan-task-id>
+---
+## Components Demonstrated
 
-### Component: {{component-name}}
+### Component: <component-name>
 **Command run / output shown:**
 \`\`\`
-{{actual terminal output shown to user}}
+<actual terminal output shown to user>
 \`\`\`
 
-**Question asked:** {{exact question}}
-**User response:** {{verbatim response}}
+**Question asked:** <exact question>
+**User response:** <verbatim response>
 
 ## Final Decision
-{{ACCEPT or REVISE}}"
+<ACCEPT or REVISE>"
 
-bd dep add {{last-code-review-task-id}} --blocked-by {{impl-uat-task-id}}
+bd dep add <impl-plan-id> --blocked-by <impl-uat-task-id>
 
 # Update URD with implementation UAT results
-bd comments add {{urd-id}} "Impl UAT: {{ACCEPT or REVISE}} - {{summary of findings}}"
-bd dep relate {{urd-id}} {{impl-uat-task-id}}
+bd comments add <urd-id> "Impl UAT: <ACCEPT or REVISE> - <summary of findings>"
 ```
 
 ## Handling REVISE

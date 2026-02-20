@@ -2,13 +2,15 @@
 
 Break RATIFIED_PLAN into vertical slice Implementation tasks for workers.
 
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-8-implementation-plan)** <- Phase 8
+
 ## When to Use
 
-Received handoff from architect with RATIFIED_PLAN task ID and placeholder IMPLEMENTATION_PLAN task.
+Received handoff from architect with RATIFIED_PLAN task ID and placeholder IMPL_PLAN task.
 
 ## Given/When/Then/Should
 
-**Given** IMPLEMENTATION_PLAN placeholder **when** planning **then** decompose into vertical slices (production code paths) **should never** decompose into horizontal layers (files)
+**Given** IMPL_PLAN placeholder **when** planning **then** decompose into vertical slices (production code paths) **should never** decompose into horizontal layers (files)
 
 **Given** RATIFIED_PLAN features/commands **when** creating tasks **then** assign one vertical slice per worker (full end-to-end) **should never** assign horizontal layers (types worker, tests worker, impl worker)
 
@@ -30,13 +32,13 @@ Task D: Layer 4 - CLI wiring
 
 **CORRECT PATTERN:**
 ```
-Slice 1: "feature list command" (Worker A owns full vertical)
+SLICE-1: "feature list command" (Worker A owns full vertical)
   - ListOptions, ListEntry types (L1)
   - Tests importing `cli-tool feature list` CLI (L2)
   - service.listItems() implementation (L3)
   - featureCommandCli.command('list').action() wiring (L3)
 
-Slice 2: "feature detail command" (Worker B owns full vertical)
+SLICE-2: "feature detail command" (Worker B owns full vertical)
   - DetailView types (L1)
   - Tests importing `cli-tool feature detail` CLI (L2)
   - service.getItemDetail() implementation (L3)
@@ -69,9 +71,14 @@ Slice 2: "feature detail command" (Worker B owns full vertical)
 5. **Create vertical slice tasks:**
    ```bash
    bd create --type=task \
-     --labels="aura:impl,slice:feature-list" \
-     --title="[SLICE] Implement 'cli-tool feature list' command (full vertical)" \
+     --labels="aura:p9-impl:s1-slice" \
+     --title="SLICE-1: Implement 'cli-tool feature list' command (full vertical)" \
      --description="$(cat <<'EOF'
+   ---
+   references:
+     impl_plan: <impl-plan-task-id>
+     urd: <urd-task-id>
+   ---
    ## Production Code Path
 
    **End user runs:** `./bin/cli-tool feature list`
@@ -115,14 +122,14 @@ Slice 2: "feature detail command" (Worker B owns full vertical)
    - [ ] Tests import actual CLI (not test-only export)
    - [ ] No dual-export anti-pattern
    - [ ] No TODO placeholders
-   - [ ] Service wired with real dependencies (fs, logger, etc.)
+   - [ ] Service wired with real dependencies
    EOF
    )" \
      --design='{
        "productionCodePath": "cli-tool feature list",
        "validation_checklist": [
-         "npm run typecheck passes",
-         "npm run test:unit passes",
+         "Type checking passes",
+         "Tests pass",
          "Production code verified via code inspection",
          "Tests import production CLI (featureCommandCli)",
          "No TODO placeholders in CLI action",
@@ -140,9 +147,15 @@ Slice 2: "feature detail command" (Worker B owns full vertical)
    bd dep add <impl-plan-id> --blocked-by <slice-task-id>
    ```
 
-6. **Update IMPLEMENTATION_PLAN with vertical slice breakdown:**
+6. **Update IMPL_PLAN with vertical slice breakdown:**
    ```bash
    bd update <impl-plan-id> --description="$(cat <<'EOF'
+   ---
+   references:
+     request: <request-task-id>
+     urd: <urd-task-id>
+     proposal: <ratified-proposal-id>
+   ---
    ## Vertical Slice Decomposition
 
    Each worker owns ONE production code path (full vertical slice from CLI → service → types).
@@ -153,25 +166,25 @@ Slice 2: "feature detail command" (Worker B owns full vertical)
 
    ### Vertical Slices (parallel, after Layer 0)
 
-   **Slice 1: "cli-tool feature" (default command)**
+   **SLICE-1: "cli-tool feature" (default command)**
    - Worker: A
    - Production path: `./bin/cli-tool feature`
    - Owns: default action, recent items logic
    - Task: aura-xxx
 
-   **Slice 2: "cli-tool feature list"**
+   **SLICE-2: "cli-tool feature list"**
    - Worker: B
    - Production path: `./bin/cli-tool feature list`
    - Owns: ListOptions types, list tests, listItems() method, list CLI wiring
    - Task: aura-yyy
 
-   **Slice 3: "cli-tool feature detail"**
+   **SLICE-3: "cli-tool feature detail"**
    - Worker: C
    - Production path: `./bin/cli-tool feature detail <id>`
    - Owns: DetailView types, detail tests, getItemDetail() method, detail CLI wiring
    - Task: aura-zzz
 
-   **Slice 4: "cli-tool feature search"**
+   **SLICE-4: "cli-tool feature search"**
    - Worker: D
    - Production path: `./bin/cli-tool feature search`
    - Owns: SearchQuery types, search tests, searchItems() method, search CLI wiring
@@ -180,7 +193,7 @@ Slice 2: "feature detail command" (Worker B owns full vertical)
    ## Execution Order
 
    1. Layer 0 (if needed): Shared infrastructure (parallel)
-   2. Slices 1-4: Each worker implements their vertical slice (parallel)
+   2. SLICE-1 through SLICE-4: Each worker implements their vertical slice (parallel)
       - Within each slice: Types (L1) → Tests (L2) → Impl+Wiring (L3)
 
    ## Validation
@@ -212,8 +225,8 @@ Slice 2: "feature detail command" (Worker B owns full vertical)
   },
   "planningApproach": "Backwards from production code path",
   "validation_checklist": [
-    "npm run typecheck passes",
-    "npm run test:unit passes",
+    "Type checking passes",
+    "Tests pass",
     "Production code works: ./bin/aura sessions list",
     "Tests import production CLI (not test-only export)",
     "No TODO placeholders",

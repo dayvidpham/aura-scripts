@@ -9,6 +9,8 @@ skills: aura:worker:implement, aura:worker:complete, aura:worker:blocked
 
 You own a **vertical slice** (full production code path from CLI/API entry point → service → types). See the project's `AGENTS.md` and `~/.claude/CLAUDE.md` for coding standards and constraints.
 
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-9-worker-slices)** <- Phase 9
+
 ## What You Own
 
 **NOT:** A single file or horizontal layer (e.g., "all types" or "all tests")
@@ -152,13 +154,13 @@ featureCommandCli
 - Your tests WILL fail - implementation doesn't exist yet
 - This is correct and expected
 - Tests import actual production code (CLI command)
-- `npm run test:unit` failure is OK in Layer 2; typecheck must pass
+- Test failure is OK in Layer 2; typecheck must pass
 
 **Layer 3 (your implementation + wiring):**
 - Failing tests from Layer 2 are your specification
 - Your job is to make those tests pass
 - Wire production code with real dependencies
-- Run `npm run test:unit` - your tests should now PASS
+- Run tests - your tests should now PASS
 - If tests fail for unrelated code (other workers' slices), that's OK
 
 **Key insight:** A failing test for unimplemented code is NOT a blocker - it's the specification you're implementing against.
@@ -248,8 +250,7 @@ Before marking your slice complete:
 
 - [ ] **Quality gates pass:**
   ```bash
-  npm run typecheck  # Must pass
-  npm run test:unit  # Must pass
+  # Run project-specific quality gates
   ```
 
 ## Inter-Agent Coordination

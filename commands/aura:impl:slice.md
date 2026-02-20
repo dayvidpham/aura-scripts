@@ -8,20 +8,24 @@ tools: Bash, Task
 
 Manage vertical slice assignment to workers and track their progress.
 
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-9-worker-slices)** <- Phase 9
+
+See `CONSTRAINTS.md` for coding standards.
+
 ## Given/When/Then/Should
 
-**Given** impl-plan complete **when** assigning slices **then** create slice tasks with full specs **should never** leave specs vague
+**Given** IMPL_PLAN complete **when** assigning slices **then** create SLICE-N tasks with full specs **should never** leave specs vague
 
-**Given** slice assigned **when** creating task **then** chain dependency to impl-plan **should never** create orphan slices
+**Given** slice assigned **when** creating task **then** chain dependency to IMPL_PLAN: `bd dep add <impl-plan-id> --blocked-by <slice-id>` **should never** create orphan slices
 
 **Given** worker starts **when** tracking **then** update task to in_progress **should never** leave status as open
 
-**Given** slice complete **when** verifying **then** add completion comments **should never** close the task
+**Given** slice complete **when** verifying **then** add completion label and comments **should never** close the task prematurely
 
 ## Slice Structure
 
 Each vertical slice contains:
-- **slice_id**: Identifier (A, B, C, ...)
+- **slice_id**: Identifier (SLICE-1, SLICE-2, SLICE-3, ...)
 - **slice_name**: Human-readable name
 - **slice_spec**: Detailed implementation specification
 - **slice_files**: Files owned by this slice
@@ -31,17 +35,22 @@ Each vertical slice contains:
 After supervisor decomposes the ratified plan:
 
 ```bash
-# Create slice A
-bd create --labels aura:impl:slice,slice-A \
-  --title "SLICE-A: {{slice name}}" \
-  --description "## Specification
-{{detailed implementation spec}}
+# Create SLICE-1
+bd create --labels "aura:p9-impl:s1-slice" \
+  --title "SLICE-1: <slice name>" \
+  --description "---
+references:
+  impl_plan: <impl-plan-task-id>
+  urd: <urd-task-id>
+---
+## Specification
+<detailed implementation spec>
 
 ## Files Owned
-{{list of files this slice owns}}
+<list of files this slice owns>
 
 ## Acceptance Criteria
-{{criteria from ratified plan}}
+<criteria from ratified plan>
 
 ## Validation Checklist
 - [ ] Types defined
@@ -52,35 +61,30 @@ bd create --labels aura:impl:slice,slice-A \
   --design='{"validation_checklist":["Types defined","Tests written (import production code)","Implementation complete","Wiring complete","Production code path verified"],"acceptance_criteria":[{"given":"X","when":"Y","then":"Z"}],"ratified_plan":"<ratified-plan-id>"}' \
   --assignee worker-1
 
-bd dep add {{impl-plan-id}} --blocked-by {{slice-A-id}}
+bd dep add <impl-plan-id> --blocked-by <slice-1-id>
 ```
 
-## Assigning Workers via Slots
+## Assigning Workers
 
 ```bash
-# Assign slice to worker's hook
-bd slot set worker-1 hook {{slice-A-id}}
-bd slot set worker-2 hook {{slice-B-id}}
-bd slot set worker-3 hook {{slice-C-id}}
-
-# Worker checks their assignment
-bd slot show worker-1
-# hook: bd-xxx.slice-A
+bd update <slice-1-id> --assignee="worker-1"
+bd update <slice-2-id> --assignee="worker-2"
+bd update <slice-3-id> --assignee="worker-3"
 ```
 
 ## Tracking Progress
 
 ```bash
 # Worker starts
-bd update {{slice-id}} --status in_progress
+bd update <slice-id> --status in_progress
 
 # Check all slice status
-bd list --labels aura:impl:slice --status open
-bd list --labels aura:impl:slice --status in_progress
+bd list --labels="aura:p9-impl:s9-slice" --status=open
+bd list --labels="aura:p9-impl:s9-slice" --status=in_progress
 
-# Worker completes (add comment, don't close)
-bd comments add {{slice-id}} "COMPLETE: All checklist items verified. Production code path working."
-bd label add {{slice-id}} aura:impl:slice:complete
+# Worker completes (add comment and label)
+bd comments add <slice-id> "COMPLETE: All checklist items verified. Production code path working."
+bd label add <slice-id> aura:p9-impl:slice-complete
 ```
 
 ## Slice Dependencies
@@ -88,22 +92,22 @@ bd label add {{slice-id}} aura:impl:slice:complete
 Slices can have dependencies on each other (sync points):
 
 ```bash
-# Slice B depends on Slice A completing first
-bd dep add {{slice-A-id}} --blocked-by {{slice-B-id}}
+# SLICE-2 depends on SLICE-1 completing first
+bd dep add <slice-2-id> --blocked-by <slice-1-id>
 ```
 
 Minimize inter-slice dependencies when possible.
 
 ## Aggregation
 
-The `impl-aggregate` step waits for all slices to complete before code review:
+The aggregation step waits for all slices to complete before code review:
 
 ```bash
 # Check if all slices have complete label
-bd list --labels aura:impl:slice --label-any aura:impl:slice:complete
+bd list --labels="aura:p9-impl:slice-complete"
 
 # Compare to total slices
-bd list --labels aura:impl:slice
+bd list --labels="aura:p9-impl:s9-slice"
 ```
 
 ## Dynamic Bonding (Formula-Based)
@@ -130,8 +134,8 @@ The supervisor's output defines the slices:
 ```json
 {
   "slices": [
-    { "id": "A", "name": "Auth Module", "spec": "...", "files": "src/auth/*" },
-    { "id": "B", "name": "API Layer", "spec": "...", "files": "src/api/*" }
+    { "id": "1", "name": "Auth Module", "spec": "...", "files": "src/auth/*" },
+    { "id": "2", "name": "API Layer", "spec": "...", "files": "src/api/*" }
   ]
 }
 ```
