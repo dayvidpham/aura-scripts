@@ -451,6 +451,47 @@ Link dependency:
 bd dep add <impl-plan-id> --blocked-by <slice-id>
 ```
 
+### Creating Leaf Tasks Within Each Slice
+
+**A slice without leaf tasks is undecomposed.** The supervisor MUST create Beads leaf tasks for each horizontal layer within the slice. Workers are assigned to leaf tasks, not slices directly.
+
+```bash
+# L1: Types for this slice
+LEAF_L1=$(bd create --type=task --priority=2 \
+  --title="SLICE-1-L1: Types — <slice name>" \
+  --description="..." \
+  --add-label "aura:p9-impl:s9-slice")
+bd dep add <slice-id> --blocked-by $LEAF_L1
+
+# L2: Tests (will fail until L3)
+LEAF_L2=$(bd create --type=task --priority=2 \
+  --title="SLICE-1-L2: Tests — <slice name>" \
+  --description="..." \
+  --add-label "aura:p9-impl:s9-slice")
+bd dep add <slice-id> --blocked-by $LEAF_L2
+bd dep add $LEAF_L2 --blocked-by $LEAF_L1   # L2 depends on L1
+
+# L3: Implementation (makes tests pass)
+LEAF_L3=$(bd create --type=task --priority=2 \
+  --title="SLICE-1-L3: Impl — <slice name>" \
+  --description="..." \
+  --add-label "aura:p9-impl:s9-slice")
+bd dep add <slice-id> --blocked-by $LEAF_L3
+bd dep add $LEAF_L3 --blocked-by $LEAF_L2   # L3 depends on L2
+```
+
+The resulting tree per slice:
+
+```
+IMPL_PLAN
+  └── blocked by SLICE-1
+        ├── blocked by SLICE-1-L1: Types    (no deps)
+        ├── blocked by SLICE-1-L2: Tests    (blocked by L1)
+        └── blocked by SLICE-1-L3: Impl     (blocked by L2)
+```
+
+Workers are assigned to leaf tasks. The slice closes when all its leaf tasks close.
+
 <!-- ADAPT: Replace quality gate commands with your project's equivalents -->
 
 **Design field (canonical schema):**
@@ -576,6 +617,18 @@ bd dep add <blocker-group-id> --blocked-by <blocker-finding-id>
 bd dep add <slice-id> --blocked-by <blocker-finding-id>
 ```
 
+### Severity Group Dependency Routing (CRITICAL)
+
+Each severity group is linked to exactly one parent based on its level:
+
+| Severity | Blocks | Command |
+|----------|--------|---------|
+| BLOCKER | The **slice** it applies to | `bd dep add <slice-id> --blocked-by <blocker-group-id>` |
+| IMPORTANT | The **FOLLOWUP epic** only | `bd dep add <followup-epic-id> --blocked-by <important-group-id>` |
+| MINOR | The **FOLLOWUP epic** only | `bd dep add <followup-epic-id> --blocked-by <minor-group-id>` |
+
+**NEVER link IMPORTANT or MINOR severity groups as blocking IMPL_PLAN or any slice.** Only BLOCKER findings block the implementation path. IMPORTANT and MINOR findings are non-blocking improvements tracked in the follow-up epic.
+
 ### Follow-up Epic
 
 **Trigger:** Review completion + ANY IMPORTANT or MINOR findings exist.
@@ -592,6 +645,10 @@ references:
 ---
 Aggregated IMPORTANT and MINOR findings from code review." \
   --add-label "aura:epic-followup"
+
+# Route IMPORTANT and MINOR to FOLLOWUP (NOT to IMPL_PLAN or slices)
+bd dep add <followup-epic-id> --blocked-by <important-group-id>
+bd dep add <followup-epic-id> --blocked-by <minor-group-id>
 ```
 
 The follow-up epic is created as soon as the review round completes, regardless of whether BLOCKERs are still being resolved. This ensures non-blocking improvements are tracked and not lost.

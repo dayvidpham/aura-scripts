@@ -36,7 +36,11 @@ You own Phases 7-12 of the epoch:
 
 **Given** non-trivial changes (multi-file, architectural, logic-heavy) **when** spawning a worker **then** prefer `model: "sonnet"` for the Task tool to ensure quality **should** default to sonnet when uncertain about complexity
 
+**Given** vertical slices created **when** decomposing each slice **then** create Beads leaf tasks for each implementation unit (types, tests, impl) within the slice, with `bd dep add <slice-id> --blocked-by <leaf-task-id>` **should never** create slices without leaf tasks underneath them — a slice with no children is undecomposed and cannot be tracked
+
 **Given** all slices complete **when** reviewing **then** spawn 3 reviewers who each review ALL slices **should never** assign reviewers to single slices
+
+**Given** IMPORTANT or MINOR severity groups **when** linking dependencies **then** link them to the FOLLOWUP epic only: `bd dep add <followup-epic-id> --blocked-by <important-group-id>` **should never** link IMPORTANT or MINOR severity groups as blocking IMPL_PLAN or any slice — only BLOCKER findings block slices
 
 **Given** any task created **when** chaining **then** add dependency to predecessor: `bd dep add <parent> --blocked-by <child>` **should never** skip dependency chaining
 
@@ -130,8 +134,9 @@ type ImplementationTask struct {
 
 ## Creating Vertical Slices (Phase 8)
 
+### Step 1: Create the IMPL_PLAN task
+
 ```bash
-# Create IMPL_PLAN task
 bd create --labels "aura:p8-impl:s8-plan" \
   --title "IMPL_PLAN: <feature>" \
   --description "---
@@ -149,8 +154,11 @@ references:
 - SLICE-1: <description> (files: ...)
 - SLICE-2: <description> (files: ...)"
 bd dep add <request-id> --blocked-by <impl-plan-id>
+```
 
-# Create each slice
+### Step 2: Create each slice
+
+```bash
 bd create --labels "aura:p9-impl:s9-slice" \
   --title "SLICE-1: <slice name>" \
   --description "---
@@ -164,6 +172,11 @@ references:
 ## Files Owned
 <list of files>
 
+## Leaf Tasks
+- SLICE-1-L1: Types and interfaces
+- SLICE-1-L2: Tests (import production code)
+- SLICE-1-L3: Implementation + wiring
+
 ## Validation Checklist
 - [ ] Types defined
 - [ ] Tests written (import production code)
@@ -172,6 +185,84 @@ references:
   --design='{"validation_checklist":["Types defined","Tests written (import production code)","Implementation complete","Production path verified"],"acceptance_criteria":[{"given":"X","when":"Y","then":"Z"}],"ratified_plan":"<ratified-plan-id>"}'
 bd dep add <impl-plan-id> --blocked-by <slice-1-id>
 ```
+
+### Step 3: Create leaf tasks within each slice (CRITICAL)
+
+**A slice without leaf tasks is undecomposed.** The supervisor MUST create Beads tasks for each implementation unit within the slice, then chain them as dependencies. Leaf tasks are what workers actually implement.
+
+```bash
+# L1: Types and interfaces for this slice
+LEAF_L1=$(bd create --labels "aura:p9-impl:s9-slice" \
+  --title "SLICE-1-L1: Types — <slice name>" \
+  --description "---
+references:
+  slice: <slice-1-id>
+  impl_plan: <impl-plan-task-id>
+  urd: <urd-task-id>
+---
+## Scope
+Define types, interfaces, and schemas for this slice.
+
+## Files Owned
+- <file-path-1>
+- <file-path-2>
+
+## Acceptance Criteria
+Given <context> when <action> then <outcome> should never <anti-pattern>")
+bd dep add <slice-1-id> --blocked-by $LEAF_L1
+
+# L2: Tests (import production code, will fail until L3)
+LEAF_L2=$(bd create --labels "aura:p9-impl:s9-slice" \
+  --title "SLICE-1-L2: Tests — <slice name>" \
+  --description "---
+references:
+  slice: <slice-1-id>
+  impl_plan: <impl-plan-task-id>
+---
+## Scope
+Write tests that import from production code paths. Tests MUST fail until L3.
+
+## Files Owned
+- <test-file-path-1>
+
+## Acceptance Criteria
+Given <context> when <action> then <outcome> should never <anti-pattern>")
+bd dep add <slice-1-id> --blocked-by $LEAF_L2
+# L2 depends on L1 types being defined first
+bd dep add $LEAF_L2 --blocked-by $LEAF_L1
+
+# L3: Implementation (makes tests pass)
+LEAF_L3=$(bd create --labels "aura:p9-impl:s9-slice" \
+  --title "SLICE-1-L3: Impl — <slice name>" \
+  --description "---
+references:
+  slice: <slice-1-id>
+  impl_plan: <impl-plan-task-id>
+---
+## Scope
+Implement production code to make L2 tests pass.
+
+## Files Owned
+- <impl-file-path-1>
+
+## Acceptance Criteria
+Given <context> when <action> then <outcome> should never <anti-pattern>")
+bd dep add <slice-1-id> --blocked-by $LEAF_L3
+# L3 depends on L2 tests existing first
+bd dep add $LEAF_L3 --blocked-by $LEAF_L2
+```
+
+The resulting tree per slice:
+
+```
+IMPL_PLAN
+  └── blocked by SLICE-1
+        ├── blocked by SLICE-1-L1: Types
+        ├── blocked by SLICE-1-L2: Tests (blocked by L1)
+        └── blocked by SLICE-1-L3: Impl  (blocked by L2)
+```
+
+Workers are assigned to leaf tasks, not slices. The slice closes when all its leaf tasks close.
 
 ## Assigning Slices
 
@@ -289,8 +380,12 @@ bd dep add <followup-epic-id> --blocked-by <important-group-id>
 bd dep add <followup-epic-id> --blocked-by <minor-group-id>
 ```
 
-IMPORTANT and MINOR findings do NOT block the slice — they go to the follow-up epic.
-Only BLOCKER findings block the slice and must be resolved before proceeding.
+**Severity routing rules (CRITICAL):**
+- BLOCKER severity groups → block the **slice** they apply to: `bd dep add <slice-id> --blocked-by <blocker-group-id>`
+- IMPORTANT severity groups → block the **FOLLOWUP epic** only: `bd dep add <followup-epic-id> --blocked-by <important-group-id>`
+- MINOR severity groups → block the **FOLLOWUP epic** only: `bd dep add <followup-epic-id> --blocked-by <minor-group-id>`
+
+**NEVER link IMPORTANT or MINOR severity groups as blocking IMPL_PLAN or any slice.** Only BLOCKER findings block the implementation path.
 
 ### Step 2: Follow-up lifecycle (same protocol, FOLLOWUP_* prefix)
 

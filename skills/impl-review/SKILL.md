@@ -58,10 +58,13 @@ references:
 ---
 MINOR findings from Reviewer A (Correctness) on SLICE-1.")
 
-# Step 2: Wire severity groups to the review round
+# Step 2: Wire severity groups to the review round task
 bd dep add <review-round-id> --blocked-by $BLOCKER_ID
 bd dep add <review-round-id> --blocked-by $IMPORTANT_ID
 bd dep add <review-round-id> --blocked-by $MINOR_ID
+# NEVER wire severity groups to IMPL_PLAN or slices directly.
+# BLOCKER findings block slices via dual-parent (see below).
+# IMPORTANT/MINOR route to FOLLOWUP epic only (see Follow-up Epic section).
 
 # Step 3: Close empty groups immediately
 # If a group has no findings, close it right away

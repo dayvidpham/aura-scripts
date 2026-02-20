@@ -185,10 +185,13 @@ Phase 4:  PROPOSAL-N-REVIEW-{axis}-{round} (3 axis-specific reviewers: A/B/C, AC
 Phase 5:  Plan UAT (user acceptance test on plan)
 Phase 6:  Ratification (aura:superseded marks old proposals)
 Phase 7:  Handoff (architect → supervisor, stored at .git/.aura/handoff/)
-Phase 8:  IMPL_PLAN (supervisor decomposes into slices)
+Phase 8:  IMPL_PLAN (supervisor decomposes into slices + leaf tasks)
 Phase 9:  SLICE-N (parallel workers, each owns one production code path)
+            Each slice MUST have leaf tasks (L1: types, L2: tests, L3: impl)
+            Workers are assigned to leaf tasks, not slices
 Phase 10: Code review (3x reviewers, full severity tree with EAGER creation)
             Severity tree: BLOCKER / IMPORTANT / MINOR (always 3 groups)
+            BLOCKER → blocks slice | IMPORTANT/MINOR → blocks FOLLOWUP only
             Dual-parent BLOCKER relationship
 Phase 11: Implementation UAT
 Phase 12: Landing (commit, push, hand off)
@@ -328,10 +331,12 @@ Check **end-user alignment**, not technical specializations:
 - Validation checklist items per task
 - BDD acceptance criteria (Given/When/Then/Should Not)
 - Explicit file ownership boundaries within each slice
+- Leaf tasks (L1: types, L2: tests, L3: impl) within each slice — a slice without leaf tasks is undecomposed
+- Workers are assigned to leaf tasks, not slices
 - NEVER implements code themselves — ALWAYS spawns workers
 
 **Worker** implements by:
-- Owning a full vertical slice (types → tests → implementation → wiring)
+- Owning a leaf task within a vertical slice (one layer: types, tests, or implementation)
 - Following interface contracts from ratified plan
 - Satisfying validation checklist items
 - Meeting BDD acceptance criteria
