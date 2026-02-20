@@ -62,6 +62,51 @@ Ask targeted questions to map the problem space:
 ### 5. Catch-All
 Final question to capture anything missed.
 
+### Pre-requisite: Read Phase 1 Outputs
+
+Before designing URE questions, **read all Phase 1 outputs** (classification,
+research findings, codebase exploration) from the REQUEST task and its comments.
+These narrow the design space and reveal which boundaries are already clear vs
+which need user input.
+
+```bash
+bd show <request-task-id>   # Read classification + research + explore findings
+```
+
+Use the Phase 1 findings to identify:
+- Which engineering dimensions are **already decided** (don't ask about these)
+- Which dimensions have **multiple viable alternatives** (ask about these)
+- Which dimensions the user **may not have considered** (surface these)
+
+### Question Sequence (Decision Tree)
+
+Structure questions as a decision tree that progressively narrows the design
+space. Each question should depend on the answers to previous questions.
+
+**Round 1: Highest-leverage boundaries** (1-2 questions per AskUserQuestion call)
+
+Identify the 2-3 dimensions that most constrain the design. These are the axes
+where different choices lead to fundamentally different architectures.
+
+Ask one component at a time. Show the user:
+1. The concrete thing being decided (code snippet, interface, diagram)
+2. A motivating example of how each option plays out
+3. The tradeoffs between options
+
+**Round 2: Dependent decisions** (informed by Round 1 answers)
+
+With the high-level architecture settled, ask about the next layer of decisions
+that were ambiguous.
+
+**Round 3: Edge cases and constraints** (if needed)
+
+Remaining questions about error handling, performance targets, compatibility
+requirements — but only where the answer isn't obvious from prior context.
+
+**Final: Catch-all**
+
+One open-ended question to capture anything the decision tree missed.
+
 ## Example Survey
 
 ```
@@ -115,7 +160,10 @@ AskUserQuestion(questions: [
 
 ## Creating the Elicit Task (s2_1)
 
-After survey completion:
+After survey completion, capture the full Q&A record using the same structured
+format as [UAT_TEMPLATE.md](../protocol/UAT_TEMPLATE.md). Each question must
+include the exact question text, ALL options with their descriptions, and the
+user's verbatim response.
 
 ```bash
 bd create --labels "aura:p2-user:s2_1-elicit" \

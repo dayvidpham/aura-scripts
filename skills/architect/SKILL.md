@@ -226,12 +226,12 @@ The same review/ratify/UAT/handoff cycle (Phases 3-7) applies. After FOLLOWUP_PR
 
 ## Spawning Reviewers
 
-Spawn 3 axis-specific reviewers (A=Correctness, B=Test quality, C=Elegance):
+Spawn 3 axis-specific reviewers (A=Correctness, B=Test quality, C=Elegance) as `general-purpose` subagents. Each reviewer must invoke the `/aura:reviewer` skill (via the Skill tool) to load its role instructions — `/aura:reviewer` is a **Skill**, not a subagent type.
 
 ```
-Task(description: "Reviewer A: correctness", prompt: "Review PROPOSAL-1 task <id>. URD: <urd-id>. You are Reviewer A (Correctness)...", subagent_type: "reviewer")
-Task(description: "Reviewer B: test quality", prompt: "Review PROPOSAL-1 task <id>. URD: <urd-id>. You are Reviewer B (Test quality)...", subagent_type: "reviewer")
-Task(description: "Reviewer C: elegance", prompt: "Review PROPOSAL-1 task <id>. URD: <urd-id>. You are Reviewer C (Elegance)...", subagent_type: "reviewer")
+Task(description: "Reviewer A: correctness", prompt: "You are Reviewer A (Correctness). First invoke `/aura:reviewer` to load your role. Then review PROPOSAL-1 task <id>. URD: <urd-id>...", subagent_type: "general-purpose")
+Task(description: "Reviewer B: test quality", prompt: "You are Reviewer B (Test quality). First invoke `/aura:reviewer` to load your role. Then review PROPOSAL-1 task <id>. URD: <urd-id>...", subagent_type: "general-purpose")
+Task(description: "Reviewer C: elegance", prompt: "You are Reviewer C (Elegance). First invoke `/aura:reviewer` to load your role. Then review PROPOSAL-1 task <id>. URD: <urd-id>...", subagent_type: "general-purpose")
 ```
 
 ## Supervisor Handoff

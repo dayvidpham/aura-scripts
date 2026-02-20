@@ -521,13 +521,43 @@ bd dep add ure-id --blocked-by request-id
 |-----------------------------------------|----------------------------|----------------------------------------------------|
 | Epic with multiple slices               | `aura-swarm start`         | Needs isolated worktree + automatic task discovery  |
 | New supervisor/architect for planning    | `aura-parallel`            | Long-running, needs its own tmux session            |
-| Plan review (3 reviewers)               | Subagents / TeamCreate     | Short-lived, results collected in-session           |
-| Code review (3 reviewers)               | Subagents / TeamCreate     | Short-lived, results collected in-session           |
+| Plan review (3 reviewers)               | `general-purpose` subagents | Short-lived, results collected in-session           |
+| Code review (3 reviewers)               | `general-purpose` subagents | Short-lived, results collected in-session           |
 | Ad-hoc research or exploration          | Task tool (Explore agent)  | Quick, no orchestration needed                      |
 
 **Rule of thumb:** if the agent needs its own persistent tmux session and
 long-running context, use `aura-swarm` or `aura-parallel`. If the agent is
-short-lived and you need to collect its result, use subagents or TeamCreate.
+short-lived and you need to collect its result, use `general-purpose` subagents
+(Task tool) or TeamCreate.
+
+### How skills and subagents interact
+
+There are three ways to launch an Aura agent, and each loads role instructions
+differently:
+
+| Launch method | Role instruction loading | When to use |
+|---------------|--------------------------|-------------|
+| `aura-swarm` / `aura-parallel` | Injected automatically via `--append-system-prompt` from `skills/<role>/SKILL.md` | Long-running agents needing tmux sessions |
+| Task tool subagent | Agent invokes `/aura:<role>` skill (Skill tool) as its first action | Short-lived in-session agents (reviewers, research) |
+| TeamCreate | Same as Task tool &mdash; each teammate invokes the relevant skill | Coordinated multi-agent work within a session |
+
+> **Skills are not subagent types.** `/aura:reviewer`, `/aura:worker`, etc. are
+> Skills &mdash; they load role-specific instructions from `skills/*/SKILL.md`
+> into the agent's context via the Skill tool. They are NOT valid values for
+> the Task tool's `subagent_type` parameter. Always use
+> `subagent_type: "general-purpose"` when spawning agents via the Task tool,
+> then instruct the agent to invoke the appropriate `/aura:*` skill.
+
+```
+# Correct: general-purpose subagent invokes skill to load role
+Task(
+  subagent_type: "general-purpose",
+  prompt: "Invoke /aura:reviewer to load your role. Then review PROPOSAL-1..."
+)
+
+# Wrong: "reviewer" is not a valid subagent_type
+Task(subagent_type: "reviewer", prompt: "Review PROPOSAL-1...")
+```
 
 ---
 
@@ -570,70 +600,82 @@ Phase 12: Landing (commit, push, hand off)
 
 ---
 
-## Slash Commands
+## Skills (Slash Commands)
 
-The `skills/` directory contains role-specific instructions (one `SKILL.md` per
-subdirectory) installed to `~/.claude/` (either manually or via the Home Manager
-module). These are invoked as `/aura:<command>` in Claude sessions.
+Each `skills/*/SKILL.md` file defines a **Skill** that can be invoked via the
+Skill tool as `/aura:<skill-name>`. When invoked, the skill's SKILL.md content
+is loaded into the agent's context, providing role-specific instructions,
+workflows, and constraints.
+
+Skills serve two purposes depending on the launch method:
+
+- **CLI tools** (`aura-swarm`, `aura-parallel`): Role instructions are injected
+  automatically via `--append-system-prompt`. The `--skill` flag can invoke an
+  additional skill at startup.
+- **Task tool subagents**: The agent must invoke the skill itself (e.g.
+  `/aura:reviewer`) as its first action to load role instructions.
 
 ### Roles
 
-| Command                | Description                                           |
+These top-level role skills load the full agent persona (workflow, constraints,
+voting procedures, etc.):
+
+| Skill                  | Description                                           |
 |------------------------|-------------------------------------------------------|
-| `aura:architect`       | Specification writer and implementation designer      |
-| `aura:supervisor`      | Task coordinator, spawns workers, manages execution   |
-| `aura:worker`          | Vertical slice implementer (full production code path)|
-| `aura:reviewer`        | End-user alignment reviewer for plans and code        |
-| `aura:epoch`           | Master orchestrator for full 12-phase workflow        |
+| `/aura:architect`      | Specification writer and implementation designer      |
+| `/aura:supervisor`     | Task coordinator, spawns workers, manages execution   |
+| `/aura:worker`         | Vertical slice implementer (full production code path)|
+| `/aura:reviewer`       | End-user alignment reviewer for plans and code        |
+| `/aura:epoch`          | Master orchestrator for full 12-phase workflow        |
 
-### Architect skills
+### Architect sub-skills
 
-| Command                          | Phase | Description                     |
-|----------------------------------|-------|---------------------------------|
-| `aura:architect:propose-plan`    | 3     | Create PROPOSAL-N task          |
-| `aura:architect:request-review`  | 4     | Spawn 3 axis-specific reviewers |
-| `aura:architect:ratify`          | 6     | Ratify proposal (label `aura:p6-plan:s6-ratify`) |
-| `aura:architect:handoff`         | 7     | Hand off to supervisor          |
+| Skill                              | Phase | Description                     |
+|------------------------------------|-------|---------------------------------|
+| `/aura:architect-propose-plan`     | 3     | Create PROPOSAL-N task          |
+| `/aura:architect-request-review`   | 4     | Spawn 3 axis-specific reviewers |
+| `/aura:architect-ratify`           | 6     | Ratify proposal (label `aura:p6-plan:s6-ratify`) |
+| `/aura:architect-handoff`          | 7     | Hand off to supervisor          |
 
-### Supervisor skills
+### Supervisor sub-skills
 
-| Command                            | Phase | Description                      |
+| Skill                              | Phase | Description                      |
 |------------------------------------|-------|----------------------------------|
-| `aura:supervisor:plan-tasks`       | 8     | Decompose plan into slices       |
-| `aura:supervisor:spawn-worker`     | 9     | Launch workers for slices        |
-| `aura:supervisor:track-progress`   | 9-10  | Monitor layer completion         |
-| `aura:supervisor:commit`           | 9-10  | Atomic commit per layer          |
+| `/aura:supervisor-plan-tasks`      | 8     | Decompose plan into slices       |
+| `/aura:supervisor-spawn-worker`    | 9     | Launch workers for slices        |
+| `/aura:supervisor-track-progress`  | 9-10  | Monitor layer completion         |
+| `/aura:supervisor-commit`          | 9-10  | Atomic commit per layer          |
 
-### Worker skills
+### Worker sub-skills
 
-| Command                  | Description                       |
+| Skill                    | Description                       |
 |--------------------------|-----------------------------------|
-| `aura:worker:implement`  | Implement assigned vertical slice |
-| `aura:worker:complete`   | Signal task completion            |
-| `aura:worker:blocked`    | Report blocker to supervisor      |
+| `/aura:worker-implement` | Implement assigned vertical slice |
+| `/aura:worker-complete`  | Signal task completion            |
+| `/aura:worker-blocked`   | Report blocker to supervisor      |
 
-### Reviewer skills
+### Reviewer sub-skills
 
-| Command                       | Description                          |
+| Skill                         | Description                          |
 |-------------------------------|--------------------------------------|
-| `aura:reviewer:review-plan`   | Evaluate proposal against 6 criteria |
-| `aura:reviewer:review-code`   | Review implementation slices         |
-| `aura:reviewer:comment`       | Leave structured feedback via Beads  |
-| `aura:reviewer:vote`          | Cast ACCEPT or REVISE vote           |
+| `/aura:reviewer-review-plan`  | Evaluate proposal against 6 criteria |
+| `/aura:reviewer-review-code`  | Review implementation slices         |
+| `/aura:reviewer-comment`      | Leave structured feedback via Beads  |
+| `/aura:reviewer-vote`         | Cast ACCEPT or REVISE vote           |
 
-### Cross-role commands
+### Cross-role skills
 
-| Command              | Description                                        |
+| Skill                | Description                                        |
 |----------------------|----------------------------------------------------|
-| `aura:plan`          | Plan coordination across roles                     |
-| `aura:status`        | Project status and monitoring                      |
-| `aura:test`          | Run tests (BDD patterns)                           |
-| `aura:feedback`      | Leave structured feedback                          |
-| `aura:impl:slice`    | Vertical slice assignment and tracking             |
-| `aura:impl:review`   | Code review across all implementation slices       |
-| `aura:user:request`  | Capture user feature request (Phase 1)             |
-| `aura:user:elicit`   | User requirements elicitation survey (Phase 2)     |
-| `aura:user:uat`      | User acceptance testing (Phase 5/11)               |
+| `/aura:plan`         | Plan coordination across roles                     |
+| `/aura:status`       | Project status and monitoring                      |
+| `/aura:test`         | Run tests (BDD patterns)                           |
+| `/aura:feedback`     | Leave structured feedback                          |
+| `/aura:impl-slice`   | Vertical slice assignment and tracking             |
+| `/aura:impl-review`  | Code review across all implementation slices       |
+| `/aura:user-request` | Capture user feature request (Phase 1)             |
+| `/aura:user-elicit`  | User requirements elicitation survey (Phase 2)     |
+| `/aura:user-uat`     | User acceptance testing (Phase 5/11)               |
 
 ---
 

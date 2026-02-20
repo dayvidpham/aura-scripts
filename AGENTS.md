@@ -161,7 +161,25 @@ aura-parallel --role supervisor -n 1 --prompt "..." --dry-run
 
 **Use for:** Plan reviews, code reviews, and any short-lived parallel agent work.
 
-Reviewers are spawned as subagents (via the Task tool) or coordinated via TeamCreate. This keeps them in-session, avoids tmux session overhead, and allows direct result collection.
+Reviewers are spawned as `general-purpose` subagents (via the Task tool, `subagent_type: "general-purpose"`) and instructed to invoke the relevant `/aura:*` skill to load their role instructions. This keeps them in-session, avoids tmux session overhead, and allows direct result collection.
+
+> **Skills are not subagent types.** `/aura:reviewer`, `/aura:worker`, etc. are
+> Skills invoked via the Skill tool — they load role-specific instructions from
+> `skills/*/SKILL.md` into the agent's context. They are NOT values for the Task
+> tool's `subagent_type` parameter. Always use `subagent_type: "general-purpose"`
+> when spawning agents via the Task tool, then have the agent invoke the
+> appropriate `/aura:*` skill as its first action.
+
+```
+# Correct: general-purpose subagent + skill invocation
+Task(
+  subagent_type: "general-purpose",
+  prompt: "First invoke /aura:reviewer to load your role. Then review PROPOSAL-1..."
+)
+
+# Wrong: "reviewer" is not a valid subagent_type
+Task(subagent_type: "reviewer", prompt: "Review PROPOSAL-1...")
+```
 
 ### When to use which
 
@@ -169,8 +187,8 @@ Reviewers are spawned as subagents (via the Task tool) or coordinated via TeamCr
 |----------|------|-----|
 | Epic implementation with worktree isolation | `aura-swarm` | Needs isolated branch + worktree |
 | New supervisor/architect for epic planning | `aura-parallel` | Long-running, needs own tmux session |
-| Plan review (3 reviewers) | Subagents / TeamCreate | Short-lived, results collected in-session |
-| Code review (3 reviewers) | Subagents / TeamCreate | Short-lived, results collected in-session |
+| Plan review (3 reviewers) | `general-purpose` subagents | Short-lived, invoke `/aura:reviewer` skill |
+| Code review (3 reviewers) | `general-purpose` subagents | Short-lived, invoke `/aura:reviewer` skill |
 | Ad-hoc research or exploration | Task tool (Explore agent) | Quick, no orchestration needed |
 
 ### Inter-agent communication

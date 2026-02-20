@@ -28,7 +28,13 @@ You own Phases 7-12 of the epoch:
 
 **Given** slices created **when** assigning **then** use `bd update <slice-id> --assignee="worker-N"` for assignment **should never** leave slices unassigned
 
+**Given** any implementation work **when** changes are needed **then** ALWAYS spawn a worker agent — never implement changes yourself **should never** write production code, edit files, or make changes directly as the supervisor
+
 **Given** worker assignments **when** spawning **then** use Task tool with `subagent_type: "general-purpose"` and `run_in_background: true`, worker MUST call `Skill(/aura:worker)` at start **should never** spawn workers sequentially or use specialized agent types
+
+**Given** trivial changes (single-file edits, config tweaks, typo fixes) **when** spawning a worker **then** use `model: "haiku"` for the Task tool to minimize cost and latency **should never** use a heavyweight model for trivial work
+
+**Given** non-trivial changes (multi-file, architectural, logic-heavy) **when** spawning a worker **then** prefer `model: "sonnet"` for the Task tool to ensure quality **should** default to sonnet when uncertain about complexity
 
 **Given** all slices complete **when** reviewing **then** spawn 3 reviewers who each review ALL slices **should never** assign reviewers to single slices
 
@@ -178,15 +184,29 @@ bd update <slice-3-id> --assignee="worker-3"
 
 ## Spawning Workers
 
-Workers are **general-purpose agents** that call `/aura:worker` at the start. This is critical:
+**The supervisor NEVER implements changes directly.** All implementation work — no matter how small — is delegated to a worker agent. The supervisor's job is coordination, tracking, and quality control.
+
+Workers are **general-purpose agents** that call `/aura:worker` at the start. Select the model based on task complexity:
 
 ```
-// ✅ CORRECT: Use general-purpose subagent, worker skill is invoked inside
+// ✅ CORRECT: Non-trivial work → sonnet model
 Task({
   subagent_type: "general-purpose",
+  model: "sonnet",
   run_in_background: true,
   prompt: `Call Skill(/aura:worker) and implement the assigned slice.\n\nBeads Task ID: ${taskId}...`
 })
+
+// ✅ CORRECT: Trivial work (config tweak, typo fix, single-file edit) → haiku model
+Task({
+  subagent_type: "general-purpose",
+  model: "haiku",
+  run_in_background: true,
+  prompt: `Call Skill(/aura:worker) and fix the typo in...\n\nBeads Task ID: ${taskId}...`
+})
+
+// ❌ WRONG: Supervisor implementing changes directly
+Edit({ file_path: "src/foo.ts", ... })  // Supervisors coordinate, they don't implement!
 
 // ❌ WRONG: Do not use specialized agent types like "aura:worker" directly
 Task({
@@ -194,6 +214,13 @@ Task({
   ...
 })
 ```
+
+### Model Selection Guide
+
+| Complexity | Model | Examples |
+|------------|-------|----------|
+| Trivial | `haiku` | Single-file edit, config change, typo fix, renaming, adding a label |
+| Non-trivial | `sonnet` | Multi-file changes, new features, architectural work, complex logic, test suites |
 
 **Handoff:** Before spawning each worker, create a handoff document:
 ```

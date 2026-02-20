@@ -45,7 +45,27 @@ After code review consensus, demonstrate what was actually built component by co
 
 ## How to Structure UAT Questions
 
-**Critical:** Questions must be about specific design decisions, not general approval. The user needs to see the actual thing — definition, behavior, example — and then evaluate specific choices you made.
+**Critical:** Questions must split the engineering design space on its ambiguous
+boundaries to extract maximum information — like a decision tree, where each
+question bisects the remaining uncertainty.
+
+The user needs to see the actual thing — definition, behavior, example — and
+then evaluate the specific engineering tradeoffs at the boundaries where the
+design could go either way.
+
+### Question Design Principles
+
+1. **Each question targets one ambiguous boundary.** Identify where in the design
+   space two or more viable alternatives exist, and ask the user to choose.
+2. **Options describe competing tradeoffs, not approval levels.** Each option is
+   a real engineering alternative with its own pros/cons.
+3. **Later questions depend on earlier answers.** Structure the survey as a
+   decision tree — Round 1 settles the highest-leverage boundaries, Round 2
+   addresses dependent decisions informed by Round 1 answers, etc.
+4. **Show context before asking.** The user MUST see a code snippet, interface
+   definition, or motivating before/after example before being asked to evaluate.
+5. **One component per AskUserQuestion call.** Never batch all components into
+   one survey.
 
 ### WRONG — generic approval (DO NOT USE):
 ```
@@ -56,7 +76,12 @@ options: ["Yes exactly", "Mostly yes", "Partially", "No"]
 options: ["Right scope", "Too minimal", "Too much", "Wrong focus"]
 ```
 
-### RIGHT — component-specific design decisions:
+These fail because:
+- The options don't represent engineering alternatives
+- Multiple options lack clear tradeoffs
+- The answer doesn't help the architect make better decisions
+
+### RIGHT — boundary-splitting design decisions:
 ```
 "The verbose flag adds the following fields to each log entry. Which fields are most useful?"
 options based on actual fields implemented, e.g.:
@@ -71,7 +96,81 @@ options based on real alternatives:
   - "@ → _ (current behavior, ambiguous if username contains _)"
   - "keep @ (valid on most filesystems except Windows)"
   - "base64-encode the email (fully reversible, opaque)"
+
+"Should runtime deps be baked into the Nix wrapper (hermetic, reproducible) or
+expected from PATH (lighter, user-managed)?"
+options based on packaging tradeoffs:
+  - "Bake all in (hermetic) — writeShellApplication with all runtimeInputs. Fully reproducible."
+  - "Bake tmux+python, expect claude+bd from PATH — Wrap what Nix can provide."
+  - "Expect all from PATH — Only patch the shebang. User manages all deps."
 ```
+
+These work because each option is a real engineering alternative with clear
+tradeoffs, and the user's choice directly informs the implementation.
+
+See [UAT_EXAMPLE.md](../protocol/UAT_EXAMPLE.md) for a complete worked example
+of this question quality in practice.
+
+### Pre-requisite: Cross-reference URE Against the Proposal
+
+UAT is the **second time** the user evaluates this feature. The first time was
+during URE (see [/aura:user-elicit](../user-elicit/SKILL.md)), where the user
+stated their requirements, priorities, and design preferences. The proposal was
+then written to satisfy those requirements.
+
+Before designing UAT questions, cross-reference the URE responses and URD
+against the proposal to identify what to surface:
+
+```bash
+bd show <elicit-id>     # Re-read the user's original URE responses
+bd show <urd-id>        # The structured requirements document
+bd show <proposal-id>   # The architect's proposal and tradeoffs
+```
+
+Look for:
+- **Faithful translations:** Where the proposal directly implements a URE
+  choice — show the user how their requirement became a concrete design and
+  confirm it matches their intent
+- **Tradeoffs the architect resolved:** Where the URE left ambiguity and the
+  architect chose one direction — surface the choice and its rationale so the
+  user can validate or redirect
+- **New dimensions the proposal introduced:** Engineering concerns that weren't
+  in the URE (emerged during research/exploration or review) — present these
+  with context so the user understands why they matter
+- **Gaps or drift:** Where the proposal may have diverged from, reinterpreted,
+  or dropped a URE requirement — flag these explicitly
+
+### Question Sequence (Decision Tree)
+
+Structure questions to progressively validate the proposal against the user's
+original requirements. Each round narrows the remaining uncertainty.
+
+**Round 1: Highest-leverage tradeoffs** (1-2 questions per AskUserQuestion call)
+
+Start with the 2-3 architectural decisions where the proposal made the biggest
+choices. These are the axes where a different decision would lead to a
+fundamentally different implementation.
+
+For each, show the user:
+1. What they originally said in URE (their stated requirement/preference)
+2. What the proposal chose (the concrete interface, type, or approach)
+3. The alternatives that were considered and why this one was picked
+
+**Round 2: Dependent and derivative decisions** (informed by Round 1)
+
+With the major tradeoffs validated, surface the second-order decisions that
+flow from them — implementation details the user should be aware of.
+
+**Round 3: New dimensions not in URE** (if any)
+
+Present engineering concerns that emerged after URE (from research, codebase
+exploration, or reviewer feedback). The user hasn't seen these before, so
+provide enough context for an informed decision.
+
+**Final: Catch-all**
+
+One open-ended question — "Is there anything from your original requirements
+that you don't see reflected in this proposal?"
 
 ## Component-at-a-Time Pattern
 

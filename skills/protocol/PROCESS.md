@@ -87,6 +87,12 @@ See: [../user-request/SKILL.md](../user-request/SKILL.md)
 
 Architect runs `/aura:user-elicit` for structured requirements elicitation.
 
+Capture results using the same structured format as
+[UAT_TEMPLATE.md](UAT_TEMPLATE.md) — each question must include the exact
+question text, ALL options with their descriptions, and the user's verbatim
+response. See [UAT_EXAMPLE.md](UAT_EXAMPLE.md) for an example of the recording
+quality expected.
+
 ### User Requirements Document (s2_2)
 
 **What:** A single Beads task (label `aura:urd`) that serves as the single source of truth for user requirements, priorities, design choices, MVP goals, and end-vision goals.
@@ -195,7 +201,7 @@ See: [../architect-propose-plan/SKILL.md](../architect-propose-plan/SKILL.md)
 
 Architect spawns **3 independent reviewers** in parallel (not sequentially).
 
-Spawn reviewers as **subagents** (via the Task tool) or coordinate via **TeamCreate**. Reviewers are short-lived — keep them in-session for direct result collection. Do NOT use `aura-parallel` for reviewer rounds.
+Spawn reviewers as `general-purpose` subagents (via the Task tool, `subagent_type: "general-purpose"`) and instruct each to invoke the `/aura:reviewer` skill to load its role instructions. `/aura:reviewer` is a **Skill** (invoked via the Skill tool), not a subagent type — it provides the reviewer's workflow, severity tree, and voting procedures. Reviewers are short-lived — keep them in-session for direct result collection. Do NOT use `aura-parallel` for reviewer rounds.
 
 > **CRITICAL: No Fake Reviews**
 >
@@ -264,19 +270,40 @@ See: [../reviewer/SKILL.md](../reviewer/SKILL.md)
 The idea here is: the plan and the implementation MUST match with the user's end vision for the project.
 The architect should also plan out several MVP milestones, in order to reach the user's vision.
 
-The questions should not be general.
+**Questions must split the engineering design space on its ambiguous boundaries
+to extract maximum information — like a decision tree, where each question
+bisects the remaining uncertainty.** Questions must NOT be general.
 
 **BAD example:**
-> "exactly matches feedback, mostly matches feedback, requires revisions, ..." . Questions should be about examples of how the requirements were met using various abstractions.
+> "exactly matches feedback, mostly matches feedback, requires revisions, ..."
+> "Does this match your vision?" with options like "Yes exactly", "Mostly", "No"
+
+These fail because the options are approval levels, not engineering alternatives.
+They don't help the architect make better decisions.
 
 **GOOD example:**
-> "Should this be statically-allocated, allocated at runtime, ...?"
-> "Which of these variants we chose are appropriate, and why? Variant 1, main tradeoffs: ...; Variant N, ...."
+> "Should this be statically-allocated or allocated at runtime? Static: catches
+> errors at compile time, more boilerplate. Dynamic: flexible, errors at runtime."
+>
+> "Which of these variants we chose are appropriate, and why? Variant 1, main
+> tradeoffs: ...; Variant N, ...."
+>
+> "Should runtime deps be baked into the Nix wrapper (hermetic, reproducible) or
+> expected from PATH (lighter, user-managed)?"
 
-The questions should address critical decisions in the software engineering design space.
+Each option must be a real engineering alternative with specific tradeoffs.
+The user's choice should directly inform the implementation.
+
+**Structure questions as a decision tree:** highest-leverage boundaries first
+(1-2 questions per AskUserQuestion call), then dependent decisions informed by
+prior answers. Later questions should depend on earlier answers.
+
 User should be prompted with multiSelect, because the user can choose multiple tradeoffs/design choices.
 
 The user should NOT be prompted with all questions at once, about all components. The user MUST be shown snippets of the definition, the implementation, and a motivating example. Then they should be asked several critical questions about one component at a time.
+
+See [UAT_TEMPLATE.md](UAT_TEMPLATE.md) for the structured output format and
+[UAT_EXAMPLE.md](UAT_EXAMPLE.md) for a worked example of this question quality.
 
 If user requests changes: Loop back to Phase 3 (architect revises as new PROPOSAL-N).
 If user approves: Proceed to Phase 6 (Ratification).
@@ -1011,7 +1038,7 @@ aura-parallel --role supervisor -n 1 --prompt "..."
 # Or use aura-swarm for epic-based worktree workflow
 aura-swarm start --epic <id>
 
-# For reviewers: use subagents (Task tool) or TeamCreate — NOT aura-parallel
+# For reviewers: use general-purpose subagents (Task tool) with /aura:reviewer skill — NOT aura-parallel
 ```
 
 ### Worker Tools & Skills
