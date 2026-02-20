@@ -6,7 +6,11 @@ tools: Bash, AskUserQuestion
 
 # User Requirements Elicitation (Phase 2)
 
-Conduct a structured URE survey to gather comprehensive requirements before proposal creation.
+Conduct a structured URE survey to gather comprehensive requirements, then create the URD as the single source of truth.
+
+See `CONSTRAINTS.md` for coding standards.
+
+**-> [Full workflow in PROCESS.md](../../protocol/PROCESS.md#phase-2-elicit--urd-aurap2-user)**
 
 ## Given/When/Then/Should
 
@@ -14,11 +18,20 @@ Conduct a structured URE survey to gather comprehensive requirements before prop
 
 **Given** elicitation questions **when** asking **then** use multiSelect: true for flexibility **should never** force single-choice answers
 
-**Given** responses captured **when** storing **then** record questions AND answers verbatim **should never** summarize user responses
+**Given** responses captured **when** storing **then** record questions AND answers verbatim (including all options presented) **should never** summarize user responses or omit option text
 
 **Given** elicitation complete **when** creating task **then** chain dependency to request task **should never** skip dependency
 
-## Elicitation Strategy
+**Given** URD created **when** linking to other tasks **then** include URD ID in description frontmatter of referencing tasks **should never** use `bd dep add --blocked-by` for URD links (URD is a reference document, not a blocking dependency)
+
+## Sub-steps
+
+| Sub-step | Label | Description |
+|----------|-------|-------------|
+| s2_1-elicit | `aura:p2-user:s2_1-elicit` | URE survey — structured requirements elicitation |
+| s2_2-urd | `aura:p2-user:s2_2-urd` (also `aura:urd`) | Create URD — single source of truth for requirements |
+
+## Elicitation Strategy (s2_1)
 
 ### 1. End Vision (Plan Backwards)
 Ask about the user's ultimate goal and what interfaces they envision:
@@ -99,44 +112,57 @@ AskUserQuestion(questions: [
 ])
 ```
 
-## Creating the Elicit Task
+## Creating the Elicit Task (s2_1)
 
 After survey completion:
 
 ```bash
-bd create --labels aura:user:elicit \
+bd create --labels "aura:p2-user:s2_1-elicit" \
   --title "ELICIT: {{feature name}}" \
-  --description "## Questions and Responses
+  --description "---
+references:
+  request: {{request-task-id}}
+---
+## Questions and Responses
 
 ### End Vision
-Q: What is your end vision...
+Q: What is your end vision for this feature? How will users interact with it when complete?
+Options: Simple UI control (Button/link users click), Automated process (Happens without user action), API endpoint (Programmatic access), Background service (Runs continuously)
 A: {{user's verbatim selections and any custom input}}
 
 ### MVP Scope
-Q: What is the minimum viable...
+Q: What is the minimum viable version (MVP) that would be useful?
+Options: Core functionality only (Just the basic action), With confirmation (User confirms before action), With feedback (Show success/error state), Full featured (All bells and whistles)
 A: {{user's verbatim selections}}
 
 ### Constraints
-Q: Are there any specific...
+Q: Are there any specific constraints or requirements?
+Options: Performance critical (Must be fast), Security sensitive (Handles sensitive data), Backwards compatible (Can't break existing), No constraints (Flexible implementation)
 A: {{user's verbatim selections}}
 
 ### Other
-Q: Is there anything else...
+Q: Is there anything else we should know about this feature?
+Options: Related to existing feature (Connects to something), Inspired by another product (Has a reference), Urgent timeline (Needed soon), Nothing else (Covered everything)
 A: {{user's verbatim input}}" \
   --assignee architect
 
-# Chain dependency
+# Chain dependency: REQUEST blocked by ELICIT
 bd dep add {{request-task-id}} --blocked-by {{elicit-task-id}}
 ```
 
-## Creating the URD
+## Creating the URD (s2_2)
 
 After the elicit task is created, create the URD as the single source of truth for user requirements:
 
 ```bash
-bd create --labels aura:urd \
+bd create --labels "aura:urd,aura:p2-user:s2_2-urd" \
   --title "URD: {{feature name}}" \
-  --description "## Requirements
+  --description "---
+references:
+  request: {{request-task-id}}
+  elicit: {{elicit-task-id}}
+---
+## Requirements
 {{structured requirements extracted from URE survey}}
 
 ## Priorities
@@ -150,14 +176,17 @@ bd create --labels aura:urd \
 
 ## End-Vision Goals
 {{user's ultimate vision for the feature}}"
-
-# Link URD to related tasks (peer reference, NOT blocking)
-bd dep relate <urd-id> <request-task-id>
-bd dep relate <urd-id> <elicit-task-id>
 ```
+
+The URD is a **reference document**, not a blocking dependency. Other tasks reference it via description frontmatter (`urd: <urd-task-id>`), not via blocking dependency commands.
 
 Record the URD task ID — pass it to the architect for Phase 3.
 
 ## Next Phase
 
 After elicitation and URD creation, invoke `/aura:architect` to begin proposal creation (Phase 3). Pass the URD ID so the architect can reference it.
+
+The proposal task will block the elicit task:
+```bash
+bd dep add {{elicit-task-id}} --blocked-by {{proposal-task-id}}
+```
