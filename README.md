@@ -20,7 +20,29 @@ aura-scripts solves two problems in multi-agent Claude workflows:
 All inter-agent coordination flows through [Beads](https://github.com/dayvidpham/beads)
 task status and comments &mdash; there is no separate messaging system.
 
-## Installation
+## Quick Start — Plugin Install
+
+### Claude Code
+
+```bash
+# Local testing (immediate, no install needed)
+claude --plugin-dir /path/to/aura-scripts
+
+# Per-project: add to .claude/plugins.json
+cat > .claude/plugins.json << 'EOF'
+[{ "name": "aura", "source": "https://github.com/dayvidpham/aura-scripts" }]
+EOF
+```
+
+Skills are auto-discovered and invocable as `/aura:<skill-name>` (e.g. `/aura:epoch`, `/aura:user-request`).
+
+### OpenCode
+
+OpenCode natively reads `skills/*/SKILL.md`. Clone into your project's `.claude/` or configure via OpenCode's plugin system.
+
+---
+
+## Installation (CLI Tools)
 
 ### Nix Flake (recommended)
 
@@ -83,7 +105,8 @@ Both scripts are standalone Python 3.10+ with no external dependencies:
 ```bash
 git clone https://github.com/dayvidpham/aura-scripts
 cd aura-scripts
-chmod +x aura-swarm launch-parallel.py
+chmod +x scripts/aura-swarm scripts/aura-parallel
+# Add scripts/ to PATH or symlink into a PATH directory
 ```
 
 ## Prerequisites
