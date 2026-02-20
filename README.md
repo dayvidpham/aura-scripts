@@ -25,16 +25,29 @@ task status and comments &mdash; there is no separate messaging system.
 ### Claude Code
 
 ```bash
-# Local testing (immediate, no install needed)
-claude --plugin-dir /path/to/aura-scripts
+# 1. Add the aura-scripts marketplace
+claude plugin marketplace add dayvidpham/aura-scripts
 
-# Per-project: add to .claude/plugins.json
-cat > .claude/plugins.json << 'EOF'
-[{ "name": "aura", "source": "https://github.com/dayvidpham/aura-scripts" }]
-EOF
+# 2. Install the aura plugin (user-wide)
+claude plugin install aura@aura-scripts
+
+# Or install for a specific project only
+claude plugin install aura@aura-scripts --scope project
+
+# Validate (optional)
+claude plugin validate /path/to/aura-scripts
 ```
 
-Skills are auto-discovered and invocable as `/aura:<skill-name>` (e.g. `/aura:epoch`, `/aura:user-request`).
+After installing, restart Claude Code. Skills are auto-discovered and invocable as `/aura:<skill-name>` (e.g. `/aura:epoch`, `/aura:user-request`).
+
+```bash
+# Update to latest
+claude plugin update aura@aura-scripts
+
+# Local development (from a checkout, no install needed)
+claude plugin marketplace add /path/to/aura-scripts
+claude plugin install aura@aura-scripts
+```
 
 ### OpenCode
 

@@ -1,8 +1,11 @@
 {
   "name": "aura-scripts",
-  "description": "Aura protocol plugin marketplace",
   "owner": {
     "name": "David Pham"
+  },
+  "metadata": {
+    "description": "Multi-agent orchestration toolkit for structured software development using the Aura 12-phase protocol",
+    "version": "2.0.0"
   },
   "plugins": [
     {
