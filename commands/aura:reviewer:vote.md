@@ -1,6 +1,8 @@
 # Cast Review Vote
 
-Cast ACCEPT or REVISE vote on a plan.
+Cast ACCEPT or REVISE vote on a plan or code review.
+
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-4-plan-review)**
 
 ## When to Use
 
@@ -12,16 +14,25 @@ Review complete, ready to vote.
 
 **Given** vote **when** recording **then** add comment to Beads task with justification **should never** vote without written rationale
 
+**Given** code review **when** voting **then** be aware that findings are tracked via severity tree (BLOCKER/IMPORTANT/MINOR) **should never** duplicate severity findings in vote comment
+
 ## Vote Options
 
 | Vote | When |
 |------|------|
-| ACCEPT | Plan addresses end-user needs, checklist complete, no gaps |
-| REVISE | Specific issues need addressing (must provide actionable feedback) |
+| ACCEPT | All review criteria satisfied; no BLOCKER items |
+| REVISE | BLOCKER issues found; must provide actionable feedback |
+
+Binary only. No intermediate levels.
+
+## Plan Review vs Code Review
+
+- **Plan review (Phase 4, `aura:p4-plan:s4-review`):** ACCEPT/REVISE only. No severity tree.
+- **Code review (Phase 10, `aura:p10-impl:s10-review`):** ACCEPT/REVISE vote. Findings tracked via severity tree (3 groups: BLOCKER, IMPORTANT, MINOR created per round).
 
 ## Consensus
 
-**All 3 reviewers must vote ACCEPT** for plan to be ratified.
+**All 3 reviewers must vote ACCEPT** for plan to be ratified or code to be approved.
 
 ## Adding Vote to Beads
 

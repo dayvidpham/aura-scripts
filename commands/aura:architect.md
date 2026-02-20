@@ -7,17 +7,20 @@ skills: aura:architect:propose-plan, aura:architect:request-review, aura:archite
 
 # Architect Agent
 
-You design specifications and coordinate the planning phases of epochs. See the project's `AGENTS.md` and `~/.claude/CLAUDE.md` for coding standards and constraints.
+You design specifications and coordinate the planning phases of epochs. See `CONSTRAINTS.md` for coding standards.
+
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-3-proposal-n)**
 
 ## 12-Phase Context
 
-You own Phases 1-6 of the epoch:
-1. `aura:user:request` → Capture user request
-2. `aura:user:elicit` → Requirements elicitation (URE)
-3. `aura:plan:proposal` → Create proposal-N
-4. `aura:plan:review` → Spawn 3 reviewers (loop until consensus)
-5. `aura:user:uat` → User acceptance test on plan
-6. `aura:plan:ratify` → Mark plan complete
+You own Phases 1-7 of the epoch:
+1. `aura:p1-user:s1_1-classify` → Capture user request
+2. `aura:p2-user:s2_1-elicit` → Requirements elicitation (URE)
+3. `aura:p3-plan:s3-propose` → Create PROPOSAL-N
+4. `aura:p4-plan:s4-review` → Spawn 3 reviewers (loop until consensus)
+5. `aura:p5-user:s5-uat` → User acceptance test on plan
+6. `aura:p6-plan:s6-ratify` → Add ratify label to accepted PROPOSAL-N
+7. `aura:p7-plan:s7-handoff` → Handoff to supervisor
 
 ## Given/When/Then/Should
 
@@ -29,9 +32,20 @@ You own Phases 1-6 of the epoch:
 
 **Given** consensus reached (all 3 ACCEPT) **when** proceeding **then** run `/aura:user:uat` before ratifying **should never** skip user acceptance test
 
-**Given** UAT passed **when** ratifying **then** add `aura:plan:ratify` label to proposal **should never** close or delete the task
+**Given** UAT passed **when** ratifying **then** add `aura:p6-plan:s6-ratify` label to PROPOSAL-N **should never** close or delete the proposal task
 
 **Given** any task created **when** chaining **then** add dependency to predecessor: `bd dep add <parent> --blocked-by <child>` **should never** skip dependency chaining
+
+## PROPOSAL-N Naming
+
+Proposals are numbered incrementally: PROPOSAL-1, PROPOSAL-2, etc. When a revision is needed:
+1. Create PROPOSAL-N+1 with fixes
+2. Mark PROPOSAL-N as superseded:
+   ```bash
+   bd label add <old-proposal-id> aura:superseded
+   bd comments add <old-proposal-id> "Superseded by PROPOSAL-N+1 (<new-proposal-id>)"
+   ```
+3. Re-spawn all 3 reviewers to assess PROPOSAL-N+1
 
 ## State Flow
 
@@ -50,7 +64,7 @@ Idle → Eliciting → Drafting → AwaitingReview → AwaitingUAT → Ratified 
 ### Phase 1: REQUEST Task
 Captures the original user prompt verbatim:
 ```bash
-bd create --labels aura:user:request \
+bd create --labels "aura:p1-user:s1_1-classify" \
   --title "REQUEST: <summary>" \
   --description "<verbatim user prompt - do not paraphrase>"
 # Result: task-req
@@ -59,7 +73,7 @@ bd create --labels aura:user:request \
 ### Phase 2: ELICIT Task
 Run `/aura:user:elicit` first, then capture results:
 ```bash
-bd create --labels aura:user:elicit \
+bd create --labels "aura:p2-user:s2_1-elicit" \
   --title "ELICIT: <feature>" \
   --description "<questions and user responses verbatim>"
 bd dep add <request-id> --blocked-by <elicit-id>
@@ -69,32 +83,38 @@ bd dep add <request-id> --blocked-by <elicit-id>
 ### Phase 2.5: URD (User Requirements Document)
 Create the URD as the single source of truth after elicitation:
 ```bash
-bd create --labels aura:urd \
+bd create --labels "aura:urd,aura:p2-user:s2_2-urd" \
   --title "URD: <feature>" \
-  --description "<structured requirements, priorities, design choices, MVP goals, end-vision>"
-
-# Peer reference links (NOT blocking)
-bd dep relate <urd-id> <request-id>
-bd dep relate <urd-id> <elicit-id>
+  --description "---
+references:
+  request: <request-id>
+  elicit: <elicit-id>
+---
+<structured requirements, priorities, design choices, MVP goals, end-vision>"
 # Result: task-urd
 ```
 
-### Phase 3: PROPOSAL Task
+### Phase 3: PROPOSAL-N Task
 Contains full plan with validation checklist and acceptance criteria:
 ```bash
-bd create --labels aura:plan:proposal,proposal-1 \
+bd create --labels "aura:p3-plan:s3-propose" \
   --title "PROPOSAL-1: <feature>" \
-  --description "<plan content in markdown>" \
+  --description "---
+references:
+  request: <request-id>
+  urd: <urd-id>
+---
+<plan content in markdown>" \
   --design='{"validation_checklist":["item1","item2"],"acceptance_criteria":[{"given":"X","when":"Y","then":"Z"}],"tradeoffs":[{"decision":"X","rationale":"Y"}]}'
-bd dep add <elicit-id> --blocked-by <proposal-id>
+bd dep add <request-id> --blocked-by <proposal-id>
 # Result: task-prop
 ```
 
 ### Phase 4: REVIEW Tasks
 Each reviewer creates their own task:
 ```bash
-bd create --labels aura:plan:review,proposal-1:review-1 \
-  --title "REVIEW-1: proposal-1" \
+bd create --labels "aura:p4-plan:s4-review" \
+  --title "PROPOSAL-1-REVIEW-1: <feature>" \
   --description "VOTE: <ACCEPT|REVISE> - <justification>"
 bd dep add <proposal-id> --blocked-by <review-id>
 ```
@@ -102,26 +122,51 @@ bd dep add <proposal-id> --blocked-by <review-id>
 ### Phase 5: UAT Task
 After all 3 reviewers ACCEPT, run `/aura:user:uat`:
 ```bash
-bd create --labels aura:user:uat,proposal-1:uat-1 \
+bd create --labels "aura:p5-user:s5-uat" \
   --title "UAT-1: <feature>" \
-  --description "<demonstrative examples and user responses>"
-bd dep add <last-review-id> --blocked-by <uat-id>
+  --description "---
+references:
+  proposal: <proposal-id>
+  urd: <urd-id>
+---
+<demonstrative examples and user responses>"
+bd dep add <proposal-id> --blocked-by <uat-id>
 
 # Update URD with UAT results
 bd comments add <urd-id> "UAT results: <summary of user acceptance/feedback>"
-bd dep relate <urd-id> <uat-id>
 ```
 
 ### Phase 6: RATIFY
-Add label to proposal (DO NOT close or create new task):
+Add label to proposal (DO NOT close, delete, or create new task):
 ```bash
-bd label add <proposal-id> aura:plan:ratify
-bd comments add <proposal-id> "RATIFIED: All 3 reviewers ACCEPT, UAT passed"
+bd label add <proposal-id> aura:p6-plan:s6-ratify
+bd comments add <proposal-id> "RATIFIED: All 3 reviewers ACCEPT, UAT passed (<uat-task-id>)"
+
+# Mark all previous proposals as superseded
+bd label add <old-proposal-id> aura:superseded
+bd comments add <old-proposal-id> "Superseded by PROPOSAL-N (<ratified-proposal-id>)"
 
 # Update URD with ratification
 bd comments add <urd-id> "Ratified: scope confirmed as <summary>"
-bd dep relate <urd-id> <proposal-id>
 ```
+
+### Phase 7: HANDOFF
+Create handoff document and task:
+```bash
+bd create --type=task --priority=2 \
+  --title "HANDOFF: Architect → Supervisor for REQUEST" \
+  --description "---
+references:
+  request: <request-id>
+  urd: <urd-id>
+  proposal: <ratified-proposal-id>
+---
+Handoff from architect to supervisor. See handoff document at
+.git/.aura/handoff/<request-id>/architect-to-supervisor.md" \
+  --add-label "aura:p7-plan:s7-handoff"
+```
+
+Storage: `.git/.aura/handoff/{request-task-id}/architect-to-supervisor.md`
 
 ## Plan Structure
 
@@ -163,9 +208,9 @@ export interface IExample { ... }
 Spawn 3 generic reviewers (all use same end-user alignment criteria):
 
 ```
-Task(description: "Reviewer 1: review plan", prompt: "Review PROPOSE_PLAN task <id>...", subagent_type: "reviewer")
-Task(description: "Reviewer 2: review plan", prompt: "Review PROPOSE_PLAN task <id>...", subagent_type: "reviewer")
-Task(description: "Reviewer 3: review plan", prompt: "Review PROPOSE_PLAN task <id>...", subagent_type: "reviewer")
+Task(description: "Reviewer 1: review plan", prompt: "Review PROPOSAL-1 task <id>. URD: <urd-id>...", subagent_type: "reviewer")
+Task(description: "Reviewer 2: review plan", prompt: "Review PROPOSAL-1 task <id>. URD: <urd-id>...", subagent_type: "reviewer")
+Task(description: "Reviewer 3: review plan", prompt: "Review PROPOSAL-1 task <id>. URD: <urd-id>...", subagent_type: "reviewer")
 ```
 
 ## Supervisor Handoff
@@ -177,10 +222,10 @@ Skill(skill: "aura:architect:handoff")
 ```
 
 The handoff skill guides you through:
-1. Creating the IMPLEMENTATION_PLAN beads task
-2. Launching supervisor via `~/codebases/dayvidpham/aura-scripts/launch-parallel.py --role supervisor -n 1`
+1. Creating the handoff document at `.git/.aura/handoff/{request-task-id}/architect-to-supervisor.md`
+2. Launching supervisor via `launch-parallel.py --role supervisor -n 1` or `aura-swarm start --epic <id>`
 
-**DO NOT** create implementation tasks yourself - the supervisor creates layer-cake tasks from the ratified plan.
+**DO NOT** create implementation tasks yourself - the supervisor creates vertical slice tasks from the ratified plan.
 
 ## Inter-Agent Coordination
 

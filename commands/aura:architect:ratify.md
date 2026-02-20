@@ -1,60 +1,59 @@
 # Architect: Ratify Plan
 
-Create RATIFIED_PLAN task after all reviewers reach consensus.
+Add `aura:p6-plan:s6-ratify` label to accepted PROPOSAL-N after consensus and UAT.
+
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-6-ratification)**
 
 ## When to Use
 
-All 3 reviewers have voted ACCEPT on the PROPOSE_PLAN task.
+All 3 reviewers have voted ACCEPT on PROPOSAL-N and user has approved via UAT.
 
 ## Given/When/Then/Should
 
-**Given** all 3 reviewers voted ACCEPT **when** ratifying **then** create RATIFIED_PLAN task with final version **should never** ratify with any REVISE votes outstanding
+**Given** all 3 reviewers voted ACCEPT **when** ratifying **then** add `aura:p6-plan:s6-ratify` label to PROPOSAL-N **should never** ratify with any REVISE votes outstanding
 
-**Given** ratification **when** documenting **then** include all reviewer sign-offs in task **should never** ratify without audit trail
+**Given** ratification **when** documenting **then** add comment with reviewer sign-offs and UAT reference **should never** ratify without audit trail
+
+**Given** previous proposals exist **when** ratifying new version **then** mark old proposals as `aura:superseded` **should never** leave old proposals without superseded marking
 
 ## Consensus Requirement
 
 **All 3 reviewers must vote ACCEPT.** If any reviewer votes REVISE:
-1. Architect creates REVISION task addressing feedback
-2. Reviewers re-review
-3. Repeat until all ACCEPT
+1. Architect creates PROPOSAL-N+1 addressing feedback
+2. Marks PROPOSAL-N as `aura:superseded`
+3. Reviewers re-review PROPOSAL-N+1
+4. Repeat until all ACCEPT
 
 ## Steps
 
-1. Check all reviews on PROPOSE_PLAN task:
+1. Check all reviews on PROPOSAL-N task:
    ```bash
-   bd show <propose-plan-id>
-   bd comments <propose-plan-id>
+   bd show <proposal-id>
+   bd comments <proposal-id>
    ```
 
 2. Verify all 3 votes are ACCEPT
 
-3. Create RATIFIED_PLAN task:
+3. Add ratify label to PROPOSAL-N (do NOT create a new task):
    ```bash
-   bd create --type=feature \
-     --labels="aura:ratified-plan" \
-     --title="Ratified: <feature name>" \
-     --description="<final plan content>" \
-     --design='{"validation_checklist":[...],"signoffs":["reviewer-1","reviewer-2","reviewer-3"],"acceptance_criteria":[...]}'
-
-   bd dep add <propose-plan-id> --blocked-by <ratified-plan-id>
+   bd label add <proposal-id> aura:p6-plan:s6-ratify
+   bd comments add <proposal-id> "RATIFIED: All 3 reviewers ACCEPT, UAT passed (<uat-task-id>)"
    ```
 
-4. Update URD with ratification:
+4. Mark all previous proposals as superseded:
    ```bash
-   bd comments add <urd-id> "Ratified: scope confirmed. Ratified plan: <ratified-plan-id>"
-   bd dep relate <urd-id> <ratified-plan-id>
+   bd label add <old-proposal-id> aura:superseded
+   bd comments add <old-proposal-id> "Superseded by PROPOSAL-N (<ratified-proposal-id>)"
    ```
 
-5. Close PROPOSE_PLAN task:
+5. Update URD with ratification:
    ```bash
-   bd close <propose-plan-id> --reason="Ratified as <ratified-plan-id>"
+   bd comments add <urd-id> "Ratified: scope confirmed. Ratified proposal: <ratified-proposal-id>"
    ```
 
 ## Next Steps
 
-After creating RATIFIED_PLAN:
-1. **Ask for user approval** - Present the ratified plan summary and ask the user if they want to proceed with implementation
-2. **Prepare handoff** - If approved, run `/aura:architect:handoff` to create IMPLEMENTATION_PLAN and spawn supervisor
+After ratifying PROPOSAL-N:
+1. **Prepare handoff** — Run `/aura:architect:handoff` to create handoff document and spawn supervisor
 
-**IMPORTANT:** Do NOT start implementation yourself. The architect's role ends at ratification. Implementation is handled by the supervisor and workers spawned during handoff.
+**IMPORTANT:** Do NOT start implementation yourself. The architect's role ends at handoff. Implementation is handled by the supervisor and workers spawned during handoff.

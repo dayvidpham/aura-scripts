@@ -1,6 +1,8 @@
 # Leave Structured Review Comment
 
-Leave structured feedback as RFC comment.
+Leave structured feedback via Beads comments.
+
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-4-plan-review)**
 
 ## When to Use
 
@@ -10,40 +12,53 @@ Documenting review findings for the permanent record.
 
 **Given** findings **when** documenting **then** use structured format with severity levels **should never** leave unstructured feedback
 
-**Given** comment **when** creating **then** get next ID from CLI **should never** guess comment IDs
+**Given** comment **when** creating **then** add via `bd comments add` **should never** create standalone files for review comments
 
 ## Steps
 
-1. Get next ID: `npx tsx src/cli/aura.ts rfc next-id`
-2. Create comment file
-3. Use structured format
+1. Identify the task to comment on (`bd show <task-id>`)
+2. Categorize findings by severity
+3. Add structured comment via Beads
 
-## File Location
+## Comment via Beads
 
-`docs/{version}/rfc/comments/{NNN}__{slug}__{YYYY-MM-DD}.Rmd`
+```bash
+# Plan review comment (no severity tree)
+bd comments add <proposal-id> "VOTE: ACCEPT - End-user alignment confirmed. MVP scope achievable."
+
+# Code review comment (with severity references)
+bd comments add <review-id> "VOTE: REVISE - 1 BLOCKER found (see severity tree). Suggestion: fix type error in auth middleware."
+```
 
 ## Format
 
 ```markdown
-# RFC Comment: {Perspective} Review - {Target}
-
-**RFC:** {version}
-**ID:** {NNN}
-**Date:** {YYYY-MM-DD}
-**Reviewer:** {perspective}-reviewer
-
-## Review Summary
-**Vote:** {VOTE}
-**Confidence:** {0.0-1.0}
+VOTE: {ACCEPT | REVISE}
 
 ## Findings
-### BLOCKING Issues
+
+### BLOCKER Issues
 {list or "None"}
-### MAJOR Issues
+
+### IMPORTANT Issues
 {list or "None"}
+
 ### MINOR Issues
 {list or "None"}
 
 ## Conclusion
 {assessment and next steps}
 ```
+
+## Severity Vocabulary
+
+| Severity | When to Use | Blocks? |
+|----------|-------------|---------|
+| BLOCKER | Security, type errors, test failures, broken production code paths | Yes (code review only) |
+| IMPORTANT | Performance, missing validation, architectural concerns | No (follow-up epic) |
+| MINOR | Style, optional optimizations, naming improvements | No (follow-up epic) |
+
+## Plan Review vs Code Review
+
+- **Plan review (Phase 4, `aura:p4-plan:s4-review`):** ACCEPT/REVISE only. No severity tree. Findings are described inline in the vote comment.
+- **Code review (Phase 10, `aura:p10-impl:s10-review`):** ACCEPT/REVISE vote + full severity tree with EAGER creation (3 groups per round). Findings are tracked as child tasks of severity groups.

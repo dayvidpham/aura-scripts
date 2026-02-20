@@ -1,10 +1,12 @@
 # Reviewer: Review Plan
 
-Review PROPOSE_PLAN task using end-user alignment criteria.
+Review PROPOSAL-N task using end-user alignment criteria. Plan reviews use ACCEPT/REVISE only — no severity tree.
+
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-4-plan-review)**
 
 ## When to Use
 
-Assigned to review a plan specification.
+Assigned to review a plan specification (Phase 4, `aura:p4-plan:s4-review`).
 
 ## Given/When/Then/Should
 
@@ -13,6 +15,8 @@ Assigned to review a plan specification.
 **Given** issues found **when** voting **then** vote REVISE with specific feedback **should never** vote REVISE without actionable suggestions
 
 **Given** review complete **when** documenting **then** add comment to Beads task **should never** vote without written justification
+
+**Given** plan review **when** assessing **then** use ACCEPT/REVISE binary vote only **should never** create severity tree for plan reviews
 
 ## End-User Alignment Criteria
 
@@ -46,7 +50,7 @@ When reviewing plans, explicitly ask:
    - Entry point hookup?
 
 4. **Are implementation tasks explicit about production code?**
-   - Does Layer 3/4 include tasks to wire production code?
+   - Does the plan include tasks to wire production code?
    - Or are they only testing isolated units?
 
 **Red flag:** Plan shows "Layer 2: service.test.ts" but no task for "wire service into CLI command"
@@ -55,9 +59,9 @@ When reviewing plans, explicitly ask:
 
 ## Steps
 
-1. Read the PROPOSE_PLAN task and URD:
+1. Read the PROPOSAL-N task and URD:
    ```bash
-   bd show <task-id>
+   bd show <proposal-id>
    bd show <urd-id>   # Read URD for user requirements context
    ```
 
@@ -67,21 +71,36 @@ When reviewing plans, explicitly ask:
 
 4. Check BDD acceptance criteria are complete
 
-5. Add review comment with vote:
+5. Create review task:
+   ```bash
+   bd create --labels "aura:p4-plan:s4-review" \
+     --title "PROPOSAL-1-REVIEW-1: <feature>" \
+     --description "---
+   references:
+     proposal: <proposal-id>
+     urd: <urd-id>
+   ---
+   VOTE: <ACCEPT|REVISE> - <justification>"
+   bd dep add <proposal-id> --blocked-by <review-id>
+   ```
+
+6. Add vote comment:
    ```bash
    # If accepting:
-   bd comments add <task-id> "VOTE: ACCEPT - End-user impact clear. MVP scope appropriate. Checklist items verifiable."
+   bd comments add <proposal-id> "VOTE: ACCEPT - End-user impact clear. MVP scope appropriate. Checklist items verifiable."
 
    # If requesting revision:
-   bd comments add <task-id> "VOTE: REVISE - Missing: what happens if X fails? Suggestion: add error handling to checklist."
+   bd comments add <proposal-id> "VOTE: REVISE - Missing: what happens if X fails? Suggestion: add error handling to checklist."
    ```
 
 ## Vote Options
 
 | Vote | When |
 |------|------|
-| ACCEPT | Plan addresses end-user needs, checklist complete, no gaps |
-| REVISE | Specific issues need addressing before ratification |
+| ACCEPT | All 6 criteria satisfied; no BLOCKER items |
+| REVISE | BLOCKER issues found; must provide actionable feedback |
+
+Binary only. No severity tree for plan reviews.
 
 ## Consensus
 

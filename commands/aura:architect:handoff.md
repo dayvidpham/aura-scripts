@@ -1,6 +1,8 @@
 # Architect: Handoff to Supervisor
 
-Pass RATIFIED_PLAN to supervisor for implementation.
+Pass ratified PROPOSAL-N to supervisor for implementation.
+
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-7-handoff)**
 
 ## When to Use
 
@@ -8,49 +10,81 @@ Plan ratified and user has approved proceeding with implementation.
 
 ## Given/When/Then/Should
 
-**Given** RATIFIED_PLAN task **when** handing off **then** create IMPLEMENTATION_PLAN task **should never** hand off without linking to ratified plan
+**Given** ratified PROPOSAL-N task **when** handing off **then** create handoff document and HANDOFF task **should never** hand off without linking to ratified proposal
 
-**Given** handoff **when** spawning supervisor **then** use `launch-parallel.py --role supervisor` from aura-scripts **should never** spawn supervisor as Task tool subagent
+**Given** handoff **when** spawning supervisor **then** use `launch-parallel.py --role supervisor` or `aura-swarm start --epic <id>` **should never** spawn supervisor as Task tool subagent
 
-**Given** implementation planning **when** handing off **then** let supervisor create layer-cake tasks **should never** create implementation tasks as architect
+**Given** implementation planning **when** handing off **then** let supervisor create vertical slice tasks **should never** create implementation tasks as architect
+
+## Handoff Template
+
+Storage: `.git/.aura/handoff/{request-task-id}/architect-to-supervisor.md`
+
+```markdown
+# Handoff: Architect → Supervisor
+
+## References
+- REQUEST: <request-task-id>
+- URD: <urd-task-id> (read with `bd show <urd-id>`)
+- RATIFIED PROPOSAL: <ratified-proposal-id> (read with `bd show <proposal-id>`)
+
+## Summary
+<1-2 sentence summary of what needs to be implemented>
+
+## Key Files
+<list main files to be created/modified from the ratified plan>
+
+## Validation Checklist
+<validation checklist from the ratified proposal>
+
+## BDD Acceptance Criteria
+<Given/When/Then criteria from the ratified plan>
+
+## Implementation Notes
+<any special considerations, known risks, or constraints>
+```
 
 ## Steps
 
-1. Create IMPLEMENTATION_PLAN placeholder task:
+1. Create the handoff document:
    ```bash
-   bd create --type=epic \
-     --labels="aura:impl-plan" \
-     --title="Implementation: <feature name>" \
-     --description="Placeholder - supervisor will fill in layer structure and spawn workers"
-
-   bd dep add <ratified-plan-id> --blocked-by <impl-plan-id>
-
-   # Link URD to impl-plan (peer reference)
-   bd dep relate <urd-id> <impl-plan-id>
+   mkdir -p .git/.aura/handoff/<request-task-id>/
+   # Write architect-to-supervisor.md with the template above
    ```
 
-   **Note:** This is intentionally minimal. The supervisor reads the RATIFIED_PLAN and the URD, then fills in the IMPLEMENTATION_PLAN with the actual layer-cake structure and task breakdown.
-
-2. Launch supervisor using the Python script:
+2. Create HANDOFF Beads task:
    ```bash
-   # Dry run first to verify prompt
-   ~/codebases/dayvidpham/aura-scripts/launch-parallel.py --role supervisor -n 1 --prompt "..." --dry-run
+   bd create --type=task --priority=2 \
+     --title="HANDOFF: Architect → Supervisor for REQUEST" \
+     --description="---
+   references:
+     request: <request-task-id>
+     urd: <urd-task-id>
+     proposal: <ratified-proposal-id>
+   ---
+   Handoff from architect to supervisor. See handoff document at
+   .git/.aura/handoff/<request-task-id>/architect-to-supervisor.md" \
+     --add-label "aura:p7-plan:s7-handoff"
 
-   # Launch in tmux session
+   bd dep add <request-id> --blocked-by <handoff-id>
+   ```
+
+3. Launch supervisor:
+   ```bash
+   # Using launch-parallel.py (for long-running supervisor in tmux session)
    ~/codebases/dayvidpham/aura-scripts/launch-parallel.py --role supervisor -n 1 --prompt "..."
+
+   # Or using aura-swarm (for epic-based worktree workflow)
+   ~/codebases/dayvidpham/aura-scripts/aura-swarm start --epic <id>
    ```
 
-   The script will:
-   - Load supervisor instructions from `.claude/commands/aura:supervisor.md`
-   - Launch Claude in a tmux session with `--append-system-prompt` (preserves Task tool for workers)
-
-3. Monitor supervisor progress:
+4. Monitor supervisor progress:
    ```bash
-   # Attach to supervisor session (format: supervisor--1--<hex4>)
-   tmux attach -t supervisor--1-<hex4>
-
-   # Or check beads status
+   # Check beads status
    bd list --status=in_progress
+
+   # Or attach to supervisor session (if using launch-parallel.py)
+   tmux attach -t supervisor--1-<hex4>
    ```
 
 ## Example Prompt
@@ -59,10 +93,11 @@ Plan ratified and user has approved proceeding with implementation.
 Implement the ratified plan for <feature name>.
 
 ## Context
-- RATIFIED_PLAN: <ratified-plan-id>
-- IMPLEMENTATION_PLAN: <impl-plan-id>
-- URD: <urd-id> (read with `bd show <urd-id>` for user requirements)
-- Plan file: <path if applicable>
+- REQUEST: <request-task-id>
+- URD: <urd-task-id> (read with `bd show <urd-id>` for user requirements)
+- RATIFIED PROPOSAL: <ratified-proposal-id>
+- HANDOFF: <handoff-task-id>
+- Handoff document: .git/.aura/handoff/<request-task-id>/architect-to-supervisor.md
 
 ## Summary
 <1-2 sentence summary of what needs to be implemented>
@@ -73,7 +108,7 @@ Implement the ratified plan for <feature name>.
 ## Acceptance Criteria
 <Given/When/Then criteria from the ratified plan>
 
-Read the ratified plan with `bd show <ratified-plan-id>` to understand the full layer structure and validation checklist.
+Read the ratified plan with `bd show <ratified-proposal-id>` and the URD with `bd show <urd-id>`.
 ```
 
 Pass the prompt to the script:
@@ -83,9 +118,10 @@ Pass the prompt to the script:
 Implement the ratified plan for User Authentication.
 
 ## Context
-- RATIFIED_PLAN: david-agent-data-leverage.git-abc
-- IMPLEMENTATION_PLAN: david-agent-data-leverage.git-xyz
-- Plan file: /home/user/.claude/plans/auth-feature.md
+- REQUEST: project-abc
+- URD: project-xyz
+- RATIFIED PROPOSAL: project-prop1
+- Handoff document: .git/.aura/handoff/project-abc/architect-to-supervisor.md
 
 ## Summary
 Add JWT-based authentication with login/logout endpoints and middleware.
@@ -94,13 +130,12 @@ Add JWT-based authentication with login/logout endpoints and middleware.
 - src/auth/jwt.ts
 - src/auth/middleware.ts
 - src/routes/auth.ts
-- tests/unit/auth.test.ts
 
 ## Acceptance Criteria
 Given a valid JWT token when accessing protected routes then allow access
 Given an expired token when accessing protected routes then return 401
 
-Read the ratified plan with `bd show david-agent-data-leverage.git-abc` to understand the full layer structure and validation checklist.
+Read the ratified plan with `bd show project-prop1` and URD with `bd show project-xyz`.
 EOF
 )"
 ```
@@ -109,16 +144,14 @@ EOF
 
 ```bash
 ~/codebases/dayvidpham/aura-scripts/launch-parallel.py --role supervisor -n 1 --prompt "..."             # Launch supervisor
-~/codebases/dayvidpham/aura-scripts/launch-parallel.py --role reviewer -n 3 --prompt "..."               # Launch 3 reviewers
-~/codebases/dayvidpham/aura-scripts/launch-parallel.py --role worker -n 2 --task-id id1 --task-id id2    # Workers with tasks
 ~/codebases/dayvidpham/aura-scripts/launch-parallel.py --role supervisor -n 1 --prompt "..." --dry-run   # Preview without launching
 ~/codebases/dayvidpham/aura-scripts/launch-parallel.py --role supervisor -n 1 --prompt-file prompt.md    # Read prompt from file
 ```
 
 ## IMPORTANT
 
-- **DO NOT** spawn supervisor as a Task tool subagent - use `~/codebases/dayvidpham/aura-scripts/launch-parallel.py`
-- **DO NOT** create implementation tasks yourself - the supervisor creates layer-cake tasks
+- **DO NOT** spawn supervisor as a Task tool subagent - use `launch-parallel.py` or `aura-swarm`
+- **DO NOT** create implementation tasks yourself - the supervisor creates vertical slice tasks
 - **DO NOT** implement the plan yourself - your role is handoff and monitoring
-- The supervisor reads the ratified plan and determines layer structure
+- The supervisor reads the ratified plan and determines vertical slice structure
 - Architect monitors for blockers or escalations

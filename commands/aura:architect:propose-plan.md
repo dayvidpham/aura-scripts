@@ -1,6 +1,8 @@
 # Architect: Propose Plan
 
-Create PROPOSE_PLAN Beads task with full specification.
+Create PROPOSAL-N Beads task with full specification.
+
+**-> [Full workflow in PROCESS.md](PROCESS.md#phase-3-proposal-n)**
 
 ## When to Use
 
@@ -12,15 +14,25 @@ Starting new feature design; creating formal plan for review.
 
 **Given** plan **when** creating task **then** include validation_checklist and tradeoffs in design field **should never** leave checklist empty
 
-**Given** existing plan **when** revising **then** create REVISION task linking to original **should never** lose history
+**Given** existing plan **when** revising **then** create PROPOSAL-N+1 task and mark old as `aura:superseded` **should never** lose history
+
+## PROPOSAL-N Naming
+
+Proposals are numbered incrementally: PROPOSAL-1, PROPOSAL-2, etc. Each revision increments N. Old proposals are marked `aura:superseded` with a comment explaining why.
 
 ## Beads Task Creation
 
 ```bash
 bd create --type=feature \
-  --labels="aura:propose-plan" \
-  --title="Plan: <feature name>" \
+  --labels="aura:p3-plan:s3-propose" \
+  --title="PROPOSAL-1: <feature name>" \
   --description="$(cat <<'EOF'
+---
+references:
+  request: <request-id>
+  urd: <urd-id>
+---
+
 ## Problem Space
 
 **Axes of the problem:**
@@ -76,6 +88,9 @@ export enum ExampleType { ... }
 EOF
 )" \
   --design='{"validation_checklist":["Item 1","Item 2","Item 3"],"tradeoffs":[{"decision":"Use A","rationale":"Because..."}],"acceptance_criteria":[{"given":"X","when":"Y","then":"Z","should_not":"W"}]}'
+
+# Link to request
+bd dep add <request-id> --blocked-by <proposal-id>
 ```
 
 ## Before Creating the Proposal
@@ -101,7 +116,7 @@ The URD contains the structured requirements, priorities, design choices, and MV
 
 ## Next Steps
 
-After creating PROPOSE_PLAN task:
+After creating PROPOSAL-N task:
 1. Run `/aura:architect:request-review` to spawn 3 reviewers
 2. Wait for all 3 reviewers to vote ACCEPT
-3. Run `/aura:architect:ratify` to create RATIFIED_PLAN
+3. Run `/aura:architect:ratify` to add ratify label to PROPOSAL-N
