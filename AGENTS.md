@@ -85,7 +85,7 @@ aura-scripts/
 │   ├── AGENTS.md           # Role taxonomy (phases, tools, handoffs per agent)
 │   ├── SKILLS.md           # Command reference (all /aura:* skills by phase)
 │   └── schema.xml          # Canonical protocol schema (BCNF)
-├── commands/               # Slash commands for Claude CLI (~/.claude/commands/)
+├── skills/                 # Plugin skills (SKILL.md per directory)
 │   └── aura:*.md           # Role-specific agent instructions
 ├── agents/                 # Custom agent definitions (~/.claude/agents/)
 │   └── tester.md           # BDD test writer agent

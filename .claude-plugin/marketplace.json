@@ -1,0 +1,15 @@
+{
+  "name": "aura-scripts",
+  "description": "Aura protocol plugin marketplace",
+  "owner": {
+    "name": "David Pham"
+  },
+  "plugins": [
+    {
+      "name": "aura",
+      "description": "Aura protocol — 12-phase audit-trail workflow for structured software development with agent coordination, beads task tracking, and vertical slice implementation",
+      "version": "2.0.0",
+      "source": "./"
+    }
+  ]
+}

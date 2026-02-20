@@ -15,7 +15,7 @@ aura-scripts solves two problems in multi-agent Claude workflows:
 
 2. **Coordination.** Agents need structured roles (architect, supervisor,
    worker, reviewer) with different toolsets and instructions. Both CLI tools
-   inject role-specific system prompts from `.claude/commands/aura:*.md` files.
+   inject role-specific system prompts from `skills/*/SKILL.md` files.
 
 All inter-agent coordination flows through [Beads](https://github.com/dayvidpham/beads)
 task status and comments &mdash; there is no separate messaging system.
@@ -277,7 +277,7 @@ can be overwritten with `--restart`.
 `~/.local/share/aura/aura-swarm/prompts/<repo-hash>-<timestamp>-prompt.md` before
 launch. The tmux command references this file via `$(cat ...)` shell expansion
 rather than embedding the prompt inline, avoiding tmux's command length limit.
-Role instructions (from `.claude/commands/aura:<role>.md`) are referenced by
+Role instructions (from `skills/aura:<role>.md`) are referenced by
 their original path. Prompt files persist as an audit trail.
 
 ### Tmux session naming
@@ -339,10 +339,10 @@ The final prompt sent to each agent is assembled in order:
 
 ### Role instructions
 
-Instructions are loaded from `.claude/commands/aura:<role>.md`:
+Instructions are loaded from `skills/aura:<role>.md`:
 
-1. First checks `<working-dir>/.claude/commands/aura:<role>.md`
-2. Falls back to `~/.claude/commands/aura:<role>.md`
+1. First checks `<working-dir>/skills/aura:<role>.md`
+2. Falls back to `~/skills/aura:<role>.md`
 
 The script exits with an error if no instructions file is found at either
 location, printing both paths that were checked.
@@ -537,7 +537,7 @@ Phase 12: Landing (commit, push, hand off)
 ## Slash Commands
 
 The `commands/` directory contains role-specific instructions installed to
-`~/.claude/commands/` (either manually or via the Home Manager module). These
+`~/skills/` (either manually or via the Home Manager module). These
 are invoked as `/aura:<command>` in Claude sessions.
 
 ### Roles
@@ -620,7 +620,7 @@ aura-scripts/
 │   ├── schema.xml             Canonical protocol schema (BCNF)
 │   ├── UAT_TEMPLATE.md        UAT structured output template
 │   └── UAT_EXAMPLE.md         Worked UAT example
-├── commands/                  Slash commands for ~/.claude/commands/
+├── skills/                  Plugin skills (SKILL.md per directory)
 │   └── aura:*.md              33 role-specific instruction files
 ├── agents/                    Custom agent definitions for ~/.claude/agents/
 │   └── tester.md              BDD test writer agent

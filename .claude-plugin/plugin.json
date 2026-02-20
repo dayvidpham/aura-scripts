@@ -1,0 +1,21 @@
+{
+  "name": "aura",
+  "description": "Aura protocol — 12-phase audit-trail workflow for structured software development with agent coordination, beads task tracking, and vertical slice implementation",
+  "version": "2.0.0",
+  "author": {
+    "name": "David Pham"
+  },
+  "repository": "https://github.com/dayvidpham/aura-scripts",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "protocol",
+    "agents",
+    "planning",
+    "review",
+    "implementation",
+    "beads",
+    "vertical-slices",
+    "tdd"
+  ]
+}

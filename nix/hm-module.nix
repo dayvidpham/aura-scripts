@@ -86,12 +86,12 @@ in
       };
     };
 
-    # ── Slash commands → ~/.claude/commands/ ──
+    # ── Plugin skills → ~/skills/ ──
     commands = {
       enable = mkOption {
         type = types.bool;
         default = true;
-        description = "Install Aura slash command .md files into ~/.claude/commands/";
+        description = "Install Aura skill SKILL.md files into ~/skills/";
       };
 
       roles = {
@@ -169,7 +169,7 @@ in
     (mkIf cfg.commands.enable {
       home.file = lib.mapAttrs'
         (name: path: {
-          name = ".claude/commands/${name}";
+          name = "skills/${name}";
           value = { source = path; };
         })
         enabledCommandFiles;
