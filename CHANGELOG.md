@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1] - 2026-02-21
+
+### Added
+- feat(validator): add validation for startup-sequence, standing-teams, and skill-invocation
+
+### Fixed
+- fix(schema): resolve h5 handoff target-role 'followup' → 'supervisor'
+
 ## [0.3.0] - 2026-02-21
 
 ### Added

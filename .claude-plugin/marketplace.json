@@ -5,13 +5,13 @@
   },
   "metadata": {
     "description": "Multi-agent orchestration toolkit for structured software development using the Aura 12-phase protocol",
-    "version": "0.3.0"
+    "version": "0.3.1"
   },
   "plugins": [
     {
       "name": "aura",
       "description": "Aura protocol \u2014 12-phase audit-trail workflow for structured software development with agent coordination, beads task tracking, and vertical slice implementation",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "source": "./"
     },
     {
