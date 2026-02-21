@@ -796,10 +796,11 @@
     </required-fields>
   </handoff>
 
-  <handoff id="h5" source-role="reviewer"  target-role="followup"
+  <handoff id="h5" source-role="reviewer"  target-role="supervisor"
            at-phase="p10" content-level="summary-with-ids"
            file-pattern="reviewer-to-followup.md"
-           trigger="IMPORTANT or MINOR findings exist">
+           trigger="IMPORTANT or MINOR findings exist"
+           note="Reviewer hands IMPORTANT/MINOR findings to supervisor, who creates the follow-up epic">
     <required-fields>
       request, urd, proposal, context, key-decisions, open-items, acceptance-criteria
     </required-fields>

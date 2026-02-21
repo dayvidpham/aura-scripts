@@ -42,10 +42,7 @@ REAL_SCHEMA_PATH = (
 
 # ─── Known issues in the real schema (documented, not bugs) ──────────────────
 
-KNOWN_REAL_SCHEMA_ISSUES = {
-    # h5 targets "followup" which is a conceptual target, not a defined role
-    "handoff[@id='h5']: target-role='followup': no role with id 'followup'",
-}
+KNOWN_REAL_SCHEMA_ISSUES: set[str] = set()
 
 
 # ─── Shared fixtures ─────────────────────────────────────────────────────────
