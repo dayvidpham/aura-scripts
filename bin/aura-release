@@ -315,12 +315,19 @@ def cmd_release(args: argparse.Namespace) -> int:
 
     # ── Pre-flight ────────────────────────────────────────────────
     if is_detached_head():
-        print("Error: detached HEAD. Check out a branch first.", file=sys.stderr)
+        print("Error: detached HEAD.", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Try: git checkout main  # switch to a branch first", file=sys.stderr)
         return 2
 
     if not dry_run and working_tree_dirty():
-        print("Error: working tree has uncommitted changes (outside .beads/).", file=sys.stderr)
-        print("Commit or stash them first.", file=sys.stderr)
+        print("Error: working tree has uncommitted changes.", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("aura-release requires a clean working tree (tracked files outside", file=sys.stderr)
+        print(".beads/ must have no uncommitted changes).", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Try: git stash   # stash changes temporarily", file=sys.stderr)
+        print("  or git commit  # commit your work first", file=sys.stderr)
         return 2
 
     versions = read_all_versions()
@@ -337,7 +344,7 @@ def cmd_release(args: argparse.Namespace) -> int:
             print("Error: version drift detected:", file=sys.stderr)
             for source, ver in versions.items():
                 print(f"  {source}: {ver}", file=sys.stderr)
-            print("\nUse --sync to align before bumping.", file=sys.stderr)
+            print(f"\nTry: aura-release {bump_kind} --sync", file=sys.stderr)
             return 2
     else:
         current_str = versions["pyproject.toml"]
@@ -456,7 +463,15 @@ def main() -> int:
         return cmd_check()
 
     if not args.bump:
-        parser.error("bump type required (major, minor, or patch). Use --check for consistency validation.")
+        print("Error: bump type required.\n", file=sys.stderr)
+        print("Usage:", file=sys.stderr)
+        print("  aura-release patch                # bump patch version (0.2.2 -> 0.2.3)", file=sys.stderr)
+        print("  aura-release minor                # bump minor version (0.2.2 -> 0.3.0)", file=sys.stderr)
+        print("  aura-release major                # bump major version (0.2.2 -> 1.0.0)", file=sys.stderr)
+        print("  aura-release patch --dry-run      # preview changes without writing", file=sys.stderr)
+        print("  aura-release patch --sync         # fix version drift, then bump", file=sys.stderr)
+        print("  aura-release --check              # check version consistency", file=sys.stderr)
+        sys.exit(2)
 
     return cmd_release(args)
 
