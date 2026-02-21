@@ -239,12 +239,18 @@ Task(description: "Reviewer C: elegance", prompt: "You are Reviewer C (Elegance)
 **DO NOT** spawn supervisor as a Task tool subagent. Instead, invoke:
 
 ```
-Skill(skill: "aura:architect:handoff")
+Skill(skill: "aura:architect-handoff")
 ```
 
 The handoff skill guides you through:
 1. Creating the handoff document at `.git/.aura/handoff/{request-task-id}/architect-to-supervisor.md`
 2. Launching supervisor via `aura-parallel --role supervisor -n 1` or `aura-swarm start --epic <id>`
+
+**CRITICAL:** The supervisor launch prompt MUST:
+1. **Start with `Skill(/aura:supervisor)`** — this loads the supervisor's role instructions, including leaf task creation and explore team setup
+2. Include all Beads task IDs (REQUEST, URD, RATIFIED PROPOSAL, HANDOFF)
+3. Include the handoff document path
+4. Remind the supervisor to create a standing explore team and leaf tasks for every slice
 
 **DO NOT** create implementation tasks yourself - the supervisor creates vertical slice tasks from the ratified plan.
 

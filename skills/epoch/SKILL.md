@@ -186,14 +186,22 @@ bd list --labels="aura:p9-impl:s9-slice"          # Implementation slices
 
 ## Skills to Invoke
 
-| Phase | Skill |
-|-------|-------|
-| 1 (REQUEST: classify, research, explore) | `/aura:user-request` |
-| 2 (ELICIT + URD) | `/aura:user-elicit` |
-| 3-6 (PROPOSAL, REVIEW, UAT, RATIFY) | `/aura:architect` |
-| 5, 11 (UAT) | `/aura:user-uat` |
-| 7-10 (HANDOFF, IMPL_PLAN, SLICES, CODE REVIEW) | `/aura:supervisor` |
-| 12 (LANDING) | Manual git commit and push |
+Each phase transition MUST include an explicit `Skill(...)` invocation directive. When launching agents for a phase, the prompt MUST tell the agent to call the corresponding skill as its first action.
+
+| Phase | Skill | Invocation Directive |
+|-------|-------|---------------------|
+| 1 (REQUEST: classify, research, explore) | `/aura:user-request` | `Skill(/aura:user-request)` |
+| 2 (ELICIT + URD) | `/aura:user-elicit` | `Skill(/aura:user-elicit)` |
+| 3-6 (PROPOSAL, REVIEW, UAT, RATIFY) | `/aura:architect` | `Skill(/aura:architect)` |
+| 5, 11 (UAT) | `/aura:user-uat` | `Skill(/aura:user-uat)` |
+| 7 (HANDOFF) | `/aura:architect-handoff` | Architect calls `Skill(/aura:architect-handoff)` after ratification |
+| 8-10 (IMPL_PLAN, SLICES, CODE REVIEW) | `/aura:supervisor` | Supervisor prompt MUST start with `Skill(/aura:supervisor)` |
+| 12 (LANDING) | Manual git commit and push | N/A |
+
+**CRITICAL:** When the architect hands off to the supervisor (Phase 7 → 8), the supervisor launch prompt MUST:
+1. Start with `Skill(/aura:supervisor)` — without this, the supervisor skips role-critical procedures
+2. Include all Beads task IDs (REQUEST, URD, RATIFIED PROPOSAL, HANDOFF)
+3. Include the handoff document path
 
 ## Never Delete Policy
 

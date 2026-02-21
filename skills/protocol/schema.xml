@@ -272,7 +272,10 @@
       </substep>
     </substeps>
     <transitions>
-      <transition to-phase="p8" condition="handoff document stored at .git/.aura/handoff/"/>
+      <transition to-phase="p8" condition="handoff document stored at .git/.aura/handoff/">
+        <skill-invocation target-role="supervisor" command-ref="cmd-supervisor"
+                          directive="Supervisor launch prompt MUST start with Skill(/aura:supervisor)"/>
+      </transition>
     </transitions>
   </phase>
 
@@ -281,12 +284,20 @@
     <substeps>
       <substep id="s8" type="plan" execution="sequential" order="1"
                label-ref="L-p8s8">
-        <description>Identify production code paths. Create SLICE-N tasks. Assign workers.</description>
+        <description>Identify production code paths. Create SLICE-N tasks with leaf tasks. Assign workers.</description>
+        <startup-sequence>
+          <step order="1">Call Skill(/aura:supervisor) to load role instructions</step>
+          <step order="2">Read RATIFIED_PLAN and URD via bd show</step>
+          <step order="3">Create standing explore team via TeamCreate before any codebase exploration</step>
+          <step order="4">Decompose into vertical slices</step>
+          <step order="5">Create leaf tasks (L1/L2/L3) for every slice</step>
+          <step order="6">Spawn workers for leaf tasks</step>
+        </startup-sequence>
       </substep>
     </substeps>
     <task-title pattern="IMPL_PLAN: {description}"/>
     <transitions>
-      <transition to-phase="p9" condition="all slices created, assigned, and dependency-chained"/>
+      <transition to-phase="p9" condition="all slices created with leaf tasks, assigned, and dependency-chained"/>
     </transitions>
   </phase>
 
@@ -431,8 +442,26 @@
     </label-awareness>
     <invariants>
       <invariant>NEVER implements code — always spawns workers</invariant>
+      <invariant>NEVER explores codebase directly — delegates to standing explore team</invariant>
+      <invariant>ALWAYS creates leaf tasks within each slice — no undecomposed slices</invariant>
       <invariant>Creates follow-up epic when code review has IMPORTANT or MINOR findings</invariant>
     </invariants>
+    <standing-teams>
+      <team id="explore-team" purpose="Context-cached codebase exploration agents">
+        <description>
+          Standing team of explore agents created via TeamCreate at the start of Phase 8.
+          Each agent is scoped to a specific codebase domain. Agents retain context between
+          queries, making follow-up questions on the same domain near-zero-cost.
+          Minimum 1 agent; scale based on feature complexity (1-4 agents).
+        </description>
+        <agent-template role="explore" skill-ref="cmd-explore"
+                        invocation="Skill(/aura:explore)"
+                        min-count="1" max-count="4">
+          <scoping>Each agent assigned a specific codebase domain (e.g., CLI wiring, DB layer, build system)</scoping>
+          <lifecycle>Created before exploration, shut down after all slices have leaf tasks</lifecycle>
+        </agent-template>
+      </team>
+    </standing-teams>
   </role>
 
   <role id="worker" name="Worker"
@@ -691,6 +720,23 @@
     <file>skills/msg-ack/SKILL.md</file>
   </command>
 
+  <!-- ── Exploration ────────────────────────────────────────────────── -->
+
+  <command id="cmd-explore" name="aura:explore"
+           description="Codebase exploration — find integration points, existing patterns, and related code">
+    <phases><phase-ref ref="p1"/><phase-ref ref="p8"/></phases>
+    <creates-labels><label-ref ref="L-p1s1_3"/></creates-labels>
+    <file>skills/explore/SKILL.md</file>
+    <note>Used in Phase 1 (s1_3) by architect, and in Phase 8 by supervisor's standing explore team.</note>
+  </command>
+
+  <command id="cmd-research" name="aura:research"
+           description="Domain research — find standards, prior art, and competing approaches">
+    <phases><phase-ref ref="p1"/></phases>
+    <creates-labels><label-ref ref="L-p1s1_2"/></creates-labels>
+    <file>skills/research/SKILL.md</file>
+  </command>
+
   <!-- ── Utilities ──────────────────────────────────────────────────── -->
 
   <command id="cmd-test" name="aura:test"
@@ -718,6 +764,8 @@
     <required-fields>
       request, urd, proposal, ratified-plan, context, key-decisions, open-items, acceptance-criteria
     </required-fields>
+    <skill-invocation directive="Skill(/aura:supervisor)"
+                      note="Supervisor launch prompt MUST start with this invocation. Without it, supervisor skips explore team setup and leaf task creation."/>
   </handoff>
 
   <handoff id="h2" source-role="supervisor" target-role="worker"
@@ -726,6 +774,8 @@
     <required-fields>
       request, urd, proposal, ratified-plan, impl-plan, slice, context, key-decisions, open-items, acceptance-criteria
     </required-fields>
+    <skill-invocation directive="Skill(/aura:worker)"
+                      note="Worker message MUST include explicit instruction to call this skill."/>
   </handoff>
 
   <handoff id="h3" source-role="supervisor" target-role="reviewer"
@@ -734,6 +784,8 @@
     <required-fields>
       request, urd, proposal, ratified-plan, impl-plan, context, key-decisions, acceptance-criteria
     </required-fields>
+    <skill-invocation directive="Skill(/aura:reviewer)"
+                      note="Reviewer prompt MUST include instruction to call this skill."/>
   </handoff>
 
   <handoff id="h4" source-role="worker"    target-role="reviewer"
@@ -843,6 +895,24 @@
               when="implementation phase"
               then="spawn workers for all code changes"
               should-not="implement code directly"/>
+
+  <constraint id="C-supervisor-explore-team"
+              given="supervisor needs codebase exploration"
+              when="starting Phase 8 (IMPL_PLAN)"
+              then="create standing explore team via TeamCreate with minimum 1 scoped explore agent; delegate all deep exploration to explore agents; reuse agents for follow-up queries on same domain"
+              should-not="perform deep codebase exploration directly as supervisor"/>
+
+  <constraint id="C-slice-leaf-tasks"
+              given="vertical slice created"
+              when="decomposing slice into implementation units"
+              then="create Beads leaf tasks (L1: types, L2: tests, L3: impl) within each slice with bd dep add slice-id --blocked-by leaf-task-id"
+              should-not="create slices without leaf tasks — a slice with no children is undecomposed and cannot be tracked"/>
+
+  <constraint id="C-handoff-skill-invocation"
+              given="an agent is launched for a new phase (especially p7 to p8 handoff)"
+              when="composing the launch prompt"
+              then="prompt MUST start with Skill(/aura:{role}) invocation directive so the agent loads its role instructions"
+              should-not="launch agents without skill invocation — they skip role-critical procedures like explore team setup and leaf task creation"/>
 
   <!-- Task management -->
   <constraint id="C-dep-direction"

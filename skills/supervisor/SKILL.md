@@ -40,6 +40,10 @@ You own Phases 7-12 of the epoch:
 
 **Given** vertical slices created **when** decomposing each slice **then** create Beads leaf tasks for each implementation unit (types, tests, impl) within the slice, with `bd dep add <slice-id> --blocked-by <leaf-task-id>` **should never** create slices without leaf tasks underneath them — a slice with no children is undecomposed and cannot be tracked
 
+**Given** codebase exploration needed **when** starting Phase 8 (IMPL_PLAN) **then** create a standing explore team via TeamCreate BEFORE doing any exploration yourself — delegate all deep exploration to scoped explore agents **should never** perform deep codebase exploration directly as the supervisor
+
+**Given** standing explore team exists **when** needing to understand a codebase area (API, module, data flow) **then** send a scoped query to the relevant explore agent via SendMessage — reuse the same agent for follow-up questions on the same topic **should never** spawn a new explore agent for a topic that an existing agent already covers
+
 **Given** all slices complete **when** reviewing **then** spawn 3 reviewers who each review ALL slices **should never** assign reviewers to single slices
 
 **Given** IMPORTANT or MINOR severity groups **when** linking dependencies **then** link them to the FOLLOWUP epic only: `bd dep add <followup-epic-id> --blocked-by <important-group-id>` **should never** link IMPORTANT or MINOR severity groups as blocking IMPL_PLAN or any slice — only BLOCKER findings block slices
@@ -62,15 +66,17 @@ The architect creates a placeholder IMPL_PLAN task. Your first job is to fill it
    bd show <ratified-plan-id>
    bd show <urd-id>
    ```
-2. **Prefer vertical slice decomposition** (feature ownership end-to-end) when possible:
+2. **Create a standing explore team** (see [Standing Explore Team](#standing-explore-team) below) BEFORE doing any codebase exploration. Delegate all deep exploration to scoped agents.
+3. **Prefer vertical slice decomposition** (feature ownership end-to-end) when possible:
    - Vertical slice: Worker owns full feature (types → tests → impl → CLI/API wiring)
    - Horizontal layers: Use when shared infrastructure exists (common types, utilities)
-3. Determine layer structure following TDD principles:
+4. Determine layer structure following TDD principles:
    - Layer 1: Types, interfaces, schemas (no deps)
    - Layer 2: Tests for public interfaces (tests first!)
    - Layer 3: Implementation (make tests pass)
    - Layer 4: Integration tests (if needed)
-4. Update the IMPL_PLAN with the layer breakdown:
+5. **Create leaf tasks for every slice** (see [Step 3](#step-3-create-leaf-tasks-within-each-slice-critical)) — a slice without leaf tasks is undecomposed and cannot be tracked
+6. Update the IMPL_PLAN with the layer breakdown:
    ```bash
    bd update <impl-plan-id> --description="$(cat <<'EOF'
    ---
@@ -102,6 +108,99 @@ The architect creates a placeholder IMPL_PLAN task. Your first job is to fill it
    ```
 
 See: [.claude/skills/supervisor-plan-tasks/SKILL.md](.claude/skills/supervisor-plan-tasks/SKILL.md) for detailed vertical slice decomposition guidance.
+
+## Standing Explore Team
+
+**The supervisor MUST NOT perform deep codebase exploration directly.** Instead, create a standing team of `/aura:explore` agents via TeamCreate. These agents act as **context caches** — once an agent has deeply explored an API, module, or data flow, follow-up questions about that area are answered at minimal cost without re-exploring.
+
+### Why a Standing Team
+
+- **Context caching:** An explore agent that spent high effort tracing an API's connections retains that knowledge. Asking it a follow-up question about the same API costs almost nothing.
+- **Scoped specialization:** Each explore agent is assigned a specific domain area (e.g., "CLI command registration", "database layer", "Nix build system"). This keeps exploration focused and prevents one agent from becoming a bottleneck.
+- **Supervisor stays lean:** The supervisor's context window stays focused on coordination, not filled with codebase exploration details.
+
+### Setup (MUST happen before any exploration)
+
+```
+TeamCreate({
+  team_name: "explore-team",
+  description: "Standing explore agents for <feature> implementation"
+})
+```
+
+Then spawn at minimum **1 standing explore agent**, scaled based on codebase complexity:
+
+```
+// Minimum: 1 explore agent for a simple feature
+Task({
+  subagent_type: "general-purpose",
+  team_name: "explore-team",
+  name: "explorer-<domain>",
+  run_in_background: true,
+  prompt: `You are a standing explore agent. Call Skill(/aura:explore) to load your role.
+
+Your domain: <specific codebase area, e.g., "CLI command registration and wiring">
+Depth: standard-research
+
+You will receive exploration queries via SendMessage. For each query:
+1. Explore the codebase for the requested topic within your domain
+2. Produce structured findings (entry points, data flow, dependencies, patterns, conflicts)
+3. Reply with your findings via SendMessage
+
+You retain context between queries — reuse prior findings when answering follow-up questions about the same area. Do NOT re-explore what you already know.`
+})
+
+// Scale up for complex features spanning multiple codebase areas
+Task({
+  subagent_type: "general-purpose",
+  team_name: "explore-team",
+  name: "explorer-<other-domain>",
+  run_in_background: true,
+  prompt: `You are a standing explore agent. Call Skill(/aura:explore) to load your role.
+
+Your domain: <different codebase area, e.g., "database schemas and migration patterns">
+...`
+})
+```
+
+### Querying Explore Agents
+
+```
+SendMessage({
+  type: "message",
+  recipient: "explorer-cli",
+  content: "How does CLI command registration work? I need to understand where new subcommands are wired in and what patterns existing commands follow.",
+  summary: "CLI command registration patterns"
+})
+```
+
+For follow-up on the same topic (cheap — agent already has context):
+```
+SendMessage({
+  type: "message",
+  recipient: "explorer-cli",
+  content: "From your earlier findings on CLI registration — how are flags validated before the command handler runs?",
+  summary: "CLI flag validation follow-up"
+})
+```
+
+### Sizing Guide
+
+| Feature Complexity | Standing Explore Agents | Example Domains |
+|-------------------|------------------------|-----------------|
+| Simple (1-2 slices) | 1 | General codebase exploration |
+| Medium (3-4 slices) | 2 | Split by major system area (e.g., CLI + service layer) |
+| Complex (5+ slices) | 3-4 | One per major subsystem (CLI, service, DB, build/deploy) |
+
+### Shutdown
+
+When exploration is complete (all slices have leaf tasks and workers are spawned), shut down the explore team:
+
+```
+// Shutdown each explore agent
+SendMessage({ type: "shutdown_request", recipient: "explorer-cli", content: "Exploration complete" })
+SendMessage({ type: "shutdown_request", recipient: "explorer-db", content: "Exploration complete" })
+```
 
 ## Reading from Beads
 

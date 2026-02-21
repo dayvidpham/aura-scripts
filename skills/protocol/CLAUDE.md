@@ -114,6 +114,8 @@ bd dep add ure-id --blocked-by request-id
 
 **Given** you are a supervisor **when** implementation work is needed (code edits, file creation, config changes — no matter how small) **then** MUST delegate to a worker teammate or subagent. **MUST NEVER** use Edit, Write, or other file-modification tools directly. The supervisor's role is coordination, tracking, and quality control — never implementation.
 
+**Given** you are a supervisor **when** codebase exploration is needed (understanding APIs, tracing data flow, finding integration points) **then** MUST create a standing explore team via TeamCreate and delegate exploration to scoped `/aura:explore` agents. Minimum 1 standing explore agent. Reuse explore agents for follow-up questions on the same domain — they act as context caches. **SHOULD NEVER** perform deep codebase exploration directly as the supervisor.
+
 ### Tests & Fixtures
 
 **Given** you are writing a test **when** you need any value (email, path, UUID, timestamp, etc.) **then**:

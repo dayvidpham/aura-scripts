@@ -23,6 +23,12 @@ Storage: `.git/.aura/handoff/{request-task-id}/architect-to-supervisor.md`
 ```markdown
 # Handoff: Architect → Supervisor
 
+## Supervisor Startup
+1. Call `Skill(/aura:supervisor)` to load your role instructions
+2. Create a standing explore team via TeamCreate before any codebase exploration
+3. Read the RATIFIED PROPOSAL and URD with `bd show` commands below
+4. Every vertical slice MUST have leaf tasks (L1: types, L2: tests, L3: impl)
+
 ## References
 - REQUEST: <request-task-id>
 - URD: <urd-task-id> (read with `bd show <urd-id>`)
@@ -89,7 +95,11 @@ Storage: `.git/.aura/handoff/{request-task-id}/architect-to-supervisor.md`
 
 ## Example Prompt
 
+**CRITICAL:** The prompt MUST instruct the supervisor to invoke `/aura:supervisor` as its first action. Without this, the supervisor agent starts without its role instructions and skips leaf task creation, explore team setup, and other critical procedures.
+
 ```
+Start by calling `Skill(/aura:supervisor)` to load your role instructions.
+
 Implement the ratified plan for <feature name>.
 
 ## Context
@@ -108,13 +118,19 @@ Implement the ratified plan for <feature name>.
 ## Acceptance Criteria
 <Given/When/Then criteria from the ratified plan>
 
-Read the ratified plan with `bd show <ratified-proposal-id>` and the URD with `bd show <urd-id>`.
+## Reminders
+1. Call `Skill(/aura:supervisor)` FIRST — do not proceed without loading your role
+2. Create a standing explore team via TeamCreate BEFORE doing any codebase exploration
+3. Every vertical slice MUST have leaf tasks (L1: types, L2: tests, L3: impl) — a slice without leaf tasks is undecomposed
+4. Read the ratified plan with `bd show <ratified-proposal-id>` and the URD with `bd show <urd-id>`
 ```
 
 Pass the prompt to the script:
 
 ```bash
 aura-parallel --role supervisor -n 1 --prompt "$(cat <<'EOF'
+Start by calling Skill(/aura:supervisor) to load your role instructions.
+
 Implement the ratified plan for User Authentication.
 
 ## Context
@@ -135,7 +151,11 @@ Add JWT-based authentication with login/logout endpoints and middleware.
 Given a valid JWT token when accessing protected routes then allow access
 Given an expired token when accessing protected routes then return 401
 
-Read the ratified plan with `bd show project-prop1` and URD with `bd show project-xyz`.
+## Reminders
+1. Call Skill(/aura:supervisor) FIRST
+2. Create standing explore team via TeamCreate before codebase exploration
+3. Every slice MUST have leaf tasks (L1/L2/L3)
+4. Read ratified plan: bd show project-prop1 and URD: bd show project-xyz
 EOF
 )"
 ```

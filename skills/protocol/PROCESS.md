@@ -393,6 +393,14 @@ Supervisor takes the ratified proposal and decomposes into **vertical slices** (
 
 **Key Principle:** Each worker owns a full vertical slice — types, tests, implementation, and wiring for one production code path.
 
+**Supervisor startup sequence:**
+1. Call `Skill(/aura:supervisor)` to load role instructions
+2. Read RATIFIED_PLAN and URD via `bd show`
+3. **Create a standing explore team** via TeamCreate before any codebase exploration (see supervisor skill)
+4. Decompose into vertical slices
+5. **Create leaf tasks (L1/L2/L3) for every slice** — a slice without leaf tasks is undecomposed
+6. Spawn workers for leaf tasks
+
 ```
 Layer 0: Shared infrastructure (common types, enums — optional, parallel)
    ↓
@@ -403,6 +411,10 @@ Vertical Slices (parallel, each worker owns one slice):
    ↓
 IMPLEMENTATION COMPLETE
 ```
+
+### Standing Explore Team
+
+The supervisor MUST delegate codebase exploration to standing explore agents (created via TeamCreate) rather than exploring directly. Explore agents act as **context caches**: once an agent has explored a codebase area, follow-up questions about that area cost minimal effort. Minimum 1 standing explore agent; scale based on feature complexity. See `/aura:supervisor` skill for full setup guide.
 
 ### IMPL_PLAN Task
 
