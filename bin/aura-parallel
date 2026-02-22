@@ -5,9 +5,10 @@ aura-parallel — Launch parallel Claude agents in tmux sessions.
 Supports any role (architect, supervisor, reviewer, worker).
 Uses --append-system-prompt to preserve Task tool access for subagent spawning.
 
-Role instructions are loaded from:
-  1. {working_dir}/skills/{role}/SKILL.md (checked first)
-  2. ~/skills/{role}/SKILL.md (fallback)
+Role instructions are loaded from (first match wins):
+  1. {working_dir}/skills/{role}/SKILL.md (project-local override)
+  2. {script_dir}/../skills/{role}/SKILL.md (relative to script, works from source)
+  3. {nix_store}/skills/{role}/SKILL.md (package-bundled, Nix only)
 
 Usage:
     # Launch 3 reviewers
@@ -30,6 +31,10 @@ Usage:
     # Dry run (show commands without executing)
     aura-parallel --role supervisor -n 1 --prompt "..." --dry-run
 """
+
+# Substituted by Nix build with the package's skills directory path.
+# When running from source, this remains as-is and Path resolution fails gracefully.
+PACKAGE_SKILLS_DIR = "__AURA_PACKAGE_SKILLS_DIR__"
 
 import argparse
 import secrets
@@ -78,19 +83,29 @@ def run_command(cmd: list[str], capture: bool = False) -> subprocess.CompletedPr
 def get_role_instructions(role: str, working_dir: Path) -> tuple[str | None, Path | None]:
     """Load role instructions from skills/{role}/SKILL.md.
 
-    Checks working_dir first, then falls back to skills/.
+    Search order (first match wins):
+      1. {working_dir}/skills/{role}/SKILL.md  — project-local override
+      2. {script_dir}/../skills/{role}/SKILL.md — relative to script (source checkout)
+      3. {PACKAGE_SKILLS_DIR}/{role}/SKILL.md   — package-bundled (Nix store)
 
-    Returns (content, path) tuple. Both are None if file doesn't exist in either location.
+    Returns (content, path) tuple. Both are None if not found.
     """
-    # Check working directory first
-    instructions_path = working_dir / f"skills/{role}/SKILL.md"
-    if instructions_path.exists():
-        return instructions_path.read_text(), instructions_path
+    skill_file = f"skills/{role}/SKILL.md"
 
-    # Fallback to user's home directory
-    home_path = Path.home() / f"skills/{role}/SKILL.md"
-    if home_path.exists():
-        return home_path.read_text(), home_path
+    # 1. Project-local override
+    local_path = working_dir / skill_file
+    if local_path.exists():
+        return local_path.read_text(), local_path
+
+    # 2. Relative to script location (works from source checkout)
+    script_path = Path(__file__).resolve().parent.parent / skill_file
+    if script_path.exists():
+        return script_path.read_text(), script_path
+
+    # 3. Package-bundled skills (Nix store path, substituted at build time)
+    pkg_path = Path(PACKAGE_SKILLS_DIR) / f"{role}/SKILL.md"
+    if pkg_path.exists():
+        return pkg_path.read_text(), pkg_path
 
     return None, None
 
@@ -365,12 +380,14 @@ Examples:
     # Load role instructions (checks working_dir, then skills/)
     role_instructions, instructions_path = get_role_instructions(args.role, working_dir)
     if role_instructions is None:
+        script_dir = Path(__file__).resolve().parent.parent
         print(
             f"Error: Role file not found: skills/{args.role}/SKILL.md",
             file=sys.stderr,
         )
         print(f"  Looked in: {working_dir}/skills/", file=sys.stderr)
-        print(f"  Looked in: {Path.home()}/skills/", file=sys.stderr)
+        print(f"  Looked in: {script_dir}/skills/", file=sys.stderr)
+        print(f"  Looked in: {PACKAGE_SKILLS_DIR}/", file=sys.stderr)
         return 1
 
     # Load prompt

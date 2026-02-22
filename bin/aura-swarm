@@ -27,6 +27,10 @@ Usage:
 
 from __future__ import annotations
 
+# Substituted by Nix build with the package's skills directory path.
+# When running from source, this remains as-is and Path resolution fails gracefully.
+PACKAGE_SKILLS_DIR = "__AURA_PACKAGE_SKILLS_DIR__"
+
 import argparse
 import hashlib
 import json
@@ -220,16 +224,29 @@ class LaunchResult(NamedTuple):
 def get_role_instructions(role: str, working_dir: Path) -> tuple[str | None, Path | None]:
     """Load role instructions from skills/{role}/SKILL.md.
 
-    Checks working_dir first, then falls back to skills/.
-    Returns (content, path) tuple. Both are None if file doesn't exist.
-    """
-    instructions_path = working_dir / f"skills/{role}/SKILL.md"
-    if instructions_path.exists():
-        return instructions_path.read_text(), instructions_path
+    Search order (first match wins):
+      1. {working_dir}/skills/{role}/SKILL.md  — project-local override
+      2. {script_dir}/../skills/{role}/SKILL.md — relative to script (source checkout)
+      3. {PACKAGE_SKILLS_DIR}/{role}/SKILL.md   — package-bundled (Nix store)
 
-    home_path = Path.home() / f"skills/{role}/SKILL.md"
-    if home_path.exists():
-        return home_path.read_text(), home_path
+    Returns (content, path) tuple. Both are None if not found.
+    """
+    skill_file = f"skills/{role}/SKILL.md"
+
+    # 1. Project-local override
+    local_path = working_dir / skill_file
+    if local_path.exists():
+        return local_path.read_text(), local_path
+
+    # 2. Relative to script location (works from source checkout)
+    script_path = Path(__file__).resolve().parent.parent / skill_file
+    if script_path.exists():
+        return script_path.read_text(), script_path
+
+    # 3. Package-bundled skills (Nix store path, substituted at build time)
+    pkg_path = Path(PACKAGE_SKILLS_DIR) / f"{role}/SKILL.md"
+    if pkg_path.exists():
+        return pkg_path.read_text(), pkg_path
 
     return None, None
 
@@ -725,12 +742,14 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     role_instructions, instructions_path = get_role_instructions(role, worktree_path)
     if role_instructions is None:
+        script_dir = Path(__file__).resolve().parent.parent
         print(
             f"Error: Role file not found: skills/{role}/SKILL.md",
             file=sys.stderr,
         )
         print(f"  Looked in: {worktree_path}/skills/", file=sys.stderr)
-        print(f"  Looked in: {Path.home()}/skills/", file=sys.stderr)
+        print(f"  Looked in: {script_dir}/skills/", file=sys.stderr)
+        print(f"  Looked in: {PACKAGE_SKILLS_DIR}/", file=sys.stderr)
         return 1
 
     launched_session = generate_tmux_session_name(epic_id)

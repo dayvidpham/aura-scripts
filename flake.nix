@@ -40,15 +40,15 @@
       packages = forAllSystems ({ pkgs, system }: {
         aura-parallel = pkgs.writeScriptBin "aura-parallel" (
           builtins.replaceStrings
-            [ "#!/usr/bin/env python3" ]
-            [ "#!${pkgs.python3}/bin/python3" ]
+            [ "#!/usr/bin/env python3" "__AURA_PACKAGE_SKILLS_DIR__" ]
+            [ "#!${pkgs.python3}/bin/python3" "${self}/skills" ]
             (builtins.readFile ./bin/aura-parallel)
         );
 
         aura-swarm = pkgs.writeScriptBin "aura-swarm" (
           builtins.replaceStrings
-            [ "#!/usr/bin/env python3" ]
-            [ "#!${pkgs.python3}/bin/python3" ]
+            [ "#!/usr/bin/env python3" "__AURA_PACKAGE_SKILLS_DIR__" ]
+            [ "#!${pkgs.python3}/bin/python3" "${self}/skills" ]
             (builtins.readFile ./bin/aura-swarm)
         );
 
