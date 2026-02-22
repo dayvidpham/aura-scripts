@@ -36,6 +36,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
+import os
 from dataclasses import fields
 from datetime import timedelta
 
@@ -679,6 +680,7 @@ class TestFailedTransitionAuditTrailUnit:
                 timestamp=datetime.now(tz=timezone.utc),
                 triggered_by="architect",
                 condition_met=f"FAILED: {e}",
+                success=False,
             )
             sm.state.transition_history.append(failed_record)
             sm.state.last_error = str(e)
@@ -690,6 +692,8 @@ class TestFailedTransitionAuditTrailUnit:
         assert failed.to_phase == PhaseId.P9_SLICE
         assert failed.condition_met.startswith("FAILED:")
         assert failed.triggered_by == "architect"
+        # Programmatic success check: use r.success, not the string prefix.
+        assert failed.success is False
 
         # The workflow phase must remain at P1 (transition was rejected).
         assert sm.state.current_phase == PhaseId.P1_REQUEST
@@ -714,6 +718,7 @@ class TestFailedTransitionAuditTrailUnit:
                 timestamp=datetime.now(tz=timezone.utc),
                 triggered_by="architect",
                 condition_met=f"FAILED: {e}",
+                success=False,
             )
             sm.state.transition_history.append(failed_record)
 
@@ -722,13 +727,15 @@ class TestFailedTransitionAuditTrailUnit:
 
         history = sm.state.transition_history
         total_count = len(history)
-        successful_count = sum(
-            1 for r in history if not r.condition_met.startswith("FAILED:")
-        )
+        # Programmatic success check: use r.success, not the string prefix.
+        successful_count = sum(1 for r in history if r.success)
 
         # Total = 2 (1 failed + 1 successful); successful = 1.
         assert total_count == 2
         assert successful_count == 1
+        # Verify the individual records carry the correct success flag.
+        assert history[0].success is False   # the failed attempt
+        assert history[1].success is True    # the successful advance
 
     def test_multiple_failed_attempts_all_recorded(self) -> None:
         """Multiple failed attempts are each appended to transition_history.
@@ -750,6 +757,7 @@ class TestFailedTransitionAuditTrailUnit:
                     timestamp=datetime.now(tz=timezone.utc),
                     triggered_by="architect",
                     condition_met=f"FAILED: {e}",
+                    success=False,
                 )
                 sm.state.transition_history.append(failed_record)
 
@@ -757,6 +765,7 @@ class TestFailedTransitionAuditTrailUnit:
         assert len(sm.state.transition_history) == 3
         for record in sm.state.transition_history:
             assert record.condition_met.startswith("FAILED:")
+            assert record.success is False
 
         # Workflow still at P1 (all transitions were rejected).
         assert sm.state.current_phase == PhaseId.P1_REQUEST
@@ -886,13 +895,22 @@ class TestWorkflowEnvironmentSandbox:
 
     @pytest.fixture(autouse=True)
     def _require_temporal_sandbox(self) -> None:
-        """Skip this test if the Temporal sandbox is unavailable.
+        """Skip (or fail) this test if the Temporal sandbox is unavailable.
 
         Calls _temporal_sandbox_works() which is cached via functools.cache —
         the probe runs at most once per process and only when a sandbox test
         is actually selected (not at collection time).
+
+        Behaviour is controlled by TEMPORAL_REQUIRED env var:
+        - Default (unset / "0"): skip gracefully when Temporal is unavailable.
+        - TEMPORAL_REQUIRED=1: fail hard instead of skip (for CI environments
+          that are expected to have a working Temporal test server).
         """
         if not _temporal_sandbox_works():
+            if os.environ.get("TEMPORAL_REQUIRED", "").strip() == "1":
+                pytest.fail(
+                    "Temporal sandbox required (TEMPORAL_REQUIRED=1) but probe failed"
+                )
             pytest.skip(_SKIP_REASON)
 
     @pytest.mark.asyncio

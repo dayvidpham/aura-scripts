@@ -792,6 +792,27 @@ class TestSeverityGroupsAutoPopulation:
         # Pre-existing data must not be wiped.
         assert "finding-abc" in sm.state.severity_groups[SeverityLevel.BLOCKER]
 
+    def test_severity_groups_has_exactly_3_severity_level_keys_at_p10(self) -> None:
+        """severity_groups at P10 contains EXACTLY the 3 SeverityLevel keys — no more, no fewer.
+
+        Frozen-keys invariant: the auto-population on P10 entry pre-seeds all 3
+        SeverityLevel enum values. Since SeverityLevel has exactly 3 members
+        (BLOCKER, IMPORTANT, MINOR), no other key can exist. This test asserts
+        both the lower bound (all 3 present) and the upper bound (no extras).
+        """
+        sm = _make_sm()
+        _advance_to(sm, PhaseId.P10_CODE_REVIEW)
+        groups = sm.state.severity_groups
+
+        expected_keys = set(SeverityLevel)
+        actual_keys = set(groups.keys())
+
+        # Exactly the 3 SeverityLevel values — no missing keys, no extra keys.
+        assert actual_keys == expected_keys, (
+            f"severity_groups keys {actual_keys!r} != expected {expected_keys!r}; "
+            "frozen-keys invariant violated"
+        )
+
 
 # ─── EpochState Type Safety ───────────────────────────────────────────────────
 

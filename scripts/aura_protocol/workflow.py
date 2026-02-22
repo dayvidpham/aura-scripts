@@ -80,11 +80,11 @@ class EpochResult:
     epoch_id: the epoch that completed
     final_phase: should always be PhaseId.COMPLETE
     transition_count: total number of records in transition_history, including
-        failed attempts (those with condition_met starting with "FAILED: ").
+        failed attempts (those with TransitionRecord.success == False).
         This is the raw audit count; use successful_transition_count for the
         count of successful phase advances only.
     successful_transition_count: number of successful (non-failed) phase
-        transitions. Failed attempts (condition_met starts with "FAILED: ") are
+        transitions. Failed attempts (TransitionRecord.success == False) are
         excluded. Equal to transition_count when no failures occurred.
     constraint_violations_total: cumulative violations detected during the run
     """
@@ -284,13 +284,15 @@ class EpochWorkflow:
             except TransitionError as e:
                 # Invalid advance — record the failed attempt in the audit trail
                 # so the transition_history captures all attempts (not just successes).
-                # The failed record uses condition_met="FAILED: {error}" convention.
+                # The failed record uses condition_met="FAILED: {error}" for display
+                # and success=False for all programmatic success/failure checks.
                 failed_record = TransitionRecord(
                     from_phase=self._sm.state.current_phase,
                     to_phase=advance_signal.to_phase,
                     timestamp=workflow.now(),
                     triggered_by=advance_signal.triggered_by,
                     condition_met=f"FAILED: {e}",
+                    success=False,
                 )
                 self._sm.state.transition_history.append(failed_record)
                 self._sm.state.last_error = str(e)
@@ -322,9 +324,7 @@ class EpochWorkflow:
             )
 
         history = self._sm.state.transition_history
-        successful = sum(
-            1 for r in history if not r.condition_met.startswith("FAILED:")
-        )
+        successful = sum(1 for r in history if r.success)
         return EpochResult(
             epoch_id=input.epoch_id,
             final_phase=self._sm.state.current_phase,

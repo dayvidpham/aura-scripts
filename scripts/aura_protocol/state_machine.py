@@ -57,6 +57,12 @@ class TransitionRecord:
     """Immutable audit entry for a single phase transition.
 
     Records what happened, when, who triggered it, and which condition was met.
+
+    success: True for a completed phase advance; False for a failed attempt that
+        was rejected (e.g. invalid transition). The condition_met string retains
+        the "FAILED: {error}" prefix for display/readability, but ALL programmatic
+        checks of success vs. failure MUST use this boolean field, not the string
+        prefix (which is brittle and subject to formatting changes).
     """
 
     from_phase: PhaseId
@@ -64,6 +70,7 @@ class TransitionRecord:
     timestamp: datetime
     triggered_by: str
     condition_met: str
+    success: bool = True
 
 
 # ─── Exception ────────────────────────────────────────────────────────────────
@@ -248,6 +255,14 @@ class EpochStateMachine:
 
         # Auto-populate severity_groups with 3 empty SeverityLevel groups when
         # entering P10 (code review). Groups are created eagerly per C-severity-eager.
+        #
+        # Frozen-keys invariant: after this block executes, severity_groups
+        # contains EXACTLY the 3 SeverityLevel enum values (BLOCKER, IMPORTANT,
+        # MINOR) as keys — no more, no fewer. This invariant is structurally
+        # guaranteed: SeverityLevel is a 3-value enum, so no other key can exist.
+        # check_severity_tree() enforces that all 3 keys remain present at
+        # validation time. Callers must NOT remove keys or add non-SeverityLevel
+        # keys; doing so would violate this invariant and break gate checks.
         if to_phase == PhaseId.P10_CODE_REVIEW and not self._state.severity_groups:
             self._state.severity_groups = {
                 SeverityLevel.BLOCKER: set(),
