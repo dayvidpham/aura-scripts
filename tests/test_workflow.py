@@ -788,17 +788,14 @@ class TestFullLifecycleIntegration:
         """EpochResult.transition_count matches the actual transition_history length.
 
         transition_count is the raw total including failed attempts.
-        successful_transition_count excludes records with condition_met starting
-        with "FAILED:".
+        successful_transition_count excludes records where success is False.
         """
         sm = _make_sm("transition-count-epoch")
         _advance_to(sm, PhaseId.P6_RATIFY)
 
         history = sm.state.transition_history
         transition_count = len(history)
-        successful_count = sum(
-            1 for r in history if not r.condition_met.startswith("FAILED:")
-        )
+        successful_count = sum(1 for r in history if r.success)
         # Verify this is what EpochResult would capture.
         result = EpochResult(
             epoch_id=sm.state.epoch_id,
@@ -1071,8 +1068,7 @@ class TestWorkflowEnvironmentSandbox:
                 assert state.current_phase.value == "p3"
                 # Transition history should have 2 successful transitions.
                 successful = [
-                    r for r in state.transition_history
-                    if not r.condition_met.startswith("FAILED:")
+                    r for r in state.transition_history if r.success
                 ]
                 assert len(successful) == 2
 
@@ -1120,8 +1116,7 @@ class TestWorkflowEnvironmentSandbox:
 
                 # The failed attempt must appear in transition_history.
                 failed = [
-                    r for r in state.transition_history
-                    if r.condition_met.startswith("FAILED:")
+                    r for r in state.transition_history if not r.success
                 ]
                 assert len(failed) == 1
                 assert failed[0].from_phase == PhaseId.P1_REQUEST
