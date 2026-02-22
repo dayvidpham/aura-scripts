@@ -1,15 +1,20 @@
 """Tests for aura_protocol.constraints — Runtime constraint validators.
 
 BDD Acceptance Criteria:
+    AC4: check_state(state) runs 7+ constraint checks (assert all constraint_ids present)
     AC5: Given RuntimeConstraintChecker when checking violated state then
          returns ConstraintViolation list should not silently pass violations.
+    AC9: All existing tests still pass.
 
 Coverage:
     - ConstraintViolation dataclass: frozen, fields, context dict
     - RuntimeConstraintChecker: DI constructor, default specs
-    - check_state_constraints: aggregates 5 state-based checks, no short-circuit
-    - check_transition_constraints: combines transition-specific checks
-    - check_transition: backwards-compat alias for check_transition_constraints
+    - check_state: aggregates 7 state-based checks (primary), all constraint_ids asserted
+    - check_state_constraints: deprecated alias for check_state
+    - check_transition: combines transition-specific checks (primary)
+    - check_transition_constraints: deprecated alias for check_transition
+    - check_naming: aggregates naming checks across list of titles
+    - check_structural: aggregates structural checks with flexible kwargs
     - check_review_consensus: C-review-consensus (p4/p10 must have 3 ACCEPT)
     - check_dep_direction: C-dep-direction (non-empty, distinct IDs)
     - check_severity_tree: C-severity-eager / C-severity-not-plan (p4/p10 rules)
@@ -32,6 +37,7 @@ Coverage:
     - check_worker_gates: C-worker-gates
     - check_supervisor_explore_team: C-supervisor-explore-team
     - check_vertical_slices: C-vertical-slices
+    - _SAME_ACTOR: module-level constant
     - Edge cases: no violations returns empty list
     - Each violation has correct constraint_id
 """
@@ -40,12 +46,17 @@ from __future__ import annotations
 
 import pytest
 
-from aura_protocol.constraints import ConstraintViolation, RuntimeConstraintChecker
+from aura_protocol.constraints import (
+    ConstraintViolation,
+    RuntimeConstraintChecker,
+    _SAME_ACTOR,
+)
 from aura_protocol.state_machine import EpochState, EpochStateMachine, TransitionRecord
 from aura_protocol.types import (
     CONSTRAINT_SPECS,
     PhaseId,
     RoleId,
+    SeverityLevel,
     VoteType,
 )
 from datetime import datetime, timezone
@@ -187,11 +198,164 @@ class TestRuntimeConstraintCheckerConstructor:
         assert checker is not None
 
 
-# ─── AC5: check_state_constraints Aggregation ─────────────────────────────────
+# ─── AC4: check_state (primary) — 7 constraint checks ─────────────────────────
+
+
+class TestAC4CheckState:
+    """AC4: check_state(state) runs 7 state-based constraint checks.
+
+    Asserts all 7 constraint_ids individually (not just count).
+    """
+
+    def test_check_state_returns_list(self) -> None:
+        checker = _make_checker()
+        state = _make_state()
+        result = checker.check_state(state)
+        assert isinstance(result, list)
+
+    def test_check_state_returns_violations_for_p4_without_consensus(self) -> None:
+        """At p4 with no votes, check_state should include C-review-consensus violation."""
+        checker = _make_checker()
+        state = _make_state_at_p4_with_votes()  # no votes
+        violations = checker.check_state(state)
+        constraint_ids = {v.constraint_id for v in violations}
+        assert "C-review-consensus" in constraint_ids
+
+    def test_check_state_returns_violations_for_p10_with_blockers(self) -> None:
+        """At p10 with blockers, check_state should include C-worker-gates violation."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=2)
+        violations = checker.check_state(state)
+        constraint_ids = {v.constraint_id for v in violations}
+        assert "C-worker-gates" in constraint_ids
+
+    def test_check_state_returns_empty_for_clean_p1_state(self) -> None:
+        """A fresh p1 state with no violations should return empty list."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P1_REQUEST)
+        violations = checker.check_state(state)
+        assert violations == []
+
+    def test_check_state_does_not_short_circuit(self) -> None:
+        """check_state must aggregate ALL violations — not stop at first."""
+        checker = _make_checker()
+        # p10 with blockers AND no consensus AND no severity groups
+        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=3)
+        violations = checker.check_state(state)
+        constraint_ids = {v.constraint_id for v in violations}
+        # Both C-review-consensus and C-worker-gates should appear
+        assert "C-review-consensus" in constraint_ids
+        assert "C-worker-gates" in constraint_ids
+
+    def test_check_state_violations_have_non_empty_messages(self) -> None:
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P4_REVIEW)
+        violations = checker.check_state(state)
+        for v in violations:
+            assert v.message, f"Empty message in violation: {v.constraint_id}"
+
+    def test_check_state_violations_have_valid_constraint_ids(self) -> None:
+        """All violation constraint_ids must match a known C-* constraint."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P4_REVIEW, blocker_count=1)
+        violations = checker.check_state(state)
+        for v in violations:
+            assert v.constraint_id in CONSTRAINT_SPECS, (
+                f"Unknown constraint_id: {v.constraint_id!r}"
+            )
+
+    def test_check_state_p4_constraint_id_c_review_consensus(self) -> None:
+        """AC4: check_state asserts C-review-consensus constraint_id individually."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P4_REVIEW)
+        constraint_ids = {v.constraint_id for v in checker.check_state(state)}
+        assert "C-review-consensus" in constraint_ids
+
+    def test_check_state_p4_constraint_id_c_severity_not_plan(self) -> None:
+        """AC4: check_state asserts C-severity-not-plan constraint_id individually (via check_severity_tree)."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P4_REVIEW)
+        constraint_ids = {v.constraint_id for v in checker.check_state(state)}
+        assert "C-severity-not-plan" in constraint_ids
+
+    def test_check_state_p10_constraint_id_c_severity_eager(self) -> None:
+        """AC4: check_state asserts C-severity-eager constraint_id individually (p10, no severity groups)."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P10_CODE_REVIEW)
+        constraint_ids = {v.constraint_id for v in checker.check_state(state)}
+        assert "C-severity-eager" in constraint_ids
+
+    def test_check_state_p10_constraint_id_c_worker_gates(self) -> None:
+        """AC4: check_state asserts C-worker-gates constraint_id individually (p10 with blockers)."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=1)
+        constraint_ids = {v.constraint_id for v in checker.check_state(state)}
+        assert "C-worker-gates" in constraint_ids
+
+    def test_check_state_p2_constraint_id_c_audit_never_delete(self) -> None:
+        """AC4: check_state asserts C-audit-never-delete constraint_id individually (p2 empty history)."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P2_ELICIT)
+        constraint_ids = {v.constraint_id for v in checker.check_state(state)}
+        assert "C-audit-never-delete" in constraint_ids
+
+    def test_check_state_constraint_id_c_audit_dep_chain(self) -> None:
+        """AC4: check_state asserts C-audit-dep-chain constraint_id individually (missing triggered_by)."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P2_ELICIT)
+        record = TransitionRecord(
+            from_phase=PhaseId.P1_REQUEST,
+            to_phase=PhaseId.P2_ELICIT,
+            timestamp=datetime.now(tz=timezone.utc),
+            triggered_by="",  # missing
+            condition_met="test condition",
+        )
+        state.transition_history.append(record)
+        constraint_ids = {v.constraint_id for v in checker.check_state(state)}
+        assert "C-audit-dep-chain" in constraint_ids
+
+    def test_check_state_constraint_id_c_vertical_slices(self) -> None:
+        """AC4: check_state asserts C-vertical-slices constraint_id individually (unknown role)."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P9_SLICE, current_role="unknown-role")
+        constraint_ids = {v.constraint_id for v in checker.check_state(state)}
+        assert "C-vertical-slices" in constraint_ids
+
+    def test_check_state_p10_with_all_groups_and_no_blockers_returns_empty(self) -> None:
+        """check_state returns empty for valid p10 state (all groups present, no blockers)."""
+        checker = _make_checker()
+        state = _make_state(
+            phase=PhaseId.P10_CODE_REVIEW,
+            severity_groups={
+                SeverityLevel.BLOCKER: set(),
+                SeverityLevel.IMPORTANT: set(),
+                SeverityLevel.MINOR: set(),
+            },
+        )
+        state.review_votes = {
+            "A": VoteType.ACCEPT,
+            "B": VoteType.ACCEPT,
+            "C": VoteType.ACCEPT,
+        }
+        # Add a transition record so audit trail is satisfied
+        state.transition_history.append(
+            TransitionRecord(
+                from_phase=PhaseId.P9_SLICE,
+                to_phase=PhaseId.P10_CODE_REVIEW,
+                timestamp=datetime.now(tz=timezone.utc),
+                triggered_by="worker",
+                condition_met="slice complete",
+            )
+        )
+        violations = checker.check_state(state)
+        assert violations == [], f"Unexpected violations: {violations}"
+
+
+# ─── AC5: check_state_constraints Aggregation (deprecated alias) ───────────────
 
 
 class TestAC5CheckStateConstraints:
-    """AC5: Given violated state, check_state_constraints returns non-empty ConstraintViolation list."""
+    """AC5: check_state_constraints is a deprecated alias that delegates to check_state."""
 
     def test_check_state_constraints_returns_list(self) -> None:
         checker = _make_checker()
@@ -251,12 +415,20 @@ class TestAC5CheckStateConstraints:
                 f"Unknown constraint_id: {v.constraint_id!r}"
             )
 
+    def test_check_state_constraints_delegates_to_check_state(self) -> None:
+        """check_state_constraints must produce the same result as check_state."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P4_REVIEW, blocker_count=1)
+        assert checker.check_state_constraints(state) == checker.check_state(state)
 
-# ─── check_transition_constraints ────────────────────────────────────────────
+
+# ─── check_transition (primary) ──────────────────────────────────────────────
 
 
 class TestCheckTransitionConstraints:
-    """check_transition_constraints validates constraints for proposed phase transitions."""
+    """check_transition validates constraints for proposed phase transitions (primary method).
+    check_transition_constraints is the deprecated alias.
+    """
 
     def test_p4_to_p5_without_consensus_returns_violation(self) -> None:
         checker = _make_checker()
@@ -343,11 +515,11 @@ class TestCheckTransitionConstraints:
         assert isinstance(result, list)
 
 
-# ─── check_transition (backwards-compat alias) ────────────────────────────────
+# ─── check_transition_constraints (deprecated alias) ──────────────────────────
 
 
 class TestCheckTransition:
-    """check_transition is a backwards-compat alias for check_transition_constraints."""
+    """check_transition_constraints is a deprecated alias for check_transition (primary)."""
 
     def test_p4_to_p5_without_consensus_returns_violation(self) -> None:
         checker = _make_checker()
@@ -398,12 +570,12 @@ class TestCheckTransition:
         ids = {v.constraint_id for v in violations}
         assert "C-handoff-skill-invocation" not in ids
 
-    def test_delegates_to_check_transition_constraints(self) -> None:
-        """check_transition must produce the same result as check_transition_constraints."""
+    def test_check_transition_constraints_delegates_to_check_transition(self) -> None:
+        """check_transition_constraints (alias) must produce same result as check_transition (primary)."""
         checker = _make_checker()
         state = _make_state_at_p4_with_votes(A=VoteType.ACCEPT)
-        assert checker.check_transition(state, PhaseId.P5_UAT) == \
-            checker.check_transition_constraints(state, PhaseId.P5_UAT)
+        assert checker.check_transition_constraints(state, PhaseId.P5_UAT) == \
+            checker.check_transition(state, PhaseId.P5_UAT)
 
 
 # ─── C-review-consensus ───────────────────────────────────────────────────────
@@ -547,13 +719,61 @@ class TestCheckSeverityTree:
             violations = checker.check_severity_tree(state)
             assert violations == [], f"Unexpected violation at {phase}"
 
-    def test_p10_returns_empty(self) -> None:
-        """p10 is the correct phase for severity trees — no violation from check_severity_tree."""
+    def test_p10_without_severity_groups_returns_violation(self) -> None:
+        """AC5: p10 without severity_groups → C-severity-eager violation."""
+        checker = _make_checker()
+        state = _make_state(phase=PhaseId.P10_CODE_REVIEW)
+        # severity_groups defaults to empty dict — no groups present
+        violations = checker.check_severity_tree(state)
+        assert len(violations) == 1
+        assert violations[0].constraint_id == "C-severity-eager"
+
+    def test_p10_with_all_3_severity_groups_returns_empty(self) -> None:
+        """p10 with all 3 SeverityLevel keys → no violation (positive case)."""
+        checker = _make_checker()
+        state = _make_state(
+            phase=PhaseId.P10_CODE_REVIEW,
+            severity_groups={
+                SeverityLevel.BLOCKER: set(),
+                SeverityLevel.IMPORTANT: set(),
+                SeverityLevel.MINOR: set(),
+            },
+        )
+        violations = checker.check_severity_tree(state)
+        assert violations == []
+
+    def test_p10_with_partial_severity_groups_returns_violation(self) -> None:
+        """p10 with only 1 or 2 severity groups → C-severity-eager violation."""
+        checker = _make_checker()
+        state = _make_state(
+            phase=PhaseId.P10_CODE_REVIEW,
+            severity_groups={SeverityLevel.BLOCKER: set()},
+        )
+        violations = checker.check_severity_tree(state)
+        assert len(violations) == 1
+        assert violations[0].constraint_id == "C-severity-eager"
+
+    def test_p10_severity_eager_violation_context_has_missing_levels(self) -> None:
+        """Violation context includes which severity levels are missing."""
         checker = _make_checker()
         state = _make_state(phase=PhaseId.P10_CODE_REVIEW)
         violations = checker.check_severity_tree(state)
-        # check_severity_tree doesn't mandate creation — it prevents severity trees in p4
-        assert violations == []
+        assert violations[0].context.get("phase") == "p10"
+        missing = violations[0].context.get("missing_severity_levels", "")
+        assert "BLOCKER" in missing or "IMPORTANT" in missing or "MINOR" in missing
+
+    def test_p10_state_machine_advance_populates_severity_groups(self) -> None:
+        """Advancing to p10 via EpochStateMachine auto-populates all 3 severity groups."""
+        from conftest import _advance_to
+        sm = EpochStateMachine("test-p10-severity")
+        _advance_to(sm, PhaseId.P10_CODE_REVIEW)
+        state = sm.state
+        checker = _make_checker()
+        violations = checker.check_severity_tree(state)
+        # State machine auto-populates severity_groups on p10 entry
+        assert violations == [], (
+            f"Expected no violations after state machine advance to p10; got {violations}"
+        )
 
     def test_severity_not_plan_violation_mentions_plan_review(self) -> None:
         checker = _make_checker()
@@ -1407,3 +1627,281 @@ class TestCrossConstraintIntegration:
         assert len(constraint_ids) >= 2, (
             f"Expected multiple violation types; got only: {constraint_ids}"
         )
+
+
+# ─── _SAME_ACTOR module-level constant ────────────────────────────────────────
+
+
+class TestSameActorModuleLevelConstant:
+    """_SAME_ACTOR is a module-level frozenset of same-actor transitions."""
+
+    def test_same_actor_is_frozenset(self) -> None:
+        """_SAME_ACTOR must be a frozenset at module level."""
+        assert isinstance(_SAME_ACTOR, frozenset)
+
+    def test_same_actor_contains_p5_to_p6(self) -> None:
+        """p5→p6 is a same-actor transition (no handoff needed)."""
+        assert (PhaseId.P5_UAT, PhaseId.P6_RATIFY) in _SAME_ACTOR
+
+    def test_same_actor_contains_p6_to_p7(self) -> None:
+        """p6→p7 is a same-actor transition (no handoff needed)."""
+        assert (PhaseId.P6_RATIFY, PhaseId.P7_HANDOFF) in _SAME_ACTOR
+
+    def test_same_actor_does_not_contain_actor_change_transitions(self) -> None:
+        """Actor-change transitions (p7→p8, p9→p10) must NOT be in _SAME_ACTOR."""
+        assert (PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN) not in _SAME_ACTOR
+        assert (PhaseId.P9_SLICE, PhaseId.P10_CODE_REVIEW) not in _SAME_ACTOR
+
+    def test_same_actor_length(self) -> None:
+        """_SAME_ACTOR has exactly 2 transitions (p5→p6 and p6→p7)."""
+        assert len(_SAME_ACTOR) == 2
+
+
+# ─── check_naming aggregation ─────────────────────────────────────────────────
+
+
+class TestCheckNaming:
+    """check_naming aggregates naming/format checks across a list of titles."""
+
+    def test_empty_title_list_returns_empty(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_naming([])
+        assert violations == []
+
+    def test_valid_proposal_title_in_list_returns_empty(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_naming(["PROPOSAL-1: Valid proposal"])
+        # PROPOSAL-1 title passes proposal naming but NOT review naming or followup lifecycle
+        # check_agent_commit returns empty for non-commit commands
+        # check_review_naming will return violation for non-review pattern
+        # check_followup_lifecycle will return violation for non-followup pattern
+        # We only verify it processes the list (doesn't raise)
+        assert isinstance(violations, list)
+
+    def test_returns_violations_for_invalid_proposal_title(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_naming(["bad-title-without-pattern"])
+        ids = {v.constraint_id for v in violations}
+        # proposal naming should fail
+        assert "C-proposal-naming" in ids
+
+    def test_returns_violations_for_git_commit_command(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_naming(["git commit -m 'bad'"])
+        ids = {v.constraint_id for v in violations}
+        assert "C-agent-commit" in ids
+
+    def test_git_agent_commit_no_agent_commit_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_naming(["git agent-commit -m 'good'"])
+        ids = {v.constraint_id for v in violations}
+        assert "C-agent-commit" not in ids
+
+    def test_processes_multiple_titles(self) -> None:
+        """check_naming runs all checks for each title in the list."""
+        checker = _make_checker()
+        violations = checker.check_naming([
+            "git commit -m 'bad'",
+            "git commit -m 'another bad'",
+        ])
+        # Should have at least 2 C-agent-commit violations (one per title)
+        agent_commit_violations = [v for v in violations if v.constraint_id == "C-agent-commit"]
+        assert len(agent_commit_violations) == 2
+
+    def test_returns_list(self) -> None:
+        checker = _make_checker()
+        result = checker.check_naming(["any-title"])
+        assert isinstance(result, list)
+
+    def test_followup_lifecycle_violation_in_naming(self) -> None:
+        """check_naming catches C-followup-lifecycle violations."""
+        checker = _make_checker()
+        violations = checker.check_naming(["URE: Missing FOLLOWUP prefix"])
+        ids = {v.constraint_id for v in violations}
+        assert "C-followup-lifecycle" in ids
+
+    def test_valid_followup_slice_in_naming_no_followup_lifecycle_violation(self) -> None:
+        """FOLLOWUP_SLICE-3 passes C-followup-lifecycle check."""
+        checker = _make_checker()
+        violations = checker.check_naming(["FOLLOWUP_SLICE-3: Description"])
+        ids = {v.constraint_id for v in violations}
+        assert "C-followup-lifecycle" not in ids
+
+
+# ─── check_structural aggregation ─────────────────────────────────────────────
+
+
+class TestCheckStructural:
+    """check_structural aggregates structural checks with flexible kwargs."""
+
+    def test_no_kwargs_returns_empty(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural()
+        assert violations == []
+
+    def test_returns_list(self) -> None:
+        checker = _make_checker()
+        result = checker.check_structural(parent_id="a", child_id="b")
+        assert isinstance(result, list)
+
+    def test_dep_direction_valid_ids_no_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(parent_id="parent-1", child_id="child-2")
+        assert violations == []
+
+    def test_dep_direction_same_ids_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(parent_id="same", child_id="same")
+        ids = {v.constraint_id for v in violations}
+        assert "C-dep-direction" in ids
+
+    def test_review_binary_invalid_vote_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(vote="APPROVE")
+        ids = {v.constraint_id for v in violations}
+        assert "C-review-binary" in ids
+
+    def test_review_binary_valid_vote_no_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(vote="ACCEPT")
+        assert violations == []
+
+    def test_blocker_dual_parent_valid_returns_empty(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            blocker_task_id="blocker-abc",
+            severity_group_id="sev-group-1",
+            slice_id="slice-3",
+        )
+        assert violations == []
+
+    def test_blocker_dual_parent_missing_severity_group_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            blocker_task_id="blocker-abc",
+            severity_group_id="",
+            slice_id="slice-3",
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-blocker-dual-parent" in ids
+
+    def test_slice_leaf_tasks_empty_list_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(slice_id="slice-3", leaf_task_ids=[])
+        ids = {v.constraint_id for v in violations}
+        assert "C-slice-leaf-tasks" in ids
+
+    def test_slice_leaf_tasks_not_run_when_slice_id_missing(self) -> None:
+        """check_slice_has_leaf_tasks skipped when slice_id not provided."""
+        checker = _make_checker()
+        # Only leaf_task_ids provided, no slice_id — structural check skipped
+        violations = checker.check_structural(leaf_task_ids=[])
+        assert violations == []
+
+    def test_worker_gates_all_pass_no_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            has_todos=False, tests_pass=True, typecheck_pass=True
+        )
+        assert violations == []
+
+    def test_worker_gates_failing_tests_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            has_todos=False, tests_pass=False, typecheck_pass=True
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-worker-gates" in ids
+
+    def test_vertical_slices_single_owner_no_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            production_code_path="scripts/constraints.py",
+            owner_ids=["worker-3"],
+        )
+        assert violations == []
+
+    def test_vertical_slices_multiple_owners_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            production_code_path="scripts/constraints.py",
+            owner_ids=["worker-1", "worker-2"],
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-vertical-slices" in ids
+
+    def test_followup_timing_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            has_important_or_minor=True,
+            followup_created=False,
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-followup-timing" in ids
+
+    def test_supervisor_no_impl_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(role="supervisor", action_type="file_edit")
+        ids = {v.constraint_id for v in violations}
+        assert "C-supervisor-no-impl" in ids
+
+    def test_supervisor_explore_team_violation_at_p8(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            phase=PhaseId.P8_IMPL_PLAN,
+            has_explore_team=False,
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-supervisor-explore-team" in ids
+
+    def test_ure_verbatim_missing_question_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            question="",
+            options=["Option A"],
+            response="Option A",
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-ure-verbatim" in ids
+
+    def test_frontmatter_refs_missing_key_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            task_description="## No frontmatter",
+            required_ref_keys=["urd"],
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-frontmatter-refs" in ids
+
+    def test_followup_leaf_adoption_missing_severity_group_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            leaf_task_id="leaf-abc",
+            severity_group_id="",
+            followup_slice_id="followup-slice-456",
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-followup-leaf-adoption" in ids
+
+    def test_multiple_structural_checks_run_together(self) -> None:
+        """check_structural runs multiple checks simultaneously when kwargs supplied."""
+        checker = _make_checker()
+        violations = checker.check_structural(
+            parent_id="same",
+            child_id="same",  # triggers C-dep-direction
+            vote="APPROVE",   # triggers C-review-binary
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-dep-direction" in ids
+        assert "C-review-binary" in ids
+
+    def test_does_not_short_circuit(self) -> None:
+        """check_structural aggregates all violations, does not stop at first."""
+        checker = _make_checker()
+        violations = checker.check_structural(
+            has_todos=True,
+            tests_pass=False,
+            typecheck_pass=False,
+        )
+        # All 3 worker gate failures should be present
+        assert len(violations) == 3

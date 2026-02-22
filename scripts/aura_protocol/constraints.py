@@ -11,10 +11,15 @@ Key types:
 Design decisions:
     - DI: accepts optional constraint_specs/handoff_specs; defaults to canonical dicts
     - Returns list[ConstraintViolation] — never raises, never silently swallows
-    - Two aggregation entry points:
-        check_state_constraints(state) — aggregates the 5 state-based checks
-        check_transition_constraints(state, to_phase) — combines transition-specific checks
+    - Four categorized aggregation entry points (grouped by parameter signature):
+        check_state(state) — aggregates 7 state-based checks (primary)
+        check_transition(state, to_phase) — combines transition-specific checks (primary)
           (consensus gate, handoff requirement, blocker gate)
+        check_naming(titles) — aggregates naming/format checks across a list of titles
+        check_structural(**kwargs) — aggregates structural checks (varied signatures)
+    - Deprecated aliases kept for backwards compatibility:
+        check_state_constraints → check_state
+        check_transition_constraints → check_transition
     - Individual check methods (check_dep_direction, check_agent_commit, etc.) are kept
       intact — they have different signatures and cannot be unified into a single entry point
     - Structural / git-level constraints (e.g. C-agent-commit) validate what CAN be
@@ -33,6 +38,7 @@ from aura_protocol.types import (
     HandoffSpec,
     PhaseId,
     RoleId,
+    SeverityLevel,
     VoteType,
 )
 
@@ -83,6 +89,20 @@ _SEVERITY_TREE_PHASES: frozenset[PhaseId] = frozenset({PhaseId.P10_CODE_REVIEW})
 # The required severity groups for p10 code review.
 _REQUIRED_SEVERITY_GROUPS: frozenset[str] = frozenset({"BLOCKER", "IMPORTANT", "MINOR"})
 
+# The required SeverityLevel keys in EpochState.severity_groups at p10.
+_REQUIRED_SEVERITY_LEVELS: frozenset[SeverityLevel] = frozenset(
+    {SeverityLevel.BLOCKER, SeverityLevel.IMPORTANT, SeverityLevel.MINOR}
+)
+
+# Transitions that do NOT require a handoff (same-actor transitions per schema.xml).
+# p5→p6 and p6→p7 are architect-to-architect; no role change, no handoff needed.
+_SAME_ACTOR: frozenset[tuple[PhaseId, PhaseId]] = frozenset(
+    {
+        (PhaseId.P5_UAT, PhaseId.P6_RATIFY),
+        (PhaseId.P6_RATIFY, PhaseId.P7_HANDOFF),
+    }
+)
+
 
 # ─── Checker ──────────────────────────────────────────────────────────────────
 
@@ -119,22 +139,24 @@ class RuntimeConstraintChecker:
 
     # ── Aggregation Entry Points ──────────────────────────────────────────────
 
-    def check_state_constraints(self, state: EpochState) -> list[ConstraintViolation]:
+    def check_state(self, state: EpochState) -> list[ConstraintViolation]:
         """Run state-based constraint checks against current epoch state.
 
-        Aggregates the 5 state-based checks. Does NOT short-circuit —
+        Aggregates 7 state-based checks. Does NOT short-circuit —
         all checks run regardless of earlier violations.
 
         This entry point covers constraints that can be evaluated from state alone,
         without knowledge of the intended next phase:
-        - C-review-consensus: all 3 axes must ACCEPT in review phases
-        - C-severity-not-plan: p4 must NOT use severity trees
-        - C-worker-gates: p10 with unresolved blockers
-        - C-audit-never-delete / C-audit-dep-chain: audit trail integrity
-        - C-vertical-slices: role-phase ownership
+        1. C-review-consensus: all 3 axes must ACCEPT in review phases
+        2. C-severity-not-plan (via check_severity_tree): p4 must NOT use severity trees
+        3. C-severity-eager (via check_severity_tree): p10 must have all 3 severity groups
+        4. C-worker-gates (via check_blocker_gate): p10 with unresolved blockers
+        5. C-audit-never-delete (via check_audit_trail): audit trail integrity
+        6. C-audit-dep-chain (via check_audit_trail): audit record fields
+        7. C-vertical-slices (via check_role_ownership): role-phase ownership
 
         For transition-specific checks (consensus gate, handoff, blocker gate as
-        a transition precondition), use check_transition_constraints(state, to_phase).
+        a transition precondition), use check_transition(state, to_phase).
 
         Returns combined list of all violations (empty = all state constraints satisfied).
         """
@@ -146,7 +168,16 @@ class RuntimeConstraintChecker:
         violations.extend(self.check_role_ownership(state))
         return violations
 
-    def check_transition_constraints(
+    def check_state_constraints(self, state: EpochState) -> list[ConstraintViolation]:
+        """Deprecated alias for check_state().
+
+        Kept for backwards compatibility. Use check_state() for new code.
+
+        Returns combined list of all violations (empty = all state constraints satisfied).
+        """
+        return self.check_state(state)
+
+    def check_transition(
         self, state: EpochState, to_phase: PhaseId
     ) -> list[ConstraintViolation]:
         """Check constraints specific to a proposed phase transition.
@@ -180,17 +211,158 @@ class RuntimeConstraintChecker:
 
         return violations
 
-    def check_transition(
+    def check_transition_constraints(
         self, state: EpochState, to_phase: PhaseId
     ) -> list[ConstraintViolation]:
-        """Check constraints specific to a proposed phase transition.
+        """Deprecated alias for check_transition().
 
-        Deprecated alias for check_transition_constraints(). Kept for backwards
-        compatibility. Use check_transition_constraints() for new code.
+        Kept for backwards compatibility. Use check_transition() for new code.
 
         Returns list of violations (empty = transition is protocol-valid).
         """
-        return self.check_transition_constraints(state, to_phase)
+        return self.check_transition(state, to_phase)
+
+    def check_naming(self, titles: list[str]) -> list[ConstraintViolation]:
+        """Aggregate naming/format constraint checks across a list of titles.
+
+        Runs all naming checks for each title in the list:
+        - C-proposal-naming: PROPOSAL-{N}: pattern
+        - C-review-naming: {SCOPE}-REVIEW-{axis}-{round} pattern
+        - C-followup-lifecycle: FOLLOWUP_* prefix
+        - C-agent-commit: git agent-commit vs git commit
+
+        Does NOT short-circuit — all naming checks run for all titles.
+        Returns combined list of all violations (empty = all names valid).
+
+        Note: C-actionable-errors is validated at the external enforcement level
+        and does not have a runtime string-level check in this method.
+
+        Args:
+            titles: List of title strings to check. Each title is checked against
+                all applicable naming constraints independently.
+
+        Returns:
+            Combined list of all naming violations found.
+        """
+        violations: list[ConstraintViolation] = []
+        for title in titles:
+            violations.extend(self.check_proposal_naming(title))
+            violations.extend(self.check_review_naming(title))
+            violations.extend(self.check_followup_lifecycle(title))
+            violations.extend(self.check_agent_commit(title))
+        return violations
+
+    def check_structural(
+        self,
+        *,
+        # check_dep_direction
+        parent_id: str | None = None,
+        child_id: str | None = None,
+        # check_review_binary
+        vote: str | None = None,
+        # check_blocker_dual_parent
+        blocker_task_id: str | None = None,
+        severity_group_id: str | None = None,
+        slice_id: str | None = None,
+        # check_slice_has_leaf_tasks
+        leaf_task_ids: list[str] | None = None,
+        # check_ure_verbatim
+        question: str | None = None,
+        options: list[str] | None = None,
+        response: str | None = None,
+        # check_followup_timing
+        has_important_or_minor: bool | None = None,
+        followup_created: bool | None = None,
+        # check_frontmatter_refs
+        task_description: str | None = None,
+        required_ref_keys: list[str] | None = None,
+        # check_supervisor_no_impl
+        role: str | None = None,
+        action_type: str | None = None,
+        # check_supervisor_explore_team
+        phase: PhaseId | None = None,
+        has_explore_team: bool | None = None,
+        # check_followup_leaf_adoption
+        leaf_task_id: str | None = None,
+        followup_slice_id: str | None = None,
+        # check_worker_gates
+        has_todos: bool | None = None,
+        tests_pass: bool | None = None,
+        typecheck_pass: bool | None = None,
+        # check_vertical_slices
+        production_code_path: str | None = None,
+        owner_ids: list[str] | None = None,
+    ) -> list[ConstraintViolation]:
+        """Aggregate structural constraint checks with flexible kwargs.
+
+        Runs whichever structural checks have sufficient arguments supplied.
+        Each check is only executed when all its required kwargs are provided.
+        Does NOT short-circuit — all applicable checks run.
+
+        Structural checks covered:
+        - C-dep-direction (parent_id, child_id)
+        - C-review-binary (vote)
+        - C-blocker-dual-parent (blocker_task_id, severity_group_id, slice_id)
+        - C-slice-leaf-tasks (slice_id, leaf_task_ids)
+        - C-ure-verbatim (question, options, response)
+        - C-followup-timing (has_important_or_minor, followup_created)
+        - C-frontmatter-refs (task_description, required_ref_keys)
+        - C-supervisor-no-impl (role, action_type)
+        - C-supervisor-explore-team (phase, has_explore_team)
+        - C-followup-leaf-adoption (leaf_task_id, severity_group_id, followup_slice_id)
+        - C-worker-gates (has_todos, tests_pass, typecheck_pass)
+        - C-vertical-slices (production_code_path, owner_ids)
+
+        Returns:
+            Combined list of all structural violations found.
+        """
+        violations: list[ConstraintViolation] = []
+
+        if parent_id is not None and child_id is not None:
+            violations.extend(self.check_dep_direction(parent_id, child_id))
+
+        if vote is not None:
+            violations.extend(self.check_review_binary(vote))
+
+        if blocker_task_id is not None and severity_group_id is not None and slice_id is not None:
+            violations.extend(
+                self.check_blocker_dual_parent(blocker_task_id, severity_group_id, slice_id)
+            )
+
+        if slice_id is not None and leaf_task_ids is not None:
+            violations.extend(self.check_slice_has_leaf_tasks(slice_id, leaf_task_ids))
+
+        if question is not None and options is not None and response is not None:
+            violations.extend(self.check_ure_verbatim(question, options, response))
+
+        if has_important_or_minor is not None and followup_created is not None:
+            violations.extend(
+                self.check_followup_timing(has_important_or_minor, followup_created)
+            )
+
+        if task_description is not None and required_ref_keys is not None:
+            violations.extend(
+                self.check_frontmatter_refs(task_description, required_ref_keys)
+            )
+
+        if role is not None and action_type is not None:
+            violations.extend(self.check_supervisor_no_impl(role, action_type))
+
+        if phase is not None and has_explore_team is not None:
+            violations.extend(self.check_supervisor_explore_team(phase, has_explore_team))
+
+        if leaf_task_id is not None and severity_group_id is not None and followup_slice_id is not None:
+            violations.extend(
+                self.check_followup_leaf_adoption(leaf_task_id, severity_group_id, followup_slice_id)
+            )
+
+        if has_todos is not None and tests_pass is not None and typecheck_pass is not None:
+            violations.extend(self.check_worker_gates(has_todos, tests_pass, typecheck_pass))
+
+        if production_code_path is not None and owner_ids is not None:
+            violations.extend(self.check_vertical_slices(production_code_path, owner_ids))
+
+        return violations
 
     def validate(self, state: EpochState) -> list[ConstraintViolation]:
         """Validate protocol constraints against the given epoch state.
@@ -199,7 +371,7 @@ class RuntimeConstraintChecker:
         isinstance(RuntimeConstraintChecker(), ConstraintValidatorInterface) to
         return True at runtime.
 
-        Delegates to check_state_constraints() — runs all 5 state-based checks.
+        Delegates to check_state() — runs all 7 state-based checks.
 
         Args:
             state: Current epoch state to validate.
@@ -207,7 +379,7 @@ class RuntimeConstraintChecker:
         Returns:
             List of constraint violations found. Empty list means all pass.
         """
-        return self.check_state_constraints(state)
+        return self.check_state(state)
 
     # ── Named Constraint Checks ────────────────────────────────────────────────
 
@@ -310,33 +482,26 @@ class RuntimeConstraintChecker:
         return violations
 
     def check_severity_tree(self, state: EpochState) -> list[ConstraintViolation]:
-        """C-severity-eager: p10 code review requires 3 severity groups created eagerly.
+        """C-severity-eager / C-severity-not-plan: severity tree protocol rules.
 
-        In phase p10, all 3 severity groups (BLOCKER, IMPORTANT, MINOR) must be
-        created immediately when the review starts — not lazily.
+        Enforces two complementary constraints:
 
-        At runtime, we check that we ARE in p10. The actual creation of
-        severity group tasks is enforced structurally by the reviewer workflow.
-        This check validates that the severity groups are tracked in state
-        (if severity_groups field exists) or emits an informational violation
-        when state is at p10 but no groups are tracked.
+        C-severity-not-plan (p4): Plan review must NOT use severity trees.
+        If state is at p4, this is a violation — severity trees belong only in p10.
 
-        Note: EpochState does not have a severity_groups field in v1. This
-        check validates the protocol invariant: p4 must NOT have severity groups
-        (C-severity-not-plan), and p10 MUST have them (C-severity-eager).
-        The presence check at p10 requires external enforcement.
+        C-severity-eager (p10): Code review must have all 3 severity groups
+        (BLOCKER, IMPORTANT, MINOR) created eagerly when entering p10.
+        Validates that EpochState.severity_groups contains all 3 SeverityLevel keys.
+        Returns violation if at p10 and any of the 3 keys is missing.
 
         Returns violations for:
-        - Being at p4 with any severity tracking (C-severity-not-plan: plan reviews
-          should not have severity trees)
+        - Being at p4: C-severity-not-plan (plan reviews must not use severity trees)
+        - Being at p10 with missing severity_groups keys: C-severity-eager
         """
         violations: list[ConstraintViolation] = []
         current = state.current_phase
 
         # C-severity-not-plan: p4 (plan review) must NOT use severity trees.
-        # Since EpochState has no severity_groups field, we validate the phase rule.
-        # The violation here is contextual: if caller is checking severity tree
-        # for a p4 state, that IS the violation (severity trees don't belong in p4).
         if current == PhaseId.P4_REVIEW:
             violations.append(
                 ConstraintViolation(
@@ -349,6 +514,32 @@ class RuntimeConstraintChecker:
                     context={"phase": current.value},
                 )
             )
+
+        # C-severity-eager: p10 (code review) must have all 3 severity groups.
+        # EpochState.severity_groups is auto-populated on p10 entry by advance().
+        # A missing key indicates the state was constructed outside the state machine
+        # or the severity groups were not eagerly created as required.
+        if current == PhaseId.P10_CODE_REVIEW:
+            missing_levels = _REQUIRED_SEVERITY_LEVELS - set(state.severity_groups.keys())
+            if missing_levels:
+                missing_names = sorted(level.value for level in missing_levels)
+                violations.append(
+                    ConstraintViolation(
+                        constraint_id="C-severity-eager",
+                        message=(
+                            f"Phase p10 (code review) requires all 3 severity groups "
+                            f"(BLOCKER, IMPORTANT, MINOR) to be created eagerly. "
+                            f"Missing: {missing_names}. "
+                            "Severity groups must be created immediately when review starts, "
+                            "not lazily."
+                        ),
+                        context={
+                            "phase": current.value,
+                            "missing_severity_levels": ",".join(missing_names),
+                            "present_count": str(len(state.severity_groups)),
+                        },
+                    )
+                )
 
         return violations
 
@@ -369,14 +560,6 @@ class RuntimeConstraintChecker:
         Returns empty list for same-actor transitions (p5→p6, p6→p7) and
         well-known transitions that have handoff specs.
         """
-        # Same-actor transitions that explicitly do NOT need handoffs per schema.xml
-        _SAME_ACTOR: frozenset[tuple[PhaseId, PhaseId]] = frozenset(
-            {
-                (PhaseId.P5_UAT, PhaseId.P6_RATIFY),
-                (PhaseId.P6_RATIFY, PhaseId.P7_HANDOFF),
-            }
-        )
-
         if (from_phase, to_phase) in _SAME_ACTOR:
             return []
 
