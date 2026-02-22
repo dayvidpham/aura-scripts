@@ -5,7 +5,7 @@ Reads each JSONL line and inserts into: issues, labels, dependencies, comments.
 Then runs `bd dolt commit` to persist the Dolt history.
 
 Usage:
-    nix-shell -p python3Packages.pymysql --run "python3 scripts/import_jsonl_to_dolt.py [--dry-run]"
+    python3 scripts/import_jsonl_to_dolt.py [--dry-run] [--jsonl PATH]
 """
 
 import argparse
