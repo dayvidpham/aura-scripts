@@ -12,12 +12,28 @@ Event stub types are defined in types.py and re-exported here for convenience.
 
 Source of truth: skills/protocol/schema.xml
 Ratified plan: aura-plugins-gmv (AC9, AC10)
+
+## TYPE_CHECKING Protocol Limitations
+
+The Protocol classes in this module use @runtime_checkable to enable isinstance()
+checks. This is a known Python limitation: isinstance() checks only verify that
+the checked object has methods with the *correct names*, not that their parameter
+or return type signatures match the Protocol definition.
+
+For example, a class with ``def validate(self, x: str) -> None`` will satisfy
+``isinstance(obj, ConstraintValidatorInterface)`` even though the Protocol
+specifies ``validate(self, state: EpochState) -> list[ConstraintViolation]``.
+
+This is by design in Python's structural subtyping (PEP 544). The type checker
+(mypy/pyright) enforces full signature compatibility at static analysis time;
+isinstance() at runtime only confirms method-name presence. Do not rely on
+isinstance() for runtime signature safety — it is a convenience check only.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from aura_protocol.constraints import ConstraintViolation
 from aura_protocol.state_machine import EpochState
@@ -151,7 +167,14 @@ class TextPart:
 
 @dataclass(frozen=True)
 class FilePart:
-    """A2A FilePart — file content reference by URI."""
+    """A2A FilePart — file content reference by URI.
+
+    Note on A2A spec alignment: The A2A specification uses ``file_with_uri``
+    as the field name within the file content object. This v1 implementation
+    uses the flattened ``file_uri`` field directly on the dataclass as a known
+    simplification. Migration to the nested A2A ``file_with_uri`` structure is
+    deferred to v2 scope.
+    """
 
     file_uri: str
     mime_type: str | None = None
@@ -161,7 +184,7 @@ class FilePart:
 class DataPart:
     """A2A DataPart — structured data payload."""
 
-    data: dict
+    data: dict[str, Any]
 
 
 # Discriminated union type for all A2A content parts.
@@ -177,11 +200,19 @@ class ToolCall:
 
     Captures tool invocation input and optional output for audit/transcript
     purposes.
+
+    Note on hashability: Although this is a ``frozen=True`` dataclass (which
+    normally enables hashing), the ``tool_input`` and ``tool_output`` fields
+    are ``dict[str, Any]``. Python dicts are mutable and not hashable, so
+    frozen dataclasses containing dict fields are also NOT hashable. Attempting
+    ``hash(tool_call_instance)`` will raise ``TypeError``. If set membership or
+    dict-key usage is required, convert to a hashable representation first
+    (e.g., JSON-serialise the dicts and wrap in a named tuple).
     """
 
     tool_name: str
-    tool_input: dict
-    tool_output: dict | None = None
+    tool_input: dict[str, Any]
+    tool_output: dict[str, Any] | None = None
 
 
 # ─── Model Identifier ─────────────────────────────────────────────────────────

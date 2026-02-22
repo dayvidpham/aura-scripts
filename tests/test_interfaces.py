@@ -15,6 +15,7 @@ import asyncio
 
 import pytest
 
+from aura_protocol.constraints import RuntimeConstraintChecker
 from aura_protocol.interfaces import (
     AuditEvent,
     AuditTrail,
@@ -78,6 +79,18 @@ class TestConstraintValidatorInterfaceProtocol:
     def test_plain_object_fails(self) -> None:
         """Given plain object with no matching methods then isinstance is False."""
         assert not isinstance(object(), ConstraintValidatorInterface)
+
+    def test_runtime_constraint_checker_satisfies_interface(self) -> None:
+        """AC8: RuntimeConstraintChecker must satisfy ConstraintValidatorInterface.
+
+        Given RuntimeConstraintChecker (which has a validate() method) when
+        isinstance checked against ConstraintValidatorInterface then True.
+
+        This verifies that the production checker implements the public protocol
+        contract via structural subtyping — no explicit inheritance required.
+        """
+        checker = RuntimeConstraintChecker()
+        assert isinstance(checker, ConstraintValidatorInterface)
 
 
 class TestTranscriptRecorderProtocol:
@@ -421,15 +434,16 @@ class TestEventStubReExports:
         assert event.vote == VoteType.ACCEPT
 
     def test_audit_event_importable(self) -> None:
-        """AuditEvent is re-exported from interfaces."""
-        import json
+        """AuditEvent is re-exported from interfaces.
 
+        payload is dict[str, Any] — structured event details, not a JSON string.
+        """
         event = AuditEvent(
             epoch_id="epoch-1",
             event_type="phase_transition",
             phase=PhaseId.P9_SLICE,
             role=RoleId.SUPERVISOR,
-            payload=json.dumps({"from": "p8", "to": "p9"}),
+            payload={"from": "p8", "to": "p9"},
         )
         assert event.event_type == "phase_transition"
 

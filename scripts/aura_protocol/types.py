@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
@@ -189,7 +190,7 @@ class AuditEvent:
     event_type: str
     phase: PhaseId
     role: RoleId
-    payload: str  # JSON-serialized event details
+    payload: dict[str, Any]  # Structured event details
 
 
 @dataclass(frozen=True)

@@ -192,6 +192,23 @@ class RuntimeConstraintChecker:
         """
         return self.check_transition_constraints(state, to_phase)
 
+    def validate(self, state: EpochState) -> list[ConstraintViolation]:
+        """Validate protocol constraints against the given epoch state.
+
+        Satisfies the ConstraintValidatorInterface Protocol contract, enabling
+        isinstance(RuntimeConstraintChecker(), ConstraintValidatorInterface) to
+        return True at runtime.
+
+        Delegates to check_state_constraints() — runs all 5 state-based checks.
+
+        Args:
+            state: Current epoch state to validate.
+
+        Returns:
+            List of constraint violations found. Empty list means all pass.
+        """
+        return self.check_state_constraints(state)
+
     # ── Named Constraint Checks ────────────────────────────────────────────────
 
     def check_review_consensus(self, state: EpochState) -> list[ConstraintViolation]:
