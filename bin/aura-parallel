@@ -41,6 +41,7 @@ import secrets
 import signal
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
 
@@ -61,6 +62,8 @@ ALLOWED_PERMISSION_MODES = frozenset(["default", "acceptEdits", "bypassPermissio
 
 # Valid models
 VALID_MODELS = frozenset(["sonnet", "opus", "haiku"])
+
+AURA_PROMPT_STATE_DIR = Path.home() / ".local" / "share" / "aura" / "aura-parallel" / "prompts"
 
 # SIGINT flag
 _interrupted = False
@@ -178,10 +181,23 @@ def build_prompt(base_prompt: str, skill: str | None, task_ids: list[str] | None
     return "\n".join(parts)
 
 
+def write_prompt_file(prompt: str) -> Path:
+    """Write prompt to ~/.local/share/aura/aura-parallel/prompts/.
+
+    Returns the absolute Path. Files persist as an audit trail.
+    """
+    AURA_PROMPT_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    hex4 = secrets.token_hex(2)
+    prompt_path = AURA_PROMPT_STATE_DIR / f"{timestamp}-{hex4}-prompt.md"
+    prompt_path.write_text(prompt)
+    return prompt_path
+
+
 def launch_tmux_session(
     session_name: str,
     working_dir: Path,
-    role_instructions: str,
+    instructions_path: Path,
     prompt: str,
     model: str,
     permission_mode: str,
@@ -189,18 +205,32 @@ def launch_tmux_session(
 ) -> SessionResult:
     """Launch Claude agent in a tmux session.
 
+    Uses $(cat '...') shell expansion for both role instructions and prompt
+    to avoid exceeding tmux/OS command length limits.
+
     Returns SessionResult indicating success/failure.
     """
-    # Escape for shell
-    escaped_prompt = prompt.replace("'", "'\"'\"'")
-    escaped_instructions = role_instructions.replace("'", "'\"'\"'")
+    if dry_run:
+        print(f"Would create session: {session_name}")
+        print(f"  tmux new-session -d -s {session_name} -c {working_dir} \\")
+        print(f"    claude --model {model} --append-system-prompt <role-instructions> \\")
+        print(f"           --permission-mode {permission_mode} '<prompt>'")
+        return SessionResult(session_name, success=True)
 
-    # Build claude command
+    # Write prompt to file so we can reference it via $(cat ...) in the tmux command
+    try:
+        prompt_path = write_prompt_file(prompt)
+    except OSError as e:
+        return SessionResult(session_name, success=False, error=f"Failed to write prompt file: {e}")
+
+    # Use $(cat '...') so tmux stores only a short template string.
+    # The shell spawned inside the tmux window expands the file contents at runtime,
+    # bypassing tmux's command length limit entirely.
     claude_cmd = (
         f"claude --model {model} "
-        f"--append-system-prompt '{escaped_instructions}' "
+        f"--append-system-prompt \"$(cat '{instructions_path}')\" "
         f"--permission-mode {permission_mode} "
-        f"'{escaped_prompt}'"
+        f"\"$(cat '{prompt_path}')\""
     )
 
     # Wrap with session keep-alive
@@ -217,13 +247,6 @@ def launch_tmux_session(
         str(working_dir),
         full_cmd,
     ]
-
-    if dry_run:
-        print(f"Would create session: {session_name}")
-        print(f"  tmux new-session -d -s {session_name} -c {working_dir} \\")
-        print(f"    claude --model {model} --append-system-prompt <role-instructions> \\")
-        print(f"           --permission-mode {permission_mode} '<prompt>'")
-        return SessionResult(session_name, success=True)
 
     # Check for existing session (shouldn't happen with unique names, but safety check)
     if check_tmux_session_exists(session_name):
@@ -460,7 +483,7 @@ Examples:
         result = launch_tmux_session(
             session_name=session_name,
             working_dir=working_dir,
-            role_instructions=role_instructions,
+            instructions_path=instructions_path,
             prompt=prompt,
             model=args.model,
             permission_mode=args.permission_mode,
