@@ -752,3 +752,22 @@ class TestAC10Pipeline:
         assert GENERATED_END in skill_result, (
             "generate_skill output missing END marker"
         )
+
+
+# ─── Drift test: committed schema.xml must match generator output ──────────────
+
+
+class TestSchemaXmlDrift:
+    """Verify committed schema.xml matches generator output."""
+
+    def test_generated_schema_matches_canonical(self, tmp_path: Path) -> None:
+        """skills/protocol/schema.xml must match generate_schema() output."""
+        canonical = (
+            Path(__file__).parent.parent / "skills" / "protocol" / "schema.xml"
+        ).read_text(encoding="utf-8")
+        output_path = tmp_path / "schema.xml"
+        content = generate_schema(output_path, diff=False)
+        assert content == canonical, (
+            "Generated schema.xml differs from canonical. "
+            "Run: uv run python scripts/aura_protocol/gen_schema.py to regenerate."
+        )

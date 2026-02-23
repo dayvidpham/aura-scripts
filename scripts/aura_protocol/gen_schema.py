@@ -93,7 +93,8 @@ def _build_constraint_phase_refs() -> dict[str, str | None]:
             continue
         in_all = all(
             cid in constraints
-            for constraints in _CI_PHASE_CONSTRAINTS.values()
+            for phase, constraints in _CI_PHASE_CONSTRAINTS.items()
+            if phase != PhaseId.COMPLETE  # terminal state has no constraints by design
         )
         if in_all:
             result[cid] = None

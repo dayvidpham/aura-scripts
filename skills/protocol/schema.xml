@@ -165,6 +165,12 @@
       </substeps>
       <task-title pattern="ELICIT: {description}" substep="s2_1" />
       <task-title pattern="URD: {description}" substep="s2_2" />
+      <task-title pattern="FOLLOWUP_URE: {description}" substep="s2_1">
+        <convention>Scoping URE to determine which IMPORTANT/MINOR findings to address</convention>
+      </task-title>
+      <task-title pattern="FOLLOWUP_URD: {description}" substep="s2_2">
+        <convention>Requirements doc for follow-up scope. References original URD.</convention>
+      </task-title>
       <transitions>
         <transition to-phase="p3" condition="URD created with structured requirements" />
       </transitions>
@@ -176,8 +182,11 @@
           <description>Full technical proposal: interfaces, approach, validation checklist, BDD criteria</description>
         </substep>
       </substeps>
-      <task-title pattern="PROPOSAL-{N}: {description}">
-        <convention>N starts at 1, increments per revision. Old proposals marked aura:superseded.</convention>
+      <task-title pattern="PROPOSAL-{N}: {description}" substep="s3">
+        <convention>N increments per revision. Old proposals marked aura:superseded.</convention>
+      </task-title>
+      <task-title pattern="FOLLOWUP_PROPOSAL-{N}: {description}" substep="s3">
+        <convention>Proposal accounting for original URD + FOLLOWUP_URD + outstanding findings</convention>
       </task-title>
       <transitions>
         <transition to-phase="p4" condition="proposal created" />
@@ -192,7 +201,7 @@
         </substep>
       </substeps>
       <task-title pattern="PROPOSAL-{N}-REVIEW-{axis}-{round}: {description}">
-        <convention>axis = A|B|C, round starts at 1 and increments per re-review cycle.</convention>
+        <convention>axis=A|B|C, round starts at 1</convention>
       </task-title>
       <severity-tree enabled="false" reason="Plan reviews use binary ACCEPT/REVISE only" />
       <transitions>
@@ -247,13 +256,16 @@
             <step order="1">Call Skill(/aura:supervisor) to load role instructions</step>
             <step order="2">Read RATIFIED_PLAN and URD via bd show</step>
             <step order="3">Create standing explore team via TeamCreate before any codebase exploration</step>
-            <step order="4">Decompose into vertical slices</step>
+            <step order="4" next-state="p8">Decompose into vertical slices</step>
             <step order="5">Create leaf tasks (L1/L2/L3) for every slice</step>
-            <step order="6">Spawn workers for leaf tasks</step>
+            <step order="6" next-state="p9">Spawn workers for leaf tasks</step>
           </startup-sequence>
         </substep>
       </substeps>
-      <task-title pattern="IMPL_PLAN: {description}" />
+      <task-title pattern="IMPL_PLAN: {description}" substep="s8" />
+      <task-title pattern="FOLLOWUP_IMPL_PLAN: {description}" substep="s8">
+        <convention>Implementation plan for follow-up slices</convention>
+      </task-title>
       <transitions>
         <transition to-phase="p9" condition="all slices created with leaf tasks, assigned, and dependency-chained" />
       </transitions>
@@ -266,8 +278,11 @@
           <instances count="N" per="production-code-path" />
         </substep>
       </substeps>
-      <task-title pattern="SLICE-{N}: {description}">
-        <convention>N identifies the slice number within the implementation plan.</convention>
+      <task-title pattern="SLICE-{N}: {description}" substep="s9">
+        <convention>N identifies slice within the implementation plan</convention>
+      </task-title>
+      <task-title pattern="FOLLOWUP_SLICE-{N}: {description}" substep="s9">
+        <convention>Follow-up slice. Adopts IMPORTANT/MINOR leaf tasks from original review as children (dual-parent: leaf blocks both original severity group AND follow-up slice).</convention>
       </task-title>
       <tdd-layers>
         <layer number="1" name="Types" description="Types, interfaces, schemas (no deps)" />
@@ -286,7 +301,12 @@
           <instances count="3" per="review-axis" />
         </substep>
       </substeps>
-      <task-title pattern="SLICE-{N}-REVIEW-{axis}-{round}: {description}" />
+      <task-title pattern="SLICE-{N}-REVIEW-{axis}-{round}: {description}" substep="s10">
+        <convention>axis=A|B|C, round starts at 1</convention>
+      </task-title>
+      <task-title pattern="IMPL-REVIEW-{axis}-{round}: {description}" substep="s10">
+        <convention>When reviewing all slices collectively</convention>
+      </task-title>
       <severity-tree enabled="true" creation="eager">
         <rule>Always create 3 severity groups per review round, even if empty.</rule>
         <rule>Empty groups have no children and are closed immediately.</rule>
@@ -793,7 +813,7 @@
     <constraint id="C-audit-never-delete" given="any task or label" when="modifying" then="add labels and comments only" should-not="delete or close tasks prematurely, remove labels" />
     <constraint id="C-audit-dep-chain" given="any phase transition" when="creating new task" then="chain dependency: bd dep add parent --blocked-by child" should-not="skip dependency chaining or invert direction" />
     <!-- Reviews -->
-    <constraint id="C-review-consensus" given="review cycle (p4 or p10)" when="evaluating" then="all 3 reviewers must ACCEPT before proceeding" should-not="proceed with any REVISE vote outstanding" role-ref="reviewer" phase-ref="p4" />
+    <constraint id="C-review-consensus" given="review cycle (p4 or p10)" when="evaluating" then="all 3 reviewers must ACCEPT before proceeding" should-not="proceed with any REVISE vote outstanding" phase-ref="p4" />
     <constraint id="C-review-binary" given="a reviewer" when="voting" then="use ACCEPT or REVISE only" should-not="use APPROVE, APPROVE_WITH_COMMENTS, REQUEST_CHANGES, or REJECT" role-ref="reviewer" phase-ref="p4" />
     <constraint id="C-severity-eager" given="code review round (p10 only)" when="starting review" then="ALWAYS create 3 severity group tasks (BLOCKER, IMPORTANT, MINOR) immediately" should-not="lazily create severity groups only when findings exist" role-ref="reviewer" phase-ref="p10" />
     <constraint id="C-severity-not-plan" given="plan review (p4)" when="reviewing" then="use binary ACCEPT/REVISE only" should-not="create severity tree for plan reviews" role-ref="reviewer" phase-ref="p4" />
@@ -801,7 +821,7 @@
     <constraint id="C-followup-timing" given="code review completion with IMPORTANT or MINOR findings" when="creating follow-up epic" then="create immediately upon review completion" should-not="gate follow-up epic on BLOCKER resolution" role-ref="supervisor" phase-ref="p10" />
     <!-- Ownership -->
     <constraint id="C-vertical-slices" given="implementation decomposition" when="assigning work" then="each production code path owned by exactly ONE worker (full vertical)" should-not="assign horizontal layers or same path to multiple workers" role-ref="supervisor" phase-ref="p8" />
-    <constraint id="C-supervisor-no-impl" given="supervisor role" when="implementation phase" then="spawn workers for all code changes" should-not="implement code directly" role-ref="supervisor" phase-ref="p9" />
+    <constraint id="C-supervisor-no-impl" given="supervisor role" when="implementation phase" then="spawn workers for all code changes" should-not="implement code directly" role-ref="supervisor" phase-ref="p8" />
     <constraint id="C-supervisor-explore-team" given="supervisor needs codebase exploration" when="starting Phase 8 (IMPL_PLAN)" then="create standing explore team via TeamCreate with minimum 1 scoped explore agent; delegate all deep exploration to explore agents; reuse agents for follow-up queries on same domain" should-not="perform deep codebase exploration directly as supervisor" role-ref="supervisor" phase-ref="p8" />
     <constraint id="C-slice-leaf-tasks" given="vertical slice created" when="decomposing slice into implementation units" then="create Beads leaf tasks (L1: types, L2: tests, L3: impl) within each slice with bd dep add slice-id --blocked-by leaf-task-id" should-not="create slices without leaf tasks — a slice with no children is undecomposed and cannot be tracked" role-ref="supervisor" phase-ref="p8" />
     <constraint id="C-handoff-skill-invocation" given="an agent is launched for a new phase (especially p7 to p8 handoff)" when="composing the launch prompt" then="prompt MUST start with Skill(/aura:{role}) invocation directive so the agent loads its role instructions" should-not="launch agents without skill invocation — they skip role-critical procedures like explore team setup and leaf task creation" phase-ref="p7" />
@@ -809,19 +829,19 @@
     <constraint id="C-dep-direction" given="adding a Beads dependency" when="determining direction" then="parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first" should-not="invert (child blocked-by parent)" />
     <constraint id="C-frontmatter-refs" given="cross-task references (URD, request, etc.)" when="linking tasks" then="use description frontmatter references: block" should-not="use bd dep relate (buggy) or blocking dependencies for reference docs" />
     <!-- Git -->
-    <constraint id="C-agent-commit" given="code is ready to commit" when="committing" then="use git agent-commit -m ..." should-not="use git commit -m ..." phase-ref="p12" />
+    <constraint id="C-agent-commit" given="code is ready to commit" when="committing" then="use git agent-commit -m ..." should-not="use git commit -m ..." phase-ref="p9" />
     <!-- Naming -->
     <constraint id="C-proposal-naming" given="a new or revised proposal" when="creating task" then="title PROPOSAL-{N} where N increments; mark old as aura:superseded" should-not="reuse N or delete old proposals" role-ref="architect" phase-ref="p3" />
     <constraint id="C-review-naming" given="a review task" when="creating" then="title {SCOPE}-REVIEW-{axis}-{round} where axis=A|B|C, round starts at 1" should-not="use numeric reviewer IDs (1/2/3) instead of axis letters" role-ref="reviewer" phase-ref="p4" />
     <!-- User interviews -->
-    <constraint id="C-ure-verbatim" given="user interview (URE or UAT)" when="recording in Beads" then="capture full question text, ALL option descriptions, AND user's verbatim response" should-not="summarize options as (1)/(2)/(3) without option text" phase-ref="p2" />
+    <constraint id="C-ure-verbatim" given="user interview (URE or UAT)" when="recording in Beads" then="capture full question text, ALL option descriptions, AND user's verbatim response" should-not="summarize options as (1)/(2)/(3) without option text" role-ref="architect" phase-ref="p2" />
     <!-- Follow-up lifecycle -->
     <constraint id="C-followup-lifecycle" given="follow-up epic created" when="starting follow-up work" then="run same protocol phases with FOLLOWUP_* prefix: FOLLOWUP_URE → FOLLOWUP_URD → FOLLOWUP_PROPOSAL → FOLLOWUP_IMPL_PLAN → FOLLOWUP_SLICE" should-not="skip the follow-up lifecycle or treat the follow-up epic as a flat task list" role-ref="supervisor" phase-ref="p10" />
     <constraint id="C-followup-leaf-adoption" given="supervisor creates FOLLOWUP_SLICE-N" when="assigning original IMPORTANT/MINOR leaf tasks to follow-up slices" then="add leaf task as child of follow-up slice (dual-parent: leaf blocks both severity group AND follow-up slice)" should-not="remove the leaf task from its original severity group parent" role-ref="supervisor" phase-ref="p10" />
-    <!-- Error quality -->
-    <constraint id="C-actionable-errors" given="an error, exception, or user-facing message" when="creating or raising" then="make it actionable: describe (1) what went wrong, (2) why it happened, (3) where it failed (file location, module, or function), (4) when it failed (step, operation, or timestamp), (5) what it means for the caller, and (6) how to fix it" should-not="raise generic or opaque error messages (e.g. 'invalid input', 'operation failed') that don't guide the user toward resolution" />
     <!-- Worker completion -->
     <constraint id="C-worker-gates" given="worker finishes implementation" when="signaling completion" then="run quality gates (typecheck + tests) AND verify production code path (no TODOs, real deps)" should-not="close with only 'tests pass' as completion gate" role-ref="worker" phase-ref="p9" />
+    <!-- Error quality -->
+    <constraint id="C-actionable-errors" given="an error, exception, or user-facing message" when="creating or raising" then="make it actionable: describe (1) what went wrong, (2) why it happened, (3) where it failed (file location, module, or function), (4) when it failed (step, operation, or timestamp), (5) what it means for the caller, and (6) how to fix it" should-not="raise generic or opaque error messages (e.g. 'invalid input', 'operation failed') that don't guide the user toward resolution" />
   </constraints>
   <!-- ═══════════════════════════════════════════════════════════════════════
      TASK TITLE CONVENTIONS
