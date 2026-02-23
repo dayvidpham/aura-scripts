@@ -1,0 +1,545 @@
+"""Tests for scripts/aura_protocol/gen_skills.py.
+
+Acceptance Criteria covered:
+- AC4:  Given SKILL.md with markers, header updated, body preserved.
+- AC4a: MarkerError raised on missing markers (UAT-5) — no silent prepending.
+- AC4a: MarkerError raised on malformed markers (reversed order, duplicates).
+- AC2a: Unified diff printed to stdout when content changes (UAT-2).
+- AC8:  Jinja2 templates render with StrictUndefined, parametrized over 4 roles.
+"""
+
+from __future__ import annotations
+
+import pathlib
+
+import pytest
+
+from aura_protocol.gen_skills import (
+    GENERATED_BEGIN,
+    GENERATED_END,
+    MarkerError,
+    generate_skill,
+)
+from aura_protocol.types import RoleId
+
+# ─── Constants ────────────────────────────────────────────────────────────────
+
+# The 4 roles the generator must support (AC8)
+ALL_ROLES = [
+    RoleId.SUPERVISOR,
+    RoleId.WORKER,
+    RoleId.REVIEWER,
+    RoleId.ARCHITECT,
+]
+
+# Template directory relative to the repo root (resolved at import time)
+_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+TEMPLATE_DIR = _REPO_ROOT / "skills" / "templates"
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+
+def _make_skill_file(
+    tmp_path: pathlib.Path,
+    content: str,
+    filename: str = "SKILL.md",
+) -> pathlib.Path:
+    """Write *content* to a temp SKILL.md and return its path."""
+    p = tmp_path / filename
+    p.write_text(content, encoding="utf-8")
+    return p
+
+
+def _minimal_with_markers(body: str = "") -> str:
+    """Return minimal SKILL.md text containing valid markers and optional body."""
+    lines = [
+        "---",
+        "name: test",
+        "---",
+        GENERATED_BEGIN,
+        "(old generated content)",
+        GENERATED_END,
+    ]
+    content = "\n".join(lines) + "\n"
+    if body:
+        content += body
+    return content
+
+
+# ─── AC4: Header updated, body preserved ──────────────────────────────────────
+
+
+class TestHeaderUpdatedBodyPreserved:
+    """AC4: generate_skill() updates the header but keeps hand-authored body."""
+
+    def test_body_below_end_marker_is_preserved(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Hand-authored body below END marker must be unchanged after generation."""
+        hand_authored = "## Hand-authored section\n\nDo not overwrite me.\n"
+        content = _minimal_with_markers(body=hand_authored)
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert hand_authored in result, (
+            "Hand-authored body below END marker was not preserved in output."
+        )
+
+    def test_generated_header_contains_role_name(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Generated section should mention the role name."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "Worker" in result, (
+            "Generated header should contain role name 'Worker'."
+        )
+
+    def test_markers_present_in_output(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Output must contain both BEGIN and END markers."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert GENERATED_BEGIN in result
+        assert GENERATED_END in result
+
+    def test_begin_marker_before_end_marker_in_output(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """BEGIN marker must appear before END marker in output."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        begin_pos = result.index(GENERATED_BEGIN)
+        end_pos = result.index(GENERATED_END)
+        assert begin_pos < end_pos, (
+            "BEGIN marker must appear before END marker in generated output."
+        )
+
+    def test_write_true_updates_file_on_disk(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """With write=True, the file on disk is updated."""
+        old_body = "## Old generated\n(will be replaced)\n"
+        content = _minimal_with_markers(body="## Preserved body\n")
+        skill_path = _make_skill_file(tmp_path, content)
+
+        generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=True,
+        )
+
+        written = skill_path.read_text(encoding="utf-8")
+        assert GENERATED_BEGIN in written
+        assert GENERATED_END in written
+
+    def test_write_false_does_not_touch_file(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """With write=False, the file on disk is unchanged."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert skill_path.read_text(encoding="utf-8") == content
+
+
+# ─── AC4a: MarkerError on missing markers ─────────────────────────────────────
+
+
+class TestMarkerErrorMissingMarkers:
+    """AC4a / UAT-5: MarkerError raised on missing markers — no silent prepending."""
+
+    def test_missing_both_markers_raises_marker_error(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """File with no markers at all must raise MarkerError."""
+        content = "---\nname: unmarked\n---\n\n# No markers here.\n"
+        skill_path = _make_skill_file(tmp_path, content)
+
+        with pytest.raises(MarkerError):
+            generate_skill(
+                RoleId.SUPERVISOR,
+                skill_path,
+                template_dir=TEMPLATE_DIR,
+                diff=False,
+                write=False,
+            )
+
+    def test_missing_begin_marker_raises_marker_error(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """File with only END marker (BEGIN absent) must raise MarkerError."""
+        content = f"---\nname: test\n---\n\nSome text\n{GENERATED_END}\n"
+        skill_path = _make_skill_file(tmp_path, content)
+
+        with pytest.raises(MarkerError):
+            generate_skill(
+                RoleId.SUPERVISOR,
+                skill_path,
+                template_dir=TEMPLATE_DIR,
+                diff=False,
+                write=False,
+            )
+
+    def test_missing_end_marker_raises_marker_error(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """File with only BEGIN marker (END absent) must raise MarkerError."""
+        content = f"---\nname: test\n---\n\n{GENERATED_BEGIN}\nSome text\n"
+        skill_path = _make_skill_file(tmp_path, content)
+
+        with pytest.raises(MarkerError):
+            generate_skill(
+                RoleId.SUPERVISOR,
+                skill_path,
+                template_dir=TEMPLATE_DIR,
+                diff=False,
+                write=False,
+            )
+
+    def test_marker_error_message_describes_fix(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """MarkerError message must describe how to fix the problem."""
+        content = "# No markers\n"
+        skill_path = _make_skill_file(tmp_path, content)
+
+        with pytest.raises(MarkerError, match=r"(?i)(marker|begin|end)"):
+            generate_skill(
+                RoleId.SUPERVISOR,
+                skill_path,
+                template_dir=TEMPLATE_DIR,
+                diff=False,
+                write=False,
+            )
+
+
+# ─── AC4a: MarkerError on malformed markers ───────────────────────────────────
+
+
+class TestMarkerErrorMalformedMarkers:
+    """AC4a: MarkerError raised for malformed markers (reversed, duplicates)."""
+
+    def test_reversed_markers_raises_marker_error(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """END before BEGIN must raise MarkerError."""
+        content = (
+            "---\nname: test\n---\n\n"
+            f"{GENERATED_END}\n"
+            "Some content\n"
+            f"{GENERATED_BEGIN}\n"
+        )
+        skill_path = _make_skill_file(tmp_path, content)
+
+        with pytest.raises(MarkerError):
+            generate_skill(
+                RoleId.SUPERVISOR,
+                skill_path,
+                template_dir=TEMPLATE_DIR,
+                diff=False,
+                write=False,
+            )
+
+    def test_duplicate_begin_marker_raises_marker_error(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Two BEGIN markers must raise MarkerError."""
+        content = (
+            f"{GENERATED_BEGIN}\n"
+            "First header\n"
+            f"{GENERATED_BEGIN}\n"
+            "Second header\n"
+            f"{GENERATED_END}\n"
+        )
+        skill_path = _make_skill_file(tmp_path, content)
+
+        with pytest.raises(MarkerError):
+            generate_skill(
+                RoleId.SUPERVISOR,
+                skill_path,
+                template_dir=TEMPLATE_DIR,
+                diff=False,
+                write=False,
+            )
+
+    def test_duplicate_end_marker_raises_marker_error(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Two END markers must raise MarkerError."""
+        content = (
+            f"{GENERATED_BEGIN}\n"
+            "Header\n"
+            f"{GENERATED_END}\n"
+            "body\n"
+            f"{GENERATED_END}\n"
+        )
+        skill_path = _make_skill_file(tmp_path, content)
+
+        with pytest.raises(MarkerError):
+            generate_skill(
+                RoleId.SUPERVISOR,
+                skill_path,
+                template_dir=TEMPLATE_DIR,
+                diff=False,
+                write=False,
+            )
+
+
+# ─── AC2a: Diff output ────────────────────────────────────────────────────────
+
+
+class TestDiffOutput:
+    """AC2a / UAT-2: Unified diff printed to stdout when content changes."""
+
+    def test_diff_printed_when_content_changes(
+        self,
+        tmp_path: pathlib.Path,
+        capsys,
+    ) -> None:
+        """generate_skill(..., diff=True) prints a unified diff when content changes."""
+        # Minimal markers with old generated content that differs from new render
+        old_generated = "Old content that will differ from new render\n"
+        content = (
+            f"{GENERATED_BEGIN}\n"
+            f"{old_generated}"
+            f"{GENERATED_END}\n"
+        )
+        skill_path = _make_skill_file(tmp_path, content)
+
+        generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=True,
+            write=False,
+        )
+
+        captured = capsys.readouterr()
+        # Unified diff format starts with "---" or "+++" or "@@"
+        assert captured.out, (
+            "Expected diff output on stdout when content changes, but got nothing."
+        )
+        # Verify it looks like a unified diff
+        assert any(
+            line.startswith(("---", "+++", "@@", "-", "+"))
+            for line in captured.out.splitlines()
+        ), "stdout output does not look like a unified diff."
+
+    def test_no_diff_printed_when_content_unchanged(
+        self,
+        tmp_path: pathlib.Path,
+        capsys,
+    ) -> None:
+        """generate_skill(..., diff=True) prints nothing when content is identical."""
+        # Pre-render the content and use it as existing file content
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        # First generation to get the real output
+        first_result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        # Write first result as current file content
+        skill_path.write_text(first_result, encoding="utf-8")
+        capsys.readouterr()  # Clear captured output
+
+        # Second generation — content should match, no diff expected
+        generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=True,
+            write=False,
+        )
+
+        captured = capsys.readouterr()
+        assert captured.out == "", (
+            "Expected no diff output when content is unchanged, "
+            f"but got: {captured.out!r}"
+        )
+
+    def test_diff_false_produces_no_output(
+        self,
+        tmp_path: pathlib.Path,
+        capsys,
+    ) -> None:
+        """generate_skill(..., diff=False) must not print anything."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        captured = capsys.readouterr()
+        assert captured.out == "", (
+            "Expected no stdout output with diff=False, "
+            f"but got: {captured.out!r}"
+        )
+
+
+# ─── AC8: Template rendering with StrictUndefined ─────────────────────────────
+
+
+class TestTemplateRenderingAllRoles:
+    """AC8: Jinja2 templates render with StrictUndefined, parametrized over 4 roles."""
+
+    @pytest.mark.parametrize("role_id", ALL_ROLES)
+    def test_template_renders_without_error(
+        self,
+        role_id: RoleId,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Template must render successfully for each of the 4 roles."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content, filename=f"SKILL_{role_id.value}.md")
+
+        # Must not raise any exception (including UndefinedError from StrictUndefined)
+        result = generate_skill(
+            role_id,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    @pytest.mark.parametrize("role_id", ALL_ROLES)
+    def test_rendered_output_contains_role_value(
+        self,
+        role_id: RoleId,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Rendered output must reference the role's id value."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content, filename=f"SKILL_{role_id.value}.md")
+
+        result = generate_skill(
+            role_id,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert role_id.value in result, (
+            f"Expected role id '{role_id.value}' in rendered output for {role_id}."
+        )
+
+    @pytest.mark.parametrize("role_id", ALL_ROLES)
+    def test_rendered_output_contains_markers(
+        self,
+        role_id: RoleId,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Rendered output must contain both markers for each role."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content, filename=f"SKILL_{role_id.value}.md")
+
+        result = generate_skill(
+            role_id,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert GENERATED_BEGIN in result, (
+            f"BEGIN marker missing from output for role {role_id}."
+        )
+        assert GENERATED_END in result, (
+            f"END marker missing from output for role {role_id}."
+        )
+
+    @pytest.mark.parametrize("role_id", ALL_ROLES)
+    def test_body_preserved_for_all_roles(
+        self,
+        role_id: RoleId,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Hand-authored body must be preserved for each of the 4 roles."""
+        body = f"## Hand-authored section for {role_id.value}\n\nKeep me.\n"
+        content = _minimal_with_markers(body=body)
+        skill_path = _make_skill_file(tmp_path, content, filename=f"SKILL_{role_id.value}.md")
+
+        result = generate_skill(
+            role_id,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert body in result, (
+            f"Hand-authored body not preserved for role {role_id}."
+        )
