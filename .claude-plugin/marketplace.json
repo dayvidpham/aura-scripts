@@ -17,7 +17,7 @@
     {
       "name": "agentfilter",
       "description": "Security filter that blocks Claude Code from accessing sensitive files (SSH keys, credentials, env files)",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "source": {
         "source": "github",
         "repo": "dayvidpham/agentfilter"
