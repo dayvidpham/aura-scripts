@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.4] - 2026-02-23
+
+### Added
+- feat(nix): package aura-release as flake output
+
+### Other
+- chore: bump agentfilter plugin version to 0.3.0
+
 ## [0.4.3] - 2026-02-22
 
 ### Added
