@@ -1,0 +1,17 @@
+id: no-frozenset-bare-str
+language: Python
+severity: error
+message: >
+  Field "$FIELD" is annotated frozenset[str] but should use a typed enum.
+  frozenset[str] accepts any string, bypassing the enum's closed-set guarantee.
+  Use frozenset[PhaseId], frozenset[RoleId], frozenset[SeverityLevel], etc.
+note: >
+  frozenset[str] at a field boundary means callers must know the string encoding
+  convention (e.g. 'p7', 'supervisor') instead of using PhaseId.P7_HANDOFF or
+  RoleId.SUPERVISOR. This was the root cause of the aura-plugins-94yc UAT BLOCKER:
+  RoleSpec.owned_phases was frozenset[str], requiring O(n*m) string scanning in
+  gen_skills.py instead of direct frozenset intersection on PhaseId members.
+rule:
+  pattern: "$FIELD: frozenset[str]"
+ignores:
+  - "tests/**"
