@@ -22,6 +22,7 @@ from pathlib import Path
 
 from aura_protocol.types import (
     CommandSpec,
+    ConstraintSpec,
     ContentLevel,
     ExecutionMode,
     HandoffSpec,
@@ -59,7 +60,7 @@ class SchemaSpec:
     - 12 phases
     - 5 roles
     - 35 commands
-    - 23 constraints (dict[str, tuple[str, str, str, str]] — id: (given,when,then,should_not))
+    - 23 constraints (dict[str, ConstraintSpec])
     - 6 handoffs
     - 21 labels
     - 3 review axes
@@ -72,7 +73,7 @@ class SchemaSpec:
     phases: tuple[str, ...]               # Ordered phase IDs (p1..p12)
     roles: dict[RoleId, RoleSpec]
     commands: dict[str, CommandSpec]
-    constraints: dict[str, tuple[str, str, str, str]]  # id: (given,when,then,should_not)
+    constraints: dict[str, ConstraintSpec]
     handoffs: dict[str, HandoffSpec]
     labels: dict[str, LabelSpec]
     review_axes: dict[str, ReviewAxisSpec]
@@ -347,10 +348,10 @@ def _parse_commands(root: ET.Element, path: Path) -> dict[str, CommandSpec]:
 
 def _parse_constraints(
     root: ET.Element, path: Path
-) -> dict[str, tuple[str, str, str, str]]:
+) -> dict[str, ConstraintSpec]:
     """Extract all constraints from <constraints> section.
 
-    Returns dict[id, (given, when, then, should_not)].
+    Returns dict[id, ConstraintSpec].
     """
     constraints_el = root.find("constraints")
     if constraints_el is None:
@@ -359,7 +360,7 @@ def _parse_constraints(
             f"schema.xml must have a top-level <constraints> element. "
             f"Fix: add <constraints>...</constraints> to schema.xml."
         )
-    result: dict[str, tuple[str, str, str, str]] = {}
+    result: dict[str, ConstraintSpec] = {}
     for c in constraints_el.findall("constraint"):
         cid = _require(c.get("id"), "id", "<constraint>", path)
         given = _require(c.get("given"), "given", f"<constraint id='{cid}'>", path)
@@ -368,7 +369,7 @@ def _parse_constraints(
         should_not = _require(
             c.get("should-not"), "should-not", f"<constraint id='{cid}'>", path
         )
-        result[cid] = (given, when, then, should_not)
+        result[cid] = ConstraintSpec(id=cid, given=given, when=when, then=then, should_not=should_not)
     return result
 
 

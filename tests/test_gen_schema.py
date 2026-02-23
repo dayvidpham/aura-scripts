@@ -471,22 +471,21 @@ class TestRoundTripConsistency:
             assert parsed_constraint is not None, (
                 f"Constraint {cid} missing from parsed schema"
             )
-            parsed_given, parsed_when, parsed_then, parsed_should_not = parsed_constraint
-            assert parsed_given == python_spec.given, (
+            assert parsed_constraint.given == python_spec.given, (
                 f"Constraint {cid} 'given' mismatch: "
-                f"parsed={parsed_given!r}, python={python_spec.given!r}"
+                f"parsed={parsed_constraint.given!r}, python={python_spec.given!r}"
             )
-            assert parsed_when == python_spec.when, (
+            assert parsed_constraint.when == python_spec.when, (
                 f"Constraint {cid} 'when' mismatch: "
-                f"parsed={parsed_when!r}, python={python_spec.when!r}"
+                f"parsed={parsed_constraint.when!r}, python={python_spec.when!r}"
             )
-            assert parsed_then == python_spec.then, (
+            assert parsed_constraint.then == python_spec.then, (
                 f"Constraint {cid} 'then' mismatch: "
-                f"parsed={parsed_then!r}, python={python_spec.then!r}"
+                f"parsed={parsed_constraint.then!r}, python={python_spec.then!r}"
             )
-            assert parsed_should_not == python_spec.should_not, (
+            assert parsed_constraint.should_not == python_spec.should_not, (
                 f"Constraint {cid} 'should-not' mismatch: "
-                f"parsed={parsed_should_not!r}, python={python_spec.should_not!r}"
+                f"parsed={parsed_constraint.should_not!r}, python={python_spec.should_not!r}"
             )
 
     def test_roundtrip_handoff_count(self, parsed_spec) -> None:
