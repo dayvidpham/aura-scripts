@@ -58,6 +58,9 @@ Schema Parser (from schema_parser.py):
 Bootstrap Codegen (from gen_types.py):
     generate_types_source(spec) — generate draft Python source from SchemaSpec (one-time tool)
 
+Schema Generator (from gen_schema.py):
+    generate_schema(output, diff=True) — generate schema.xml from Python types with diff output
+
 State Machine (from state_machine.py):
     EpochState          — mutable epoch runtime state
     TransitionRecord    — frozen, immutable audit entry for one transition
@@ -86,6 +89,9 @@ Model Identifier (from interfaces.py):
 from aura_protocol.constraints import (
     ConstraintViolation,
     RuntimeConstraintChecker,
+)
+from aura_protocol.gen_schema import (
+    generate_schema,
 )
 from aura_protocol.gen_types import (
     generate_types_source,
@@ -222,4 +228,6 @@ __all__ = [
     "parse_schema",
     # Bootstrap codegen
     "generate_types_source",
+    # Schema generator
+    "generate_schema",
 ]
