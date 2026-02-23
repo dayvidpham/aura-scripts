@@ -33,7 +33,11 @@ _(No commands assigned to this role)_
 
 {% if constraints %}
 {% for c in constraints %}
-**[{{ c.id }}]** Given {{ c.given }} — When {{ c.when }} — Then {{ c.then }} — Should not {{ c.should_not }}
+**[{{ c.id }}]**
+- Given: {{ c.given }}
+- When: {{ c.when }}
+- Then: {{ c.then }}
+- Should not: {{ c.should_not }}
 
 {% endfor %}
 {% else %}

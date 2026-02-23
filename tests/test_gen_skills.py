@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pathlib
 
+import jinja2
 import pytest
 
 from aura_protocol.gen_skills import (
@@ -379,11 +380,14 @@ class TestDiffOutput:
         assert captured.out, (
             "Expected diff output on stdout when content changes, but got nothing."
         )
-        # Verify it looks like a unified diff
+        # Verify actual changed lines are present (not just file header lines).
+        # Real changed lines start with exactly '-' or '+' followed by a non-dash/non-plus
+        # character, distinguishing them from file header lines ('---'/'+++').
         assert any(
-            line.startswith(("---", "+++", "@@", "-", "+"))
+            (line.startswith("-") and not line.startswith("---"))
+            or (line.startswith("+") and not line.startswith("+++"))
             for line in captured.out.splitlines()
-        ), "stdout output does not look like a unified diff."
+        ), "stdout output does not contain actual changed lines (only headers or metadata)."
 
     def test_no_diff_printed_when_content_unchanged(
         self,
@@ -676,3 +680,23 @@ class TestStartupSequenceSection:
         assert "_(No startup sequence defined for this role)_" in result, (
             "Reviewer (no steps) must render the no-startup-sequence placeholder."
         )
+
+
+# ─── AC8: StrictUndefined regression protection ───────────────────────────────
+
+
+class TestStrictUndefined:
+    """AC8: Jinja2 StrictUndefined is active — undefined variables raise UndefinedError."""
+
+    def test_undefined_variable_raises_undefined_error(self) -> None:
+        """A template referencing an undefined variable must raise jinja2.UndefinedError.
+
+        This is a regression test for the StrictUndefined mode set in gen_skills.py.
+        If someone removes ``undefined=StrictUndefined`` from the Environment
+        constructor, this test will fail, catching the regression.
+        """
+        env = jinja2.Environment(undefined=jinja2.StrictUndefined)
+        template = env.from_string("{{ missing_variable }}")
+
+        with pytest.raises(jinja2.UndefinedError):
+            template.render()  # no 'missing_variable' in context
