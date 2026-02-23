@@ -34,6 +34,7 @@ from aura_protocol.types import (
     RoleId,
     RoleSpec,
     SubstepSpec,
+    SubstepType,
     TitleConvention,
 )
 
@@ -140,7 +141,15 @@ def _parse_substeps(root: ET.Element, path: Path) -> dict[str, SubstepSpec]:
             continue
         for substep in substeps_el.findall("substep"):
             sid = _require(substep.get("id"), "id", "<substep>", path)
-            stype = _require(substep.get("type"), "type", f"<substep id='{sid}'>", path)
+            stype_str = _require(substep.get("type"), "type", f"<substep id='{sid}'>", path)
+            try:
+                stype = SubstepType(stype_str)
+            except ValueError:
+                raise SchemaParseError(
+                    f"Unknown substep type '{stype_str}' on <substep id='{sid}'> in {path}. "
+                    f"Valid values: {[t.value for t in SubstepType]}. "
+                    f"Fix: correct the 'type' attribute."
+                )
             execution_str = _require(
                 substep.get("execution"), "execution", f"<substep id='{sid}'>", path
             )
