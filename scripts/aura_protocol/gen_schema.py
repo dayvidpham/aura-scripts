@@ -5,23 +5,31 @@ that matches the existing structure and passes validate_schema.py with 0 errors.
 
 New in this generator (UAT-2, UAT-3):
 - role-ref and phase-ref attributes on <constraint> elements, derived from
-  _ROLE_CONSTRAINTS and _PHASE_CONSTRAINTS static dicts below.
+  context_injection._ROLE_CONSTRAINTS and _PHASE_CONSTRAINTS (single source).
 - Unified diff shown to stdout before writing (UAT-2).
+- SUBSTEP_DATA, _PHASE_TRANSITIONS, _PHASE_TASK_TITLES derived from types.py (DRY).
 
 Public API:
-    generate_schema(output, diff=True) -> str | None
+    generate_schema(output, diff=True) -> str
 
     Returns the generated XML string.
     If diff=True and the file already exists, prints a unified diff before writing.
     Writes to output path only if content has changed (or file does not exist).
+    Raises OSError on write failure.
 """
 
 from __future__ import annotations
 
 import difflib
+import io
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from aura_protocol.context_injection import (
+    _GENERAL_CONSTRAINTS as _CI_GENERAL_CONSTRAINTS,
+    _PHASE_CONSTRAINTS as _CI_PHASE_CONSTRAINTS,
+    _ROLE_CONSTRAINTS as _CI_ROLE_CONSTRAINTS,
+)
 from aura_protocol.types import (
     COMMAND_SPECS,
     CONSTRAINT_SPECS,
@@ -31,6 +39,7 @@ from aura_protocol.types import (
     PROCEDURE_STEPS,
     REVIEW_AXIS_SPECS,
     ROLE_SPECS,
+    SUBSTEP_DATA,
     TITLE_CONVENTIONS,
     ContentLevel,
     ExecutionMode,
@@ -39,345 +48,143 @@ from aura_protocol.types import (
 )
 
 
-# ─── Static Constraint→Role/Phase Mappings (UAT-3) ────────────────────────────
-# These dicts map constraint IDs to the role(s) and phase(s) most directly
-# relevant to each constraint, for the role-ref/phase-ref attributes.
-# Derived from constraint content and schema.xml <role>/<phase> elements.
-# Each constraint maps to at most one role-ref and one phase-ref.
-# Constraints that apply globally (no specific role/phase) have None values.
+# ─── Constraint→Role/Phase Mappings (UAT-3) ───────────────────────────────────
+# Derived from context_injection._ROLE_CONSTRAINTS and _PHASE_CONSTRAINTS (single source).
+# gen_schema needs constraint→primary_role (1:1), while context_injection has
+# role→constraints (1:many). These dicts are built by inverting context_injection's
+# mappings at import time so the two modules stay in sync automatically.
+#
+# Priority for "primary role": REVIEWER > ARCHITECT > SUPERVISOR > WORKER.
+# Constraints in _GENERAL_CONSTRAINTS (all roles) or with multiple matches → None.
+# Priority for "primary phase": first phase (chronological P1→P12) that contains
+# the constraint. Constraints present in ALL phases (general) → None.
 
-_ROLE_CONSTRAINTS: dict[str, str | None] = {
-    "C-audit-never-delete":         None,          # applies to all actors
-    "C-audit-dep-chain":            None,          # applies to all actors
-    "C-review-consensus":           "reviewer",    # reviewer-specific gate
-    "C-review-binary":              "reviewer",    # reviewer vote rule
-    "C-severity-eager":             "reviewer",    # reviewer creates severity tree
-    "C-severity-not-plan":          "reviewer",    # reviewer constraint
-    "C-blocker-dual-parent":        "reviewer",    # reviewer records BLOCKERs
-    "C-followup-timing":            "supervisor",  # supervisor creates followup epic
-    "C-vertical-slices":            "supervisor",  # supervisor assigns slices
-    "C-supervisor-no-impl":         "supervisor",  # supervisor invariant
-    "C-supervisor-explore-team":    "supervisor",  # supervisor invariant
-    "C-slice-leaf-tasks":           "supervisor",  # supervisor creates leaf tasks
-    "C-handoff-skill-invocation":   None,          # applies to any actor launching agents
-    "C-dep-direction":              None,          # applies to all actors
-    "C-frontmatter-refs":           None,          # applies to all actors
-    "C-agent-commit":               None,          # applies to all actors
-    "C-proposal-naming":            "architect",   # architect creates proposals
-    "C-review-naming":              "reviewer",    # reviewer creates review tasks
-    "C-ure-verbatim":               None,          # applies to all interview actors
-    "C-followup-lifecycle":         "supervisor",  # supervisor runs followup lifecycle
-    "C-followup-leaf-adoption":     "supervisor",  # supervisor adopts leaf tasks
-    "C-worker-gates":               "worker",      # worker completion gate
-    "C-actionable-errors":          None,          # applies to all code authors
-}
+_ROLE_PRIORITY: tuple[RoleId, ...] = (
+    RoleId.REVIEWER, RoleId.ARCHITECT, RoleId.SUPERVISOR, RoleId.WORKER,
+)
 
-_PHASE_CONSTRAINTS: dict[str, str | None] = {
-    "C-audit-never-delete":         None,          # all phases
-    "C-audit-dep-chain":            None,          # all phases
-    "C-review-consensus":           "p4",          # plan review and code review; p4 is primary
-    "C-review-binary":              "p4",          # both review phases; p4 is primary
-    "C-severity-eager":             "p10",         # code review only
-    "C-severity-not-plan":          "p4",          # plan review only
-    "C-blocker-dual-parent":        "p10",         # code review only
-    "C-followup-timing":            "p10",         # after code review
-    "C-vertical-slices":            "p8",          # impl plan phase
-    "C-supervisor-no-impl":         "p9",          # worker slice phase
-    "C-supervisor-explore-team":    "p8",          # impl plan phase
-    "C-slice-leaf-tasks":           "p8",          # impl plan phase
-    "C-handoff-skill-invocation":   "p7",          # handoff phase
-    "C-dep-direction":              None,          # all phases
-    "C-frontmatter-refs":           None,          # all phases
-    "C-agent-commit":               "p12",         # landing phase
-    "C-proposal-naming":            "p3",          # propose phase
-    "C-review-naming":              "p4",          # review phase
-    "C-ure-verbatim":               "p2",          # elicit phase (URE/UAT)
-    "C-followup-lifecycle":         "p10",         # after code review
-    "C-followup-leaf-adoption":     "p10",         # code review followup
-    "C-worker-gates":               "p9",          # worker slice phase
-    "C-actionable-errors":          None,          # all phases
-}
+_PHASE_ORDER: tuple[PhaseId, ...] = (
+    PhaseId.P1_REQUEST, PhaseId.P2_ELICIT, PhaseId.P3_PROPOSE,
+    PhaseId.P4_REVIEW, PhaseId.P5_UAT, PhaseId.P6_RATIFY,
+    PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE,
+    PhaseId.P10_CODE_REVIEW, PhaseId.P11_IMPL_UAT, PhaseId.P12_LANDING,
+)
 
 
-# ─── Phase substep data (derived from schema.xml structure) ───────────────────
-# This mirrors the substep structure in the existing schema.xml.
-# Format: list of dicts with keys matching XML attributes + optional sub-elements.
+def _build_constraint_role_refs() -> dict[str, str | None]:
+    result: dict[str, str | None] = {}
+    for cid in CONSTRAINT_SPECS:
+        if cid in _CI_GENERAL_CONSTRAINTS:
+            result[cid] = None
+            continue
+        matching = [
+            role for role in _ROLE_PRIORITY
+            if cid in _CI_ROLE_CONSTRAINTS.get(role, frozenset())
+        ]
+        result[cid] = matching[0].value if len(matching) == 1 else None
+    return result
 
-_PHASE_SUBSTEP_DATA: dict[str, list[dict]] = {
-    "p1": [
-        {
-            "id": "s1_1", "type": "classify", "execution": "sequential", "order": "1",
-            "label-ref": "L-p1s1_1",
-            "description": "Classify request along 4 axes: scope, complexity, risk, domain novelty",
-        },
-        {
-            "id": "s1_2", "type": "research", "execution": "parallel", "order": "2",
-            "parallel-group": "p1-discovery", "label-ref": "L-p1s1_2",
-            "description": "Find domain standards, prior art, relevant documentation",
-        },
-        {
-            "id": "s1_3", "type": "explore", "execution": "parallel", "order": "2",
-            "parallel-group": "p1-discovery", "label-ref": "L-p1s1_3",
-            "description": "Codebase exploration for integration points",
-        },
-    ],
-    "p2": [
-        {
-            "id": "s2_1", "type": "elicit", "execution": "sequential", "order": "1",
-            "label-ref": "L-p2s2_1",
-            "description": "URE survey: structured Q&A with user to capture requirements",
-        },
-        {
-            "id": "s2_2", "type": "urd", "execution": "sequential", "order": "2",
-            "label-ref": "L-p2s2_2",
-            "description": "Create URD as single source of truth for requirements",
-            "extra-label": "L-urd",
-        },
-    ],
-    "p3": [
-        {
-            "id": "s3", "type": "propose", "execution": "sequential", "order": "1",
-            "label-ref": "L-p3s3",
-            "description": (
-                "Full technical proposal: interfaces, approach, validation checklist, BDD criteria"
-            ),
-        },
-    ],
-    "p4": [
-        {
-            "id": "s4", "type": "review", "execution": "parallel", "order": "1",
-            "label-ref": "L-p4s4",
-            "description": "Each reviewer assesses one axis (A/B/C). All 3 must ACCEPT.",
-            "instances": {"count": "3", "per": "review-axis"},
-        },
-    ],
-    "p5": [
-        {
-            "id": "s5", "type": "uat", "execution": "sequential", "order": "1",
-            "label-ref": "L-p5s5",
-            "description": (
-                "Present plan to user with demonstrative examples. "
-                "User approves or requests changes."
-            ),
-        },
-    ],
-    "p6": [
-        {
-            "id": "s6", "type": "ratify", "execution": "sequential", "order": "1",
-            "label-ref": "L-p6s6",
-            "description": (
-                "Add ratify label. Mark prior proposals aura:superseded. "
-                "Create placeholder IMPL_PLAN."
-            ),
-        },
-    ],
-    "p7": [
-        {
-            "id": "s7", "type": "handoff", "execution": "sequential", "order": "1",
-            "label-ref": "L-p7s7",
-            "description": (
-                "Create handoff document with full inline provenance. Transfer to supervisor."
-            ),
-        },
-    ],
-    "p8": [
-        {
-            "id": "s8", "type": "plan", "execution": "sequential", "order": "1",
-            "label-ref": "L-p8s8",
-            "description": (
-                "Identify production code paths. Create SLICE-N tasks with leaf tasks. "
-                "Assign workers."
-            ),
-            "startup-sequence": True,  # Signal to add startup-sequence from PROCEDURE_STEPS
-        },
-    ],
-    "p9": [
-        {
-            "id": "s9", "type": "slice", "execution": "parallel", "order": "1",
-            "label-ref": "L-p9s9",
-            "description": (
-                "Each worker owns full vertical: types, tests, implementation, wiring"
-            ),
-            "instances": {"count": "N", "per": "production-code-path"},
-        },
-    ],
-    "p10": [
-        {
-            "id": "s10", "type": "review", "execution": "parallel", "order": "1",
-            "label-ref": "L-p10s10",
-            "description": (
-                "Each reviewer reviews ALL slices against their axis. EAGER severity tree."
-            ),
-            "instances": {"count": "3", "per": "review-axis"},
-        },
-    ],
-    "p11": [
-        {
-            "id": "s11", "type": "uat", "execution": "sequential", "order": "1",
-            "label-ref": "L-p11s11",
-            "description": (
-                "Present implementation to user. User approves or requests fixes."
-            ),
-        },
-    ],
-    "p12": [
-        {
-            "id": "s12", "type": "landing", "execution": "sequential", "order": "1",
-            "label-ref": "L-p12s12",
-            "description": "git agent-commit, bd sync, git push. Close upstream tasks.",
-        },
-    ],
+
+def _build_constraint_phase_refs() -> dict[str, str | None]:
+    result: dict[str, str | None] = {}
+    for cid in CONSTRAINT_SPECS:
+        if cid in _CI_GENERAL_CONSTRAINTS:
+            result[cid] = None
+            continue
+        in_all = all(
+            cid in constraints
+            for constraints in _CI_PHASE_CONSTRAINTS.values()
+        )
+        if in_all:
+            result[cid] = None
+            continue
+        primary = next(
+            (phase.value for phase in _PHASE_ORDER
+             if cid in _CI_PHASE_CONSTRAINTS.get(phase, frozenset())),
+            None,
+        )
+        result[cid] = primary
+    return result
+
+
+# Constraint → primary role string (or None for global) — for XML role-ref attribute.
+_ROLE_CONSTRAINTS: dict[str, str | None] = _build_constraint_role_refs()
+
+# Constraint → primary phase string (or None for global) — for XML phase-ref attribute.
+_PHASE_CONSTRAINTS: dict[str, str | None] = _build_constraint_phase_refs()
+
+
+# ─── Phase substep, task-title, and transition data ───────────────────────────
+# Derived from types.py canonical dicts (mk16). No parallel static dicts here.
+
+# SUBSTEP_DATA: moved to types.py as SUBSTEP_DATA (single source of truth).
+# gen_schema reads it via the SUBSTEP_DATA import above.
+
+# ─── Per-phase task-title data (derived from TITLE_CONVENTIONS) ───────────────
+# Grouped by phase_ref. For phases with multiple titles, the substep ID is
+# extracted from the label_ref (e.g. "L-p2s2_1" → substep="s2_1").
+
+def _build_phase_task_titles() -> dict[str, list[dict]]:
+    """Derive per-phase task-title hints from TITLE_CONVENTIONS."""
+    by_phase: dict[str, list] = {}
+    for tc in TITLE_CONVENTIONS:
+        if tc.phase_ref:
+            by_phase.setdefault(tc.phase_ref, []).append(tc)
+    result: dict[str, list[dict]] = {}
+    for pid, tcs in by_phase.items():
+        entries = []
+        multi = len(tcs) > 1
+        for tc in tcs:
+            entry: dict = {"pattern": tc.pattern}
+            if multi:
+                # Extract substep id from label_ref: "L-p2s2_1" → "s2_1"
+                label = tc.label_ref[2:]          # drop "L-" prefix: "p2s2_1"
+                parts = label.split("s", 1)       # ["p2", "2_1"]
+                if len(parts) == 2:
+                    entry["substep"] = "s" + parts[1]
+            if tc.note:
+                entry["convention"] = tc.note
+            entries.append(entry)
+        result[pid] = entries
+    return result
+
+
+_PHASE_TASK_TITLES: dict[str, list[dict]] = _build_phase_task_titles()
+
+
+# ─── Phase transition data (derived from PHASE_SPECS) ─────────────────────────
+# Supplement: skill-invocation for p7→p8 transition (not in types.py Transition).
+
+_P7_SKILL_INVOCATION: dict[str, str] = {
+    "target-role": "supervisor",
+    "command-ref": "cmd-supervisor",
+    "directive": "Supervisor launch prompt MUST start with Skill(/aura:supervisor)",
 }
 
 
-# ─── Phase task-title data ─────────────────────────────────────────────────────
-
-_PHASE_TASK_TITLES: dict[str, list[dict]] = {
-    "p1": [
-        {"pattern": "REQUEST: {description}"},
-    ],
-    "p2": [
-        {"pattern": "ELICIT: {description}", "substep": "s2_1"},
-        {"pattern": "URD: {description}", "substep": "s2_2"},
-    ],
-    "p3": [
-        {
-            "pattern": "PROPOSAL-{N}: {description}",
-            "convention": (
-                "N starts at 1, increments per revision. "
-                "Old proposals marked aura:superseded."
-            ),
-        },
-    ],
-    "p4": [
-        {
-            "pattern": "PROPOSAL-{N}-REVIEW-{axis}-{round}: {description}",
-            "convention": "axis = A|B|C, round starts at 1 and increments per re-review cycle.",
-        },
-    ],
-    "p5": [
-        {"pattern": "UAT-{N}: {description}"},
-    ],
-    "p8": [
-        {"pattern": "IMPL_PLAN: {description}"},
-    ],
-    "p9": [
-        {
-            "pattern": "SLICE-{N}: {description}",
-            "convention": "N identifies the slice number within the implementation plan.",
-        },
-    ],
-    "p10": [
-        {"pattern": "SLICE-{N}-REVIEW-{axis}-{round}: {description}"},
-    ],
-}
+def _build_phase_transitions() -> dict[str, list[dict]]:
+    """Derive phase transition dicts from PHASE_SPECS[phase].transitions."""
+    result: dict[str, list[dict]] = {}
+    for phase_id, phase_spec in PHASE_SPECS.items():
+        pid = phase_id.value
+        trans_list = []
+        for t in phase_spec.transitions:
+            entry: dict = {
+                "to-phase": t.to_phase.value,
+                "condition": t.condition,
+            }
+            if t.action is not None:
+                entry["action"] = t.action
+            # Add skill-invocation supplement for p7→p8 (C-handoff-skill-invocation)
+            if phase_id == PhaseId.P7_HANDOFF and t.to_phase == PhaseId.P8_IMPL_PLAN:
+                entry["skill-invocation"] = _P7_SKILL_INVOCATION
+            trans_list.append(entry)
+        if trans_list:
+            result[pid] = trans_list
+    return result
 
 
-# ─── Phase transition data ────────────────────────────────────────────────────
-
-_PHASE_TRANSITIONS: dict[str, list[dict]] = {
-    "p1": [
-        {
-            "to-phase": "p2",
-            "condition": "classification confirmed, research and explore complete",
-        },
-    ],
-    "p2": [
-        {
-            "to-phase": "p3",
-            "condition": "URD created with structured requirements",
-        },
-    ],
-    "p3": [
-        {
-            "to-phase": "p4",
-            "condition": "proposal created",
-        },
-    ],
-    "p4": [
-        {
-            "to-phase": "p5",
-            "condition": "all 3 reviewers vote ACCEPT",
-        },
-        {
-            "to-phase": "p3",
-            "condition": "any reviewer votes REVISE",
-            "action": "create PROPOSAL-{N+1}, mark current aura:superseded",
-        },
-    ],
-    "p5": [
-        {
-            "to-phase": "p6",
-            "condition": "user accepts plan",
-        },
-        {
-            "to-phase": "p3",
-            "condition": "user requests changes",
-            "action": "create PROPOSAL-{N+1}",
-        },
-    ],
-    "p6": [
-        {
-            "to-phase": "p7",
-            "condition": "proposal ratified, IMPL_PLAN placeholder created",
-        },
-    ],
-    "p7": [
-        {
-            "to-phase": "p8",
-            "condition": "handoff document stored at .git/.aura/handoff/",
-            "skill-invocation": {
-                "target-role": "supervisor",
-                "command-ref": "cmd-supervisor",
-                "directive": (
-                    "Supervisor launch prompt MUST start with Skill(/aura:supervisor)"
-                ),
-            },
-        },
-    ],
-    "p8": [
-        {
-            "to-phase": "p9",
-            "condition": (
-                "all slices created with leaf tasks, assigned, and dependency-chained"
-            ),
-        },
-    ],
-    "p9": [
-        {
-            "to-phase": "p10",
-            "condition": "all slices complete, quality gates pass",
-        },
-    ],
-    "p10": [
-        {
-            "to-phase": "p11",
-            "condition": "all 3 reviewers ACCEPT, all BLOCKERs resolved",
-        },
-        {
-            "to-phase": "p9",
-            "condition": "any reviewer votes REVISE",
-            "action": "fix BLOCKERs in affected slices, then re-review",
-        },
-    ],
-    "p11": [
-        {
-            "to-phase": "p12",
-            "condition": "user accepts implementation",
-        },
-        {
-            "to-phase": "p9",
-            "condition": "user requests changes",
-            "action": "create fix tasks in affected slices",
-        },
-    ],
-    "p12": [
-        {
-            "to-phase": "complete",
-            "condition": "git push succeeds, all tasks closed or dependency-resolved",
-        },
-    ],
-}
+_PHASE_TRANSITIONS: dict[str, list[dict]] = _build_phase_transitions()
 
 
 # ─── Role delegate data ───────────────────────────────────────────────────────
@@ -713,8 +520,8 @@ def _build_phases(root: ET.Element) -> None:
         }
         desc_el.text = _phase_descriptions[pid]
 
-        # Substeps
-        substep_data_list = _PHASE_SUBSTEP_DATA.get(pid, [])
+        # Substeps (from types.py SUBSTEP_DATA — single source of truth)
+        substep_data_list = SUBSTEP_DATA.get(pid, [])
         if substep_data_list:
             substeps_el = ET.SubElement(phase_el, "substeps")
             for sd in substep_data_list:
@@ -1077,42 +884,8 @@ def _build_constraints(root: ET.Element) -> None:
     """
     constraints_el = ET.SubElement(root, "constraints")
 
-    # Constraint order matching schema.xml
-    constraint_order = [
-        # Audit trail
-        "C-audit-never-delete",
-        "C-audit-dep-chain",
-        # Reviews
-        "C-review-consensus",
-        "C-review-binary",
-        "C-severity-eager",
-        "C-severity-not-plan",
-        "C-blocker-dual-parent",
-        "C-followup-timing",
-        # Ownership
-        "C-vertical-slices",
-        "C-supervisor-no-impl",
-        "C-supervisor-explore-team",
-        "C-slice-leaf-tasks",
-        "C-handoff-skill-invocation",
-        # Task management
-        "C-dep-direction",
-        "C-frontmatter-refs",
-        # Git
-        "C-agent-commit",
-        # Naming
-        "C-proposal-naming",
-        "C-review-naming",
-        # User interviews
-        "C-ure-verbatim",
-        # Follow-up lifecycle
-        "C-followup-lifecycle",
-        "C-followup-leaf-adoption",
-        # Error quality
-        "C-actionable-errors",
-        # Worker completion
-        "C-worker-gates",
-    ]
+    # Constraint order derived from CONSTRAINT_SPECS (Python is SoT — dict insertion order)
+    constraint_order = list(CONSTRAINT_SPECS.keys())
 
     # Group comment markers for constraints
     _constraint_group_comments = {
@@ -1129,8 +902,6 @@ def _build_constraints(root: ET.Element) -> None:
     }
 
     for cid in constraint_order:
-        if cid not in CONSTRAINT_SPECS:
-            continue
         spec = CONSTRAINT_SPECS[cid]
 
         if cid in _constraint_group_comments:
@@ -1589,7 +1360,6 @@ def _serialize_tree(root: ET.Element) -> str:
     """
     tree = ET.ElementTree(root)
     ET.indent(tree, space="  ")
-    import io
     buf = io.BytesIO()
     tree.write(buf, encoding="UTF-8", xml_declaration=True)
     content = buf.getvalue().decode("UTF-8")
@@ -1600,7 +1370,7 @@ def _serialize_tree(root: ET.Element) -> str:
 # ─── Public API ───────────────────────────────────────────────────────────────
 
 
-def generate_schema(output: Path, diff: bool = True) -> str | None:
+def generate_schema(output: Path, diff: bool = True) -> str:
     """Generate schema.xml from Python type definitions.
 
     Reads all canonical dicts from aura_protocol.types and produces a
@@ -1617,8 +1387,7 @@ def generate_schema(output: Path, diff: bool = True) -> str | None:
             of old vs. new content to stdout before writing. Default: True.
 
     Returns:
-        The generated XML content as a string. Returns None only if an
-        unexpected internal error occurs (should not happen in normal use).
+        The generated XML content as a string.
 
     Raises:
         OSError: If the output path's parent directory does not exist or is
@@ -1775,9 +1544,6 @@ def main() -> int:
 
     try:
         content = generate_schema(output, diff=True)
-        if content is None:
-            print(f"Error: generate_schema returned None", file=sys.stderr)
-            return 1
         print(f"Generated {output} ({len(content)} bytes)")
         return 0
     except OSError as e:
