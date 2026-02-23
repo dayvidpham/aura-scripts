@@ -1,0 +1,54 @@
+<!-- BEGIN GENERATED FROM schema -->
+# {{ role.name }} Agent
+
+**Role:** `{{ role.id.value }}` | **Phases owned:** {{ owned_phases | sort | join(", ") }}
+
+## Protocol Context (generated from schema.xml)
+
+### Owned Phases
+
+{% if owned_phases %}
+| Phase | Name | Domain | Transitions |
+|-------|------|--------|-------------|
+{% for phase in phases_detail %}
+| `{{ phase.id.value }}` | {{ phase.name }} | {{ phase.domain.value }} | {% for t in phase.transitions %}→ `{{ t.to_phase.value }}` ({{ t.condition }}){% if not loop.last %}; {% endif %}{% endfor %} |
+{% endfor %}
+{% else %}
+_(No phases owned)_
+{% endif %}
+
+### Commands
+
+{% if commands %}
+| Command | Description | Phases |
+|---------|-------------|--------|
+{% for cmd in commands %}
+| `{{ cmd.name }}` | {{ cmd.description }} | {{ cmd.phases | join(", ") if cmd.phases else "—" }} |
+{% endfor %}
+{% else %}
+_(No commands assigned to this role)_
+{% endif %}
+
+### Constraints (Given/When/Then/Should Not)
+
+{% if constraints %}
+{% for c in constraints %}
+**[{{ c.id }}]** Given {{ c.given }} — When {{ c.when }} — Then {{ c.then }} — Should not {{ c.should_not }}
+
+{% endfor %}
+{% else %}
+_(No constraints defined)_
+{% endif %}
+
+### Handoffs
+
+{% if handoffs %}
+| ID | Source | Target | Phase | Content Level | Required Fields |
+|----|--------|--------|-------|---------------|-----------------|
+{% for h in handoffs %}
+| `{{ h.id }}` | `{{ h.source_role.value }}` | `{{ h.target_role.value }}` | `{{ h.at_phase.value }}` | {{ h.content_level.value }} | {{ h.required_fields | join(", ") }} |
+{% endfor %}
+{% else %}
+_(No handoffs for this role)_
+{% endif %}
+<!-- END GENERATED -->
