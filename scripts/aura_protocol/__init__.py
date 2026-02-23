@@ -58,6 +58,12 @@ Schema Parser (from schema_parser.py):
 Bootstrap Codegen (from gen_types.py):
     generate_types_source(spec) — generate draft Python source from SchemaSpec (one-time tool)
 
+Context Injection (from context_injection.py):
+    RoleContext     — frozen dataclass: role, phases, constraints, commands, handoffs
+    PhaseContext    — frozen dataclass: phase, constraints, labels, transitions
+    get_role_context(role)   — build RoleContext for a given RoleId
+    get_phase_context(phase) — build PhaseContext for a given PhaseId
+
 State Machine (from state_machine.py):
     EpochState          — mutable epoch runtime state
     TransitionRecord    — frozen, immutable audit entry for one transition
@@ -86,6 +92,12 @@ Model Identifier (from interfaces.py):
 from aura_protocol.constraints import (
     ConstraintViolation,
     RuntimeConstraintChecker,
+)
+from aura_protocol.context_injection import (
+    PhaseContext,
+    RoleContext,
+    get_phase_context,
+    get_role_context,
 )
 from aura_protocol.gen_types import (
     generate_types_source,
@@ -222,4 +234,9 @@ __all__ = [
     "parse_schema",
     # Bootstrap codegen
     "generate_types_source",
+    # Context injection
+    "RoleContext",
+    "PhaseContext",
+    "get_role_context",
+    "get_phase_context",
 ]
