@@ -748,7 +748,10 @@ def _build_phases(root: ET.Element) -> None:
                     startup_el = ET.SubElement(substep_el, "startup-sequence")
                     sup_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
                     for step in sup_steps:
-                        step_el = ET.SubElement(startup_el, "step", order=str(step.order))
+                        step_attrs: dict[str, str] = {"order": str(step.order)}
+                        if step.next_state is not None:
+                            step_attrs["next-state"] = step.next_state.value
+                        step_el = ET.SubElement(startup_el, "step", **step_attrs)
                         step_el.text = step.description
 
         # Task-title(s) for this phase

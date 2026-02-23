@@ -380,6 +380,62 @@ class TestConstraintContextFields:
         for c in ctx.constraints:
             assert c.then, f"Phase {phase.value}: ConstraintContext {c.id!r} has empty 'then'"
 
+    @pytest.mark.parametrize("role", list(RoleId))
+    def test_all_role_constraint_contexts_have_given(self, role: RoleId) -> None:
+        """Every ConstraintContext returned by get_role_context has a non-empty given."""
+        ctx = get_role_context(role)
+        for c in ctx.constraints:
+            assert c.given, f"Role {role.value}: ConstraintContext {c.id!r} has empty 'given'"
+
+    @pytest.mark.parametrize("role", list(RoleId))
+    def test_all_role_constraint_contexts_have_should_not(self, role: RoleId) -> None:
+        """Every ConstraintContext returned by get_role_context has a non-empty should_not."""
+        ctx = get_role_context(role)
+        for c in ctx.constraints:
+            assert c.should_not, (
+                f"Role {role.value}: ConstraintContext {c.id!r} has empty 'should_not'"
+            )
+
+    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.COMPLETE])
+    def test_all_phase_constraint_contexts_have_given(self, phase: PhaseId) -> None:
+        """Every ConstraintContext returned by get_phase_context has a non-empty given."""
+        ctx = get_phase_context(phase)
+        for c in ctx.constraints:
+            assert c.given, (
+                f"Phase {phase.value}: ConstraintContext {c.id!r} has empty 'given'"
+            )
+
+    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.COMPLETE])
+    def test_all_phase_constraint_contexts_have_should_not(self, phase: PhaseId) -> None:
+        """Every ConstraintContext returned by get_phase_context has a non-empty should_not."""
+        ctx = get_phase_context(phase)
+        for c in ctx.constraints:
+            assert c.should_not, (
+                f"Phase {phase.value}: ConstraintContext {c.id!r} has empty 'should_not'"
+            )
+
+    def test_constraint_context_given_matches_spec(self) -> None:
+        """ConstraintContext.given must match the originating ConstraintSpec.given."""
+        for role in RoleId:
+            ctx = get_role_context(role)
+            for c in ctx.constraints:
+                spec = CONSTRAINT_SPECS[c.id]
+                assert c.given == spec.given, (
+                    f"Role {role.value}: ConstraintContext {c.id!r} given mismatch: "
+                    f"{c.given!r} != {spec.given!r}"
+                )
+
+    def test_constraint_context_should_not_matches_spec(self) -> None:
+        """ConstraintContext.should_not must match the originating ConstraintSpec.should_not."""
+        for role in RoleId:
+            ctx = get_role_context(role)
+            for c in ctx.constraints:
+                spec = CONSTRAINT_SPECS[c.id]
+                assert c.should_not == spec.should_not, (
+                    f"Role {role.value}: ConstraintContext {c.id!r} should_not mismatch: "
+                    f"{c.should_not!r} != {spec.should_not!r}"
+                )
+
     def test_constraint_context_ids_exist_in_constraint_specs(self) -> None:
         """All ConstraintContext ids in role/phase contexts are valid CONSTRAINT_SPECS keys."""
         known_ids = set(CONSTRAINT_SPECS.keys())
@@ -488,6 +544,20 @@ class TestGetRoleContextWorker:
         ctx = get_role_context(RoleId.WORKER)
         ids = {c.id for c in ctx.constraints}
         assert "C-agent-commit" in ids
+
+    def test_worker_constraint_count_is_role_scoped(self) -> None:
+        """WORKER role should have 7 role-scoped constraints (not all 23)."""
+        ctx = get_role_context(RoleId.WORKER)
+        assert len(ctx.constraints) == 7, (
+            f"Expected 7 role-scoped constraints for worker, got {len(ctx.constraints)}"
+        )
+
+    def test_supervisor_constraint_count_is_role_scoped(self) -> None:
+        """SUPERVISOR role should have 15 role-scoped constraints (not all 23)."""
+        ctx = get_role_context(RoleId.SUPERVISOR)
+        assert len(ctx.constraints) == 15, (
+            f"Expected 15 role-scoped constraints for supervisor, got {len(ctx.constraints)}"
+        )
 
 
 class TestGetPhaseContextAllPhases:

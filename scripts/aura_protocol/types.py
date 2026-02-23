@@ -288,6 +288,7 @@ class ProcedureStep:
 
     order: int
     description: str
+    next_state: PhaseId | None = None
 
 
 @dataclass(frozen=True)
@@ -299,8 +300,10 @@ class ConstraintContext:
     """
 
     id: str
+    given: str
     when: str
     then: str
+    should_not: str
 
 
 # ─── Event Stub Types ─────────────────────────────────────────────────────────
@@ -1532,9 +1535,17 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
                 "Create standing explore team via TeamCreate before any codebase exploration"
             ),
         ),
-        ProcedureStep(order=4, description="Decompose into vertical slices"),
+        ProcedureStep(
+            order=4,
+            description="Decompose into vertical slices",
+            next_state=PhaseId.P8_IMPL_PLAN,
+        ),
         ProcedureStep(order=5, description="Create leaf tasks (L1/L2/L3) for every slice"),
-        ProcedureStep(order=6, description="Spawn workers for leaf tasks"),
+        ProcedureStep(
+            order=6,
+            description="Spawn workers for leaf tasks",
+            next_state=PhaseId.P9_SLICE,
+        ),
     ),
     RoleId.WORKER: (
         ProcedureStep(order=1, description="Types, interfaces, schemas (no deps)"),
@@ -1545,6 +1556,7 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
         ProcedureStep(
             order=3,
             description="Make tests pass. Wire with real dependencies. No TODOs.",
+            next_state=PhaseId.P9_SLICE,
         ),
     ),
 }

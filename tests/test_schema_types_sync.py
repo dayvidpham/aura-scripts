@@ -651,3 +651,39 @@ class TestProcedureStepsMatchSchema:
             assert orders == sorted(orders), (
                 f"Procedure steps for {role} are not in order: {orders}"
             )
+
+    def test_procedure_step_next_state_is_phase_id_or_none(self) -> None:
+        """Every ProcedureStep.next_state is either a PhaseId or None."""
+        for role, steps in PROCEDURE_STEPS.items():
+            for step in steps:
+                assert step.next_state is None or isinstance(step.next_state, PhaseId), (
+                    f"Role {role.value} step {step.order}: next_state must be PhaseId or None, "
+                    f"got {type(step.next_state)!r}"
+                )
+
+    def test_supervisor_step4_next_state_is_p8(self) -> None:
+        """Supervisor step 4 (decompose into slices) must have next_state=PhaseId.P8_IMPL_PLAN."""
+        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        step4 = next((s for s in steps if s.order == 4), None)
+        assert step4 is not None, "Supervisor must have a step 4"
+        assert step4.next_state == PhaseId.P8_IMPL_PLAN, (
+            f"Supervisor step 4 next_state expected P8_IMPL_PLAN, got {step4.next_state!r}"
+        )
+
+    def test_supervisor_step6_next_state_is_p9(self) -> None:
+        """Supervisor step 6 (spawn workers) must have next_state=PhaseId.P9_SLICE."""
+        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        step6 = next((s for s in steps if s.order == 6), None)
+        assert step6 is not None, "Supervisor must have a step 6"
+        assert step6.next_state == PhaseId.P9_SLICE, (
+            f"Supervisor step 6 next_state expected P9_SLICE, got {step6.next_state!r}"
+        )
+
+    def test_worker_step3_next_state_is_p9(self) -> None:
+        """Worker step 3 (make tests pass) must have next_state=PhaseId.P9_SLICE."""
+        steps = PROCEDURE_STEPS[RoleId.WORKER]
+        step3 = next((s for s in steps if s.order == 3), None)
+        assert step3 is not None, "Worker must have a step 3"
+        assert step3.next_state == PhaseId.P9_SLICE, (
+            f"Worker step 3 next_state expected P9_SLICE, got {step3.next_state!r}"
+        )

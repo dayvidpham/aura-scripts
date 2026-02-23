@@ -326,7 +326,13 @@ def _build_constraint_contexts(constraint_ids: frozenset[str]) -> frozenset[Cons
     for cid in constraint_ids:
         spec = CONSTRAINT_SPECS.get(cid)
         if spec is not None:
-            contexts.add(ConstraintContext(id=spec.id, when=spec.when, then=spec.then))
+            contexts.add(ConstraintContext(
+                id=spec.id,
+                given=spec.given,
+                when=spec.when,
+                then=spec.then,
+                should_not=spec.should_not,
+            ))
     return frozenset(contexts)
 
 

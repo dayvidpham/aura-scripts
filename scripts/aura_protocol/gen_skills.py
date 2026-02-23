@@ -33,12 +33,12 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from aura_protocol.types import (
     COMMAND_SPECS,
-    CONSTRAINT_SPECS,
     HANDOFF_SPECS,
     PHASE_SPECS,
+    PROCEDURE_STEPS,
     ROLE_SPECS,
     CommandSpec,
-    ConstraintSpec,
+    ConstraintContext,
     HandoffSpec,
     PhaseSpec,
     RoleId,
@@ -90,13 +90,14 @@ def _commands_for_role(role_id: RoleId) -> list[CommandSpec]:
     ]
 
 
-def _constraints_for_role(role_id: RoleId) -> list[ConstraintSpec]:
-    """Return all ConstraintSpecs relevant to a given role.
+def _constraints_for_role(role_id: RoleId) -> list[ConstraintContext]:
+    """Return ConstraintContext objects relevant to a given role.
 
-    Currently returns all constraints (they apply globally).  Future
-    versions may filter by role tag once schema supports it.
+    Uses get_role_context() to return only the role-scoped constraints,
+    derived from _ROLE_CONSTRAINTS in context_injection.py.
     """
-    return list(CONSTRAINT_SPECS.values())
+    from aura_protocol.context_injection import get_role_context
+    return list(get_role_context(role_id).constraints)
 
 
 def _handoffs_for_role(role_id: RoleId) -> list[HandoffSpec]:
@@ -227,6 +228,7 @@ def _render_header(
         "handoffs": _handoffs_for_role(role_id),
         "owned_phases": sorted(role_spec.owned_phases),
         "phases_detail": _owned_phase_details(role_spec),
+        "steps": list(PROCEDURE_STEPS.get(role_id, [])),
     }
 
     return template.render(**context)

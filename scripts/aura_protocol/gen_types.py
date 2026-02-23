@@ -200,6 +200,7 @@ def _gen_dataclass_stubs() -> str:
                 \"\"\"Single step in a role procedure.\"\"\"
                 order: int
                 description: str
+                next_state: PhaseId | None = None
         """),
         textwrap.dedent("""\
             @dataclass(frozen=True)
@@ -311,7 +312,14 @@ def _gen_procedure_steps_dict(spec: "SchemaSpec") -> str:
         steps = spec.procedure_steps[role_id]
         lines.append(f"    RoleId.{role_id.name}: (")
         for step in steps:
-            lines.append(f"        ProcedureStep(order={step.order}, description={_repr_str(step.description)}),")
+            if step.next_state is not None:
+                lines.append(
+                    f"        ProcedureStep(order={step.order}, "
+                    f"description={_repr_str(step.description)}, "
+                    f"next_state=PhaseId.{step.next_state.name}),"
+                )
+            else:
+                lines.append(f"        ProcedureStep(order={step.order}, description={_repr_str(step.description)}),")
         lines.append("    ),")
     lines.append("}")
     return "\n".join(lines)

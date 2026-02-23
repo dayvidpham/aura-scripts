@@ -543,3 +543,136 @@ class TestTemplateRenderingAllRoles:
         assert body in result, (
             f"Hand-authored body not preserved for role {role_id}."
         )
+
+
+# ─── Startup Sequence section ─────────────────────────────────────────────────
+
+
+class TestStartupSequenceSection:
+    """Startup Sequence section rendered from PROCEDURE_STEPS (B4)."""
+
+    def test_supervisor_output_contains_startup_sequence(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Supervisor SKILL.md must contain a Startup Sequence section."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Startup Sequence" in result, (
+            "Supervisor output must contain '### Startup Sequence' section."
+        )
+
+    def test_worker_output_contains_startup_sequence(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Worker SKILL.md must contain a Startup Sequence section."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Startup Sequence" in result, (
+            "Worker output must contain '### Startup Sequence' section."
+        )
+
+    def test_supervisor_startup_sequence_has_step_entries(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Supervisor startup sequence must list step entries."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        # Steps are rendered as "**Step N:** description"
+        assert "**Step 1:**" in result, (
+            "Supervisor startup sequence must have Step 1."
+        )
+        assert "**Step 4:**" in result, (
+            "Supervisor startup sequence must have Step 4."
+        )
+
+    def test_supervisor_step4_shows_next_state(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Supervisor step 4 must show → `p8` transition."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        # Step 4 has next_state=PhaseId.P8_IMPL_PLAN so should render → `p8`
+        assert "→ `p8`" in result, (
+            "Supervisor step 4 must render '→ `p8`' transition."
+        )
+
+    def test_worker_step3_shows_next_state(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Worker step 3 must show → `p9` transition."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        # Step 3 has next_state=PhaseId.P9_SLICE so should render → `p9`
+        assert "→ `p9`" in result, (
+            "Worker step 3 must render '→ `p9`' transition."
+        )
+
+    def test_roles_without_steps_show_no_startup_sequence_message(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Roles without procedure steps render the 'no startup sequence' message."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.REVIEWER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "_(No startup sequence defined for this role)_" in result, (
+            "Reviewer (no steps) must render the no-startup-sequence placeholder."
+        )
