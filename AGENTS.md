@@ -77,6 +77,24 @@ aura-plugins/
 │   ├── aura-parallel       # Parallel agent launcher for tmux sessions (Python)
 │   ├── aura-release        # Version bump, changelog, and git tag (Python)
 │   └── aura-swarm          # Epic-based worktree agent launcher (Python)
+├── scripts/                # Python packages
+│   ├── aura_protocol/      # Protocol engine (see Protocol Engine section below)
+│   │   ├── types.py        # Typed enums, frozen dataclass specs, canonical dicts
+│   │   ├── state_machine.py # 12-phase EpochStateMachine
+│   │   ├── constraints.py  # RuntimeConstraintChecker — all 23 C-* validators
+│   │   ├── workflow.py     # Temporal workflow wrapper
+│   │   ├── interfaces.py   # Protocol interfaces + A2A content types
+│   │   └── __init__.py     # Public API re-exports
+│   └── validate_schema.py  # 3-layer schema.xml validation
+├── tests/                  # Test suite (554+ tests)
+│   ├── test_aura_types.py
+│   ├── test_schema_types_sync.py
+│   ├── test_state_machine.py
+│   ├── test_constraints.py
+│   ├── test_workflow.py
+│   ├── test_interfaces.py
+│   ├── test_validate_schema.py
+│   └── conftest.py
 ├── flake.nix               # Nix flake packaging + Home Manager module
 ├── nix/hm-module.nix       # Home Manager module for config sync
 ├── skills/                 # Plugin skills (SKILL.md per directory)
@@ -88,10 +106,47 @@ aura-plugins/
 │   │   ├── AGENTS.md       # Role taxonomy (phases, tools, handoffs per agent)
 │   │   ├── SKILLS.md       # Command reference (all /aura:* skills by phase)
 │   │   └── schema.xml      # Canonical protocol schema (BCNF)
-│   └── */SKILL.md          # Role-specific agent instructions (35+ skills)
+│   └── */SKILL.md          # Role-specific agent instructions (38 skills)
 ├── agents/                 # Custom agent definitions (~/.claude/agents/)
 │   └── tester.md           # BDD test writer agent
 └── AGENTS.md               # This file
+```
+
+## Protocol Engine (`scripts/aura_protocol/`)
+
+The `aura_protocol` Python package is the programmatic backbone of the Aura
+protocol. It provides machine-executable enforcement of workflow state
+transitions, constraint validation, and Temporal-backed durable execution.
+
+### Version Roadmap
+
+| Version | Scope | Status |
+|---------|-------|--------|
+| v1 (v0.4.3) | State machine + Temporal workflow + 23 C-* constraint validators | Done |
+| v2 | Schema-driven code generation + runtime context injection (Python as SoT) | In progress |
+| v3 | Full Temporal workflow engine (phases as workflows, handoffs as signals) | Future |
+
+### Modules
+
+| Module | Purpose |
+|--------|---------|
+| `types.py` | 5 enums, 10 frozen dataclasses, 4 canonical dicts. Source of truth for protocol type definitions. |
+| `state_machine.py` | `EpochStateMachine` — pure Python 12-phase lifecycle with consensus gates, blocker gates, and review vote tracking. No Temporal dependency. |
+| `constraints.py` | `RuntimeConstraintChecker` — all 23 C-* constraint validators from schema.xml. DI-friendly (accepts optional specs dicts). Returns `list[ConstraintViolation]`. |
+| `workflow.py` | Temporal workflow wrapping `EpochStateMachine`. Signals for phase advances and votes, queries for state inspection, search attributes for forensic lookup. |
+| `interfaces.py` | `typing.Protocol` interfaces for cross-project integration: `ConstraintValidatorInterface`, `TranscriptRecorder`, `SecurityGate`, `AuditTrail`. Plus A2A content types and `ModelId`. |
+
+### Running Tests
+
+```bash
+# Full suite (554+ tests)
+.venv/bin/pytest tests/ --tb=short -q
+
+# With Temporal sandbox tests (requires Temporal test server)
+TEMPORAL_REQUIRED=1 .venv/bin/pytest tests/ --tb=short -q
+
+# Schema validation
+python scripts/validate_schema.py skills/protocol/schema.xml
 ```
 
 ## Validation
