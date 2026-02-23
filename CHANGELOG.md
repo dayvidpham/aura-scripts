@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.5.0] - 2026-02-23
+
+### Added
+- feat(gen_schema): multi-value role-ref/phase-ref in schema.xml constraints
+- feat(nix): package aura-release as flake output
+- feat(aura_protocol): SLICE-2 — schema.xml generator with diff + role-ref/phase-ref
+- feat(aura_protocol): SLICE-3 — SKILL.md generator with diff + MarkerError
+- feat(aura_protocol): SLICE-4 — runtime context injection with ConstraintContext
+- feat(aura_protocol): SLICE-1 — schema parser, type expansion, bootstrap codegen
+
+### Fixed
+- fix(skill_header): remove double newlines between startup sequence steps
+- fix(gen_schema): regenerate schema.xml, add drift test, fix in_all check
+- fix(gen_schema): SLICE-2 followup — DRY refactor, test improvements, API cleanup
+- fix(types): SLICE-1 followup — docstrings, test quality, SubstepType enum
+- fix(context_injection): SLICE-4 followup — error handling, positive tests, cleanup
+- fix(gen_skills): SLICE-3 followup — StrictUndefined test, diff test, template readability
+- fix(types): ConstraintContext all fields, ProcedureStep.next_state, gen_skills role-scoped constraints, skill_header steps section
+- fix(types): RoleSpec.owned_phases uses frozenset[PhaseId] not frozenset[str]
+- fix(schema_parser): SchemaSpec.constraints returns ConstraintSpec not tuple
+
+### Documentation
+- docs(README, AGENTS): add Protocol Engine section and project structure
+
+### Other
+- Merge branch 'aura-protocol'
+- doc: adds research for possibility of using Zig+Nix cross-compilation distribution
+- Merge branch 'agent/slice2-followup' into epic/aura-plugins-z8ga
+- Merge branch 'agent/slice1-followup' into epic/aura-plugins-z8ga
+- Merge branch 'agent/slice4-followup' into epic/aura-plugins-z8ga
+- chore(ast-grep): Python lint rules — no bare frozenset[str], no dict[str,tuple], no fixed-arity tuple annotations
+- chore: release v0.4.4
+- chore: bump agentfilter plugin version to 0.3.0
+- Merge branch 'agent/aura-plugins-kg25' into epic/aura-plugins-94yc
+- Merge branch 'agent/aura-plugins-82ya' into epic/aura-plugins-94yc
+
 ## [0.4.4] - 2026-02-23
 
 ### Added
