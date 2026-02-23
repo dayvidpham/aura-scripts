@@ -280,7 +280,7 @@ class TestConstraintRolePhaseRefs:
     def test_role_ref_values_are_valid_role_ids(
         self, generated_xml_root: ET.Element
     ) -> None:
-        """role-ref values on constraints must be valid role IDs."""
+        """role-ref values on constraints must be valid role IDs (comma-separated allowed)."""
         valid_role_ids = {r.value for r in RoleId}
         constraints_el = generated_xml_root.find("constraints")
         assert constraints_el is not None
@@ -288,10 +288,14 @@ class TestConstraintRolePhaseRefs:
         for constraint in constraints_el.findall("constraint"):
             role_ref = constraint.get("role-ref")
             if role_ref is not None:
-                assert role_ref in valid_role_ids, (
-                    f"Constraint {constraint.get('id')!r} has invalid "
-                    f"role-ref={role_ref!r}. Valid: {sorted(valid_role_ids)}"
-                )
+                # role-ref may be comma-separated (multi-value, e.g. "reviewer,supervisor")
+                for part in role_ref.split(","):
+                    part = part.strip()
+                    assert part in valid_role_ids, (
+                        f"Constraint {constraint.get('id')!r} has invalid "
+                        f"role-ref part={part!r} in role-ref={role_ref!r}. "
+                        f"Valid: {sorted(valid_role_ids)}"
+                    )
 
     def test_known_role_specific_constraints(
         self, generated_xml_root: ET.Element

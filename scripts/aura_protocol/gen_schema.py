@@ -48,19 +48,19 @@ from aura_protocol.types import (
 )
 
 
-# ─── Constraint→Role/Phase Mappings (UAT-3) ───────────────────────────────────
+# ─── Constraint→Role/Phase Mappings (UAT-3, multi-value REVISE) ───────────────
 # Derived from context_injection._ROLE_CONSTRAINTS and _PHASE_CONSTRAINTS (single source).
-# gen_schema needs constraint→primary_role (1:1), while context_injection has
+# gen_schema needs constraint→role(s) (1:many), while context_injection has
 # role→constraints (1:many). These dicts are built by inverting context_injection's
 # mappings at import time so the two modules stay in sync automatically.
 #
-# Priority for "primary role": REVIEWER > ARCHITECT > SUPERVISOR > WORKER.
-# Constraints in _GENERAL_CONSTRAINTS (all roles) or with multiple matches → None.
-# Priority for "primary phase": first phase (chronological P1→P12) that contains
-# the constraint. Constraints present in ALL phases (general) → None.
+# role-ref: ALL matching roles, comma-separated (e.g. "reviewer,supervisor,epoch").
+# Constraints in _GENERAL_CONSTRAINTS (all roles) → None (omit role-ref from XML).
+# phase-ref: ALL matching phases, comma-separated (e.g. "p4,p10").
+# Constraints present in ALL phases (general) → None (omit phase-ref from XML).
 
 _ROLE_PRIORITY: tuple[RoleId, ...] = (
-    RoleId.REVIEWER, RoleId.ARCHITECT, RoleId.SUPERVISOR, RoleId.WORKER,
+    RoleId.EPOCH, RoleId.REVIEWER, RoleId.ARCHITECT, RoleId.SUPERVISOR, RoleId.WORKER,
 )
 
 _PHASE_ORDER: tuple[PhaseId, ...] = (
@@ -75,13 +75,13 @@ def _build_constraint_role_refs() -> dict[str, str | None]:
     result: dict[str, str | None] = {}
     for cid in CONSTRAINT_SPECS:
         if cid in _CI_GENERAL_CONSTRAINTS:
-            result[cid] = None
+            result[cid] = None  # general = applies to all roles, omit from XML
             continue
         matching = [
             role for role in _ROLE_PRIORITY
             if cid in _CI_ROLE_CONSTRAINTS.get(role, frozenset())
         ]
-        result[cid] = matching[0].value if len(matching) == 1 else None
+        result[cid] = ",".join(r.value for r in matching) if matching else None
     return result
 
 
@@ -89,7 +89,7 @@ def _build_constraint_phase_refs() -> dict[str, str | None]:
     result: dict[str, str | None] = {}
     for cid in CONSTRAINT_SPECS:
         if cid in _CI_GENERAL_CONSTRAINTS:
-            result[cid] = None
+            result[cid] = None  # general = applies to all phases, omit from XML
             continue
         in_all = all(
             cid in constraints
@@ -97,21 +97,20 @@ def _build_constraint_phase_refs() -> dict[str, str | None]:
             if phase != PhaseId.COMPLETE  # terminal state has no constraints by design
         )
         if in_all:
-            result[cid] = None
+            result[cid] = None  # applies to all phases, omit
             continue
-        primary = next(
-            (phase.value for phase in _PHASE_ORDER
-             if cid in _CI_PHASE_CONSTRAINTS.get(phase, frozenset())),
-            None,
-        )
-        result[cid] = primary
+        matching_phases = [
+            phase for phase in _PHASE_ORDER
+            if cid in _CI_PHASE_CONSTRAINTS.get(phase, frozenset())
+        ]
+        result[cid] = ",".join(p.value for p in matching_phases) if matching_phases else None
     return result
 
 
-# Constraint → primary role string (or None for global) — for XML role-ref attribute.
+# Constraint → comma-separated role string(s) (or None for global) — for XML role-ref attribute.
 _ROLE_CONSTRAINTS: dict[str, str | None] = _build_constraint_role_refs()
 
-# Constraint → primary phase string (or None for global) — for XML phase-ref attribute.
+# Constraint → comma-separated phase string(s) (or None for global) — for XML phase-ref attribute.
 _PHASE_CONSTRAINTS: dict[str, str | None] = _build_constraint_phase_refs()
 
 
