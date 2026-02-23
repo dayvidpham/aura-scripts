@@ -58,10 +58,9 @@ _(No handoffs for this role)_
 
 ### Startup Sequence
 
-{% if steps %}
-{% for step in steps %}
+{% if steps -%}
+{% for step in steps -%}
 **Step {{ step.order }}:** {{ step.description }}{% if step.next_state %} → `{{ step.next_state.value }}`{% endif %}
-
 {% endfor %}
 {% else %}
 _(No startup sequence defined for this role)_
