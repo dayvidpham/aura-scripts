@@ -143,8 +143,6 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
         "C-review-consensus",
         # Epoch creates handoffs as master orchestrator
         "C-handoff-skill-invocation",
-        # Epoch manages dependency chains
-        "C-dep-direction",
     }),
     RoleId.ARCHITECT: frozenset(_GENERAL_CONSTRAINTS | {
         # Architect creates proposals → must follow naming convention
@@ -308,6 +306,8 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         # Landing phase commits code
         "C-agent-commit",
     }),
+    # Terminal state — intentionally empty: no constraints apply after landing
+    PhaseId.COMPLETE: frozenset(),
 }
 
 
@@ -320,19 +320,25 @@ def _build_constraint_contexts(constraint_ids: frozenset[str]) -> frozenset[Cons
     Looks up each constraint ID in CONSTRAINT_SPECS and creates a ConstraintContext
     with the typed when and then fields from the ConstraintSpec.
 
-    Unknown constraint IDs are skipped silently (should not occur with hand-authored dicts).
+    Raises KeyError for unknown constraint IDs (indicates a bug in _ROLE_CONSTRAINTS
+    or _PHASE_CONSTRAINTS — the hand-authored dicts must only reference valid IDs).
     """
     contexts: set[ConstraintContext] = set()
     for cid in constraint_ids:
         spec = CONSTRAINT_SPECS.get(cid)
-        if spec is not None:
-            contexts.add(ConstraintContext(
-                id=spec.id,
-                given=spec.given,
-                when=spec.when,
-                then=spec.then,
-                should_not=spec.should_not,
-            ))
+        if spec is None:
+            raise KeyError(
+                f"Constraint ID {cid!r} in _ROLE_CONSTRAINTS/_PHASE_CONSTRAINTS "
+                f"not found in CONSTRAINT_SPECS. "
+                f"Fix: update _ROLE_CONSTRAINTS/_PHASE_CONSTRAINTS to use a valid constraint ID."
+            )
+        contexts.add(ConstraintContext(
+            id=spec.id,
+            given=spec.given,
+            when=spec.when,
+            then=spec.then,
+            should_not=spec.should_not,
+        ))
     return frozenset(contexts)
 
 

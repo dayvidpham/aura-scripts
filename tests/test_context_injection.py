@@ -19,6 +19,7 @@ from aura_protocol.context_injection import (
     RoleContext,
     _PHASE_CONSTRAINTS,
     _ROLE_CONSTRAINTS,
+    _build_constraint_contexts,
     get_phase_context,
     get_role_context,
 )
@@ -531,7 +532,7 @@ class TestGetRoleContextWorker:
         ctx = get_role_context(RoleId.WORKER)
         # WORKER is in P9_SLICE only (per PHASE_SPECS owner_roles).
         # EPOCH is also owner for all phases but that's EPOCH not WORKER.
-        assert PhaseId.P9_SLICE in ctx.phases
+        assert ctx.phases == frozenset({PhaseId.P9_SLICE})
 
     def test_worker_includes_c_worker_gates(self) -> None:
         """WORKER must include C-worker-gates — its quality gate constraint."""
@@ -572,3 +573,72 @@ class TestGetPhaseContextAllPhases:
         assert isinstance(ctx.constraints, frozenset)
         assert isinstance(ctx.labels, tuple)
         assert isinstance(ctx.transitions, tuple)
+
+
+# ─── Positive Constraint Inclusion Tests for REVIEWER, ARCHITECT, EPOCH ───────
+
+
+class TestGetRoleContextReviewer:
+    """Positive constraint inclusion tests for REVIEWER role."""
+
+    def test_reviewer_includes_c_severity_eager(self) -> None:
+        """REVIEWER must include C-severity-eager (p10 code review creates severity tree)."""
+        ctx = get_role_context(RoleId.REVIEWER)
+        ids = {c.id for c in ctx.constraints}
+        assert "C-severity-eager" in ids
+
+    def test_reviewer_includes_c_review_binary(self) -> None:
+        """REVIEWER must include C-review-binary (binary ACCEPT/REVISE voting)."""
+        ctx = get_role_context(RoleId.REVIEWER)
+        ids = {c.id for c in ctx.constraints}
+        assert "C-review-binary" in ids
+
+    def test_reviewer_includes_c_review_consensus(self) -> None:
+        """REVIEWER must include C-review-consensus (all reviewers must agree)."""
+        ctx = get_role_context(RoleId.REVIEWER)
+        ids = {c.id for c in ctx.constraints}
+        assert "C-review-consensus" in ids
+
+    def test_reviewer_includes_c_blocker_dual_parent(self) -> None:
+        """REVIEWER must include C-blocker-dual-parent (BLOCKER findings need dual parents)."""
+        ctx = get_role_context(RoleId.REVIEWER)
+        ids = {c.id for c in ctx.constraints}
+        assert "C-blocker-dual-parent" in ids
+
+
+class TestGetRoleContextArchitect:
+    """Positive constraint inclusion tests for ARCHITECT role."""
+
+    def test_architect_includes_c_proposal_naming(self) -> None:
+        """ARCHITECT must include C-proposal-naming (creates proposals with naming convention)."""
+        ctx = get_role_context(RoleId.ARCHITECT)
+        ids = {c.id for c in ctx.constraints}
+        assert "C-proposal-naming" in ids
+
+
+class TestGetRoleContextEpoch:
+    """Positive constraint inclusion tests for EPOCH role."""
+
+    def test_epoch_includes_c_review_consensus(self) -> None:
+        """EPOCH must include C-review-consensus (gates phase transitions on consensus)."""
+        ctx = get_role_context(RoleId.EPOCH)
+        ids = {c.id for c in ctx.constraints}
+        assert "C-review-consensus" in ids
+
+    def test_epoch_includes_c_handoff_skill_invocation(self) -> None:
+        """EPOCH must include C-handoff-skill-invocation (master orchestrator creates handoffs)."""
+        ctx = get_role_context(RoleId.EPOCH)
+        ids = {c.id for c in ctx.constraints}
+        assert "C-handoff-skill-invocation" in ids
+
+
+# ─── Error Handling: _build_constraint_contexts ────────────────────────────────
+
+
+class TestBuildConstraintContextsErrorHandling:
+    """_build_constraint_contexts raises KeyError on unknown constraint IDs."""
+
+    def test_raises_key_error_on_unknown_constraint_id(self) -> None:
+        """Unknown constraint ID must raise KeyError with actionable message."""
+        with pytest.raises(KeyError, match="not found in CONSTRAINT_SPECS"):
+            _build_constraint_contexts(frozenset({"C-nonexistent-constraint-xyz"}))
