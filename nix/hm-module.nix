@@ -93,7 +93,7 @@ in
       enable = mkOption {
         type = types.bool;
         default = true;
-        description = "Install aura-parallel and aura-swarm CLI tools";
+        description = "Install aura-parallel, aura-swarm, and aura-release CLI tools";
       };
     };
 
@@ -173,6 +173,7 @@ in
       home.packages = [
         self.packages.${pkgs.system}.aura-parallel
         self.packages.${pkgs.system}.aura-swarm
+        self.packages.${pkgs.system}.aura-release
       ];
     })
 

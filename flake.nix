@@ -52,11 +52,19 @@
             (builtins.readFile ./bin/aura-swarm)
         );
 
+        aura-release = pkgs.writeScriptBin "aura-release" (
+          builtins.replaceStrings
+            [ "#!/usr/bin/env python3" ]
+            [ "#!${pkgs.python3}/bin/python3" ]
+            (builtins.readFile ./bin/aura-release)
+        );
+
         default = pkgs.symlinkJoin {
           name = "aura-plugins";
           paths = [
             self.packages.${system}.aura-parallel
             self.packages.${system}.aura-swarm
+            self.packages.${system}.aura-release
           ];
         };
       });

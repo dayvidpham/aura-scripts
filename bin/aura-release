@@ -25,7 +25,22 @@ from typing import NamedTuple
 
 # ── Constants ────────────────────────────────────────────────────────
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+def _discover_repo_root() -> Path:
+    """Find the git repository root from the current working directory."""
+    r = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if r.returncode != 0:
+        print("Error: not inside a git repository.", file=sys.stderr)
+        sys.exit(2)
+    return Path(r.stdout.strip())
+
+
+REPO_ROOT = _discover_repo_root()
 
 VERSION_FILES = {
     "pyproject": REPO_ROOT / "pyproject.toml",
