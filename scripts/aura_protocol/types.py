@@ -1581,3 +1581,138 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
         ),
     ),
 }
+
+
+# ─── Substep Data (canonical per-phase substep specifications) ────────────────
+# Moved from gen_schema.py (mk16) — types.py is the single source of truth.
+# Format: phase_id_str → list of substep attribute dicts for XML generation.
+# Keys match schema.xml <substep> attributes; special keys:
+#   "extra-label"     — adds <extra-label ref="..."/> child element
+#   "instances"       — adds <instances count="..." per="..."/> child element
+#   "startup-sequence"— adds <startup-sequence> from PROCEDURE_STEPS[SUPERVISOR]
+
+SUBSTEP_DATA: dict[str, list[dict]] = {
+    "p1": [
+        {
+            "id": "s1_1", "type": "classify", "execution": "sequential", "order": "1",
+            "label-ref": "L-p1s1_1",
+            "description": "Classify request along 4 axes: scope, complexity, risk, domain novelty",
+        },
+        {
+            "id": "s1_2", "type": "research", "execution": "parallel", "order": "2",
+            "parallel-group": "p1-discovery", "label-ref": "L-p1s1_2",
+            "description": "Find domain standards, prior art, relevant documentation",
+        },
+        {
+            "id": "s1_3", "type": "explore", "execution": "parallel", "order": "2",
+            "parallel-group": "p1-discovery", "label-ref": "L-p1s1_3",
+            "description": "Codebase exploration for integration points",
+        },
+    ],
+    "p2": [
+        {
+            "id": "s2_1", "type": "elicit", "execution": "sequential", "order": "1",
+            "label-ref": "L-p2s2_1",
+            "description": "URE survey: structured Q&A with user to capture requirements",
+        },
+        {
+            "id": "s2_2", "type": "urd", "execution": "sequential", "order": "2",
+            "label-ref": "L-p2s2_2",
+            "description": "Create URD as single source of truth for requirements",
+            "extra-label": "L-urd",
+        },
+    ],
+    "p3": [
+        {
+            "id": "s3", "type": "propose", "execution": "sequential", "order": "1",
+            "label-ref": "L-p3s3",
+            "description": (
+                "Full technical proposal: interfaces, approach, validation checklist, BDD criteria"
+            ),
+        },
+    ],
+    "p4": [
+        {
+            "id": "s4", "type": "review", "execution": "parallel", "order": "1",
+            "label-ref": "L-p4s4",
+            "description": "Each reviewer assesses one axis (A/B/C). All 3 must ACCEPT.",
+            "instances": {"count": "3", "per": "review-axis"},
+        },
+    ],
+    "p5": [
+        {
+            "id": "s5", "type": "uat", "execution": "sequential", "order": "1",
+            "label-ref": "L-p5s5",
+            "description": (
+                "Present plan to user with demonstrative examples. "
+                "User approves or requests changes."
+            ),
+        },
+    ],
+    "p6": [
+        {
+            "id": "s6", "type": "ratify", "execution": "sequential", "order": "1",
+            "label-ref": "L-p6s6",
+            "description": (
+                "Add ratify label. Mark prior proposals aura:superseded. "
+                "Create placeholder IMPL_PLAN."
+            ),
+        },
+    ],
+    "p7": [
+        {
+            "id": "s7", "type": "handoff", "execution": "sequential", "order": "1",
+            "label-ref": "L-p7s7",
+            "description": (
+                "Create handoff document with full inline provenance. Transfer to supervisor."
+            ),
+        },
+    ],
+    "p8": [
+        {
+            "id": "s8", "type": "plan", "execution": "sequential", "order": "1",
+            "label-ref": "L-p8s8",
+            "description": (
+                "Identify production code paths. Create SLICE-N tasks with leaf tasks. "
+                "Assign workers."
+            ),
+            "startup-sequence": True,  # Signal to add startup-sequence from PROCEDURE_STEPS
+        },
+    ],
+    "p9": [
+        {
+            "id": "s9", "type": "slice", "execution": "parallel", "order": "1",
+            "label-ref": "L-p9s9",
+            "description": (
+                "Each worker owns full vertical: types, tests, implementation, wiring"
+            ),
+            "instances": {"count": "N", "per": "production-code-path"},
+        },
+    ],
+    "p10": [
+        {
+            "id": "s10", "type": "review", "execution": "parallel", "order": "1",
+            "label-ref": "L-p10s10",
+            "description": (
+                "Each reviewer reviews ALL slices against their axis. EAGER severity tree."
+            ),
+            "instances": {"count": "3", "per": "review-axis"},
+        },
+    ],
+    "p11": [
+        {
+            "id": "s11", "type": "uat", "execution": "sequential", "order": "1",
+            "label-ref": "L-p11s11",
+            "description": (
+                "Present implementation to user. User approves or requests fixes."
+            ),
+        },
+    ],
+    "p12": [
+        {
+            "id": "s12", "type": "landing", "execution": "sequential", "order": "1",
+            "label-ref": "L-p12s12",
+            "description": "git agent-commit, bd sync, git push. Close upstream tasks.",
+        },
+    ],
+}

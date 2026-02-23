@@ -35,6 +35,8 @@ from aura_protocol.gen_schema import (
     _ROLE_CONSTRAINTS,
     generate_schema,
 )
+from aura_protocol.gen_skills import GENERATED_BEGIN, GENERATED_END, generate_skill
+from aura_protocol.gen_types import generate_types_source
 from aura_protocol.schema_parser import parse_schema
 
 
@@ -124,10 +126,19 @@ class TestDiffOutput:
             sys.stdout = old_stdout
 
         diff_output = captured.getvalue()
-        # A unified diff should contain --- and +++ lines
-        assert "---" in diff_output or "+++" in diff_output or "diff" in diff_output, (
-            "Expected unified diff output when file exists and content changed, "
-            f"got: {diff_output[:200]!r}"
+        # Verify real changed lines are present (not just the header '--- Unified diff...')
+        # At least one line must start with '+' or '-' excluding the '---'/'+++' file headers
+        diff_lines = diff_output.splitlines()
+        real_diff_lines = [
+            ln for ln in diff_lines
+            if (ln.startswith("+") or ln.startswith("-"))
+            and not ln.startswith("---")
+            and not ln.startswith("+++")
+        ]
+        assert len(real_diff_lines) > 0, (
+            "Expected at least one real diff line (starting with '+' or '-') "
+            "in unified diff output when file content changed, "
+            f"got: {diff_output[:300]!r}"
         )
 
     def test_no_diff_when_content_unchanged(self, tmp_path: Path) -> None:
@@ -593,22 +604,40 @@ class TestRoundTripConsistency:
         )
 
     def test_roundtrip_procedure_steps_supervisor(self, parsed_spec) -> None:
-        """Round-trip: supervisor procedure steps match PROCEDURE_STEPS."""
+        """Round-trip: supervisor procedure steps match PROCEDURE_STEPS field-by-field."""
         python_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
         parsed_steps = parsed_spec.procedure_steps.get(RoleId.SUPERVISOR, ())
         assert len(parsed_steps) == len(python_steps), (
             f"Supervisor procedure step count mismatch: "
             f"parsed={len(parsed_steps)}, python={len(python_steps)}"
         )
+        for i, (py_step, parsed_step) in enumerate(zip(python_steps, parsed_steps)):
+            assert parsed_step.description == py_step.description, (
+                f"Supervisor step[{i}] description mismatch: "
+                f"parsed={parsed_step.description!r}, python={py_step.description!r}"
+            )
+            assert parsed_step.order == py_step.order, (
+                f"Supervisor step[{i}] order mismatch: "
+                f"parsed={parsed_step.order!r}, python={py_step.order!r}"
+            )
 
     def test_roundtrip_procedure_steps_worker(self, parsed_spec) -> None:
-        """Round-trip: worker procedure steps match PROCEDURE_STEPS."""
+        """Round-trip: worker procedure steps match PROCEDURE_STEPS field-by-field."""
         python_steps = PROCEDURE_STEPS[RoleId.WORKER]
         parsed_steps = parsed_spec.procedure_steps.get(RoleId.WORKER, ())
         assert len(parsed_steps) == len(python_steps), (
             f"Worker procedure step count mismatch: "
             f"parsed={len(parsed_steps)}, python={len(python_steps)}"
         )
+        for i, (py_step, parsed_step) in enumerate(zip(python_steps, parsed_steps)):
+            assert parsed_step.description == py_step.description, (
+                f"Worker step[{i}] description mismatch: "
+                f"parsed={parsed_step.description!r}, python={py_step.description!r}"
+            )
+            assert parsed_step.order == py_step.order, (
+                f"Worker step[{i}] order mismatch: "
+                f"parsed={parsed_step.order!r}, python={py_step.order!r}"
+            )
 
 
 # ─── Return value tests ───────────────────────────────────────────────────────
@@ -658,4 +687,68 @@ class TestReturnValue:
         result2 = generate_schema(output, diff=False)
         assert result1 == result2, (
             "generate_schema is not idempotent: second call differs from first"
+        )
+
+
+# ─── AC10: End-to-end pipeline test ───────────────────────────────────────────
+
+
+class TestAC10Pipeline:
+    """AC10: Full pipeline parse_schema → gen_types → gen_schema → validate → gen_skills.
+
+    Confirms all four modules compose correctly without errors or exceptions.
+    """
+
+    def test_full_pipeline_succeeds(self, tmp_path: Path) -> None:
+        """AC10: parse_schema → gen_types (draft) → gen_schema → validate → gen_skills pipeline succeeds."""
+        from validate_schema import validate  # type: ignore[import]
+
+        # Step 1: parse_schema from the canonical schema.xml on disk
+        schema_xml = Path(__file__).resolve().parent.parent / "skills" / "protocol" / "schema.xml"
+        assert schema_xml.exists(), f"Canonical schema.xml not found at {schema_xml}"
+        spec = parse_schema(schema_xml)
+        assert spec is not None, "parse_schema returned None"
+
+        # Step 2: gen_types — generate draft Python source from parsed spec
+        types_source = generate_types_source(spec)
+        assert isinstance(types_source, str) and len(types_source) > 0, (
+            "generate_types_source returned empty or non-string"
+        )
+
+        # Step 3: gen_schema — generate schema.xml from Python type definitions
+        output = tmp_path / "schema.xml"
+        schema_content = generate_schema(output, diff=False)
+        assert isinstance(schema_content, str) and len(schema_content) > 0, (
+            "generate_schema returned empty or non-string"
+        )
+        assert output.exists(), "generate_schema did not write the output file"
+
+        # Step 4: validate — confirm generated schema.xml passes validation
+        errors = validate(output)
+        assert errors == [], (
+            f"validate_schema found {len(errors)} error(s) in generated schema:\n"
+            + "\n".join(f"  {e}" for e in errors)
+        )
+
+        # Step 5: gen_skills — generate a skill from the schema (worker role)
+        skill_path = tmp_path / "SKILL.md"
+        skill_path.write_text(
+            f"---\nname: test-worker\n---\n{GENERATED_BEGIN}\n(old content)\n{GENERATED_END}\n",
+            encoding="utf-8",
+        )
+        from aura_protocol.types import RoleId
+        skill_result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            diff=False,
+            write=False,
+        )
+        assert isinstance(skill_result, str) and len(skill_result) > 0, (
+            "generate_skill returned empty or non-string"
+        )
+        assert GENERATED_BEGIN in skill_result, (
+            "generate_skill output missing BEGIN marker"
+        )
+        assert GENERATED_END in skill_result, (
+            "generate_skill output missing END marker"
         )
