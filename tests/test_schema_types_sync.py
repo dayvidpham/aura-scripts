@@ -17,10 +17,16 @@ from pathlib import Path
 import pytest
 
 from aura_protocol import (
+    COMMAND_SPECS,
     CONSTRAINT_SPECS,
     HANDOFF_SPECS,
+    LABEL_SPECS,
     PHASE_DOMAIN,
     PHASE_SPECS,
+    PROCEDURE_STEPS,
+    REVIEW_AXIS_SPECS,
+    ROLE_SPECS,
+    TITLE_CONVENTIONS,
     Domain,
     HandoffSpec,
     PhaseId,
@@ -347,3 +353,342 @@ class TestHandoffSpecsMatchSchema:
                 f"{hid} content_level mismatch: Python={spec.content_level!r}, "
                 f"schema={h.get('content-level')!r}"
             )
+
+
+# ─── ROLE_SPECS Sync ──────────────────────────────────────────────────────────
+
+
+class TestRoleSpecsMatchSchema:
+    """ROLE_SPECS must cover all <role> elements in schema.xml."""
+
+    def test_all_schema_roles_in_python(self, schema_root: ET.Element) -> None:
+        schema_role_ids = {r.get("id") for r in schema_root.iter("role") if r.get("id")}
+        python_role_ids = {r.value for r in ROLE_SPECS.keys()}
+        assert python_role_ids == schema_role_ids, (
+            f"Role mismatch.\n"
+            f"In Python only: {python_role_ids - schema_role_ids}\n"
+            f"In schema only: {schema_role_ids - python_role_ids}"
+        )
+
+    def test_role_names_match_schema(self, schema_root: ET.Element) -> None:
+        for role in schema_root.iter("role"):
+            rid_str = role.get("id")
+            if not rid_str:
+                continue
+            try:
+                rid = RoleId(rid_str)
+            except ValueError:
+                continue
+            if rid not in ROLE_SPECS:
+                continue
+            spec = ROLE_SPECS[rid]
+            assert spec.name == role.get("name"), (
+                f"Role {rid_str} name mismatch: Python={spec.name!r}, "
+                f"schema={role.get('name')!r}"
+            )
+
+    def test_role_owned_phases_match_schema(self, schema_root: ET.Element) -> None:
+        for role in schema_root.iter("role"):
+            rid_str = role.get("id")
+            if not rid_str:
+                continue
+            try:
+                rid = RoleId(rid_str)
+            except ValueError:
+                continue
+            if rid not in ROLE_SPECS:
+                continue
+            owns_phases = role.find("owns-phases")
+            schema_phases: set[str] = set()
+            if owns_phases is not None:
+                for pr in owns_phases.findall("phase-ref"):
+                    ref = pr.get("ref")
+                    if ref:
+                        schema_phases.add(ref)
+            python_phases = ROLE_SPECS[rid].owned_phases
+            assert python_phases == schema_phases, (
+                f"Role {rid_str} owned_phases mismatch.\n"
+                f"Python: {sorted(python_phases)}\n"
+                f"Schema: {sorted(schema_phases)}"
+            )
+
+
+# ─── COMMAND_SPECS Sync ───────────────────────────────────────────────────────
+
+
+class TestCommandSpecsMatchSchema:
+    """COMMAND_SPECS must cover all <command> elements in schema.xml <commands> section."""
+
+    def test_all_schema_commands_in_python(self, schema_root: ET.Element) -> None:
+        commands_section = schema_root.find("commands")
+        assert commands_section is not None, "<commands> section not found in schema.xml"
+        schema_command_ids = {
+            c.get("id") for c in commands_section.findall("command") if c.get("id")
+        }
+        python_command_ids = set(COMMAND_SPECS.keys())
+        assert python_command_ids == schema_command_ids, (
+            f"Command mismatch.\n"
+            f"In Python only: {python_command_ids - schema_command_ids}\n"
+            f"In schema only: {schema_command_ids - python_command_ids}"
+        )
+
+    def test_command_names_match_schema(self, schema_root: ET.Element) -> None:
+        commands_section = schema_root.find("commands")
+        if commands_section is None:
+            return
+        for cmd in commands_section.findall("command"):
+            cid = cmd.get("id")
+            if not cid or cid not in COMMAND_SPECS:
+                continue
+            spec = COMMAND_SPECS[cid]
+            assert spec.name == cmd.get("name"), (
+                f"Command {cid} name mismatch: Python={spec.name!r}, "
+                f"schema={cmd.get('name')!r}"
+            )
+
+    def test_command_role_refs_match_schema(self, schema_root: ET.Element) -> None:
+        commands_section = schema_root.find("commands")
+        if commands_section is None:
+            return
+        for cmd in commands_section.findall("command"):
+            cid = cmd.get("id")
+            if not cid or cid not in COMMAND_SPECS:
+                continue
+            spec = COMMAND_SPECS[cid]
+            schema_role_ref = cmd.get("role-ref")
+            if schema_role_ref is None:
+                assert spec.role_ref is None, (
+                    f"Command {cid}: Python has role_ref={spec.role_ref!r}, schema has none"
+                )
+            else:
+                assert spec.role_ref is not None and spec.role_ref.value == schema_role_ref, (
+                    f"Command {cid} role_ref mismatch: Python={spec.role_ref!r}, "
+                    f"schema={schema_role_ref!r}"
+                )
+
+
+# ─── LABEL_SPECS Sync ─────────────────────────────────────────────────────────
+
+
+class TestLabelSpecsMatchSchema:
+    """LABEL_SPECS must cover all <label> elements in schema.xml <labels> section."""
+
+    def test_all_schema_labels_in_python(self, schema_root: ET.Element) -> None:
+        labels_section = schema_root.find("labels")
+        assert labels_section is not None, "<labels> section not found in schema.xml"
+        schema_label_ids = {
+            l.get("id") for l in labels_section.findall("label") if l.get("id")
+        }
+        python_label_ids = set(LABEL_SPECS.keys())
+        assert python_label_ids == schema_label_ids, (
+            f"Label mismatch.\n"
+            f"In Python only: {python_label_ids - schema_label_ids}\n"
+            f"In schema only: {schema_label_ids - python_label_ids}"
+        )
+
+    def test_label_values_match_schema(self, schema_root: ET.Element) -> None:
+        labels_section = schema_root.find("labels")
+        if labels_section is None:
+            return
+        for label in labels_section.findall("label"):
+            lid = label.get("id")
+            if not lid or lid not in LABEL_SPECS:
+                continue
+            spec = LABEL_SPECS[lid]
+            assert spec.value == label.get("value"), (
+                f"Label {lid} value mismatch: Python={spec.value!r}, "
+                f"schema={label.get('value')!r}"
+            )
+
+    def test_label_special_flags_match_schema(self, schema_root: ET.Element) -> None:
+        labels_section = schema_root.find("labels")
+        if labels_section is None:
+            return
+        for label in labels_section.findall("label"):
+            lid = label.get("id")
+            if not lid or lid not in LABEL_SPECS:
+                continue
+            spec = LABEL_SPECS[lid]
+            schema_special = label.get("special") == "true"
+            assert spec.special == schema_special, (
+                f"Label {lid} special flag mismatch: Python={spec.special!r}, "
+                f"schema={schema_special!r}"
+            )
+
+
+# ─── REVIEW_AXIS_SPECS Sync ───────────────────────────────────────────────────
+
+
+class TestReviewAxisSpecsMatchSchema:
+    """REVIEW_AXIS_SPECS must cover all <axis> elements in schema.xml."""
+
+    def test_all_schema_axes_in_python(self, schema_root: ET.Element) -> None:
+        schema_axis_ids = {a.get("id") for a in schema_root.iter("axis") if a.get("id")}
+        python_axis_ids = set(REVIEW_AXIS_SPECS.keys())
+        assert python_axis_ids == schema_axis_ids, (
+            f"Review axis mismatch.\n"
+            f"In Python only: {python_axis_ids - schema_axis_ids}\n"
+            f"In schema only: {schema_axis_ids - python_axis_ids}"
+        )
+
+    def test_axis_letters_match_schema(self, schema_root: ET.Element) -> None:
+        for axis in schema_root.iter("axis"):
+            aid = axis.get("id")
+            if not aid or aid not in REVIEW_AXIS_SPECS:
+                continue
+            spec = REVIEW_AXIS_SPECS[aid]
+            assert spec.letter.value == axis.get("letter"), (
+                f"Axis {aid} letter mismatch: Python={spec.letter.value!r}, "
+                f"schema={axis.get('letter')!r}"
+            )
+
+    def test_axis_names_match_schema(self, schema_root: ET.Element) -> None:
+        for axis in schema_root.iter("axis"):
+            aid = axis.get("id")
+            if not aid or aid not in REVIEW_AXIS_SPECS:
+                continue
+            spec = REVIEW_AXIS_SPECS[aid]
+            assert spec.name == axis.get("name"), (
+                f"Axis {aid} name mismatch: Python={spec.name!r}, "
+                f"schema={axis.get('name')!r}"
+            )
+
+
+# ─── TITLE_CONVENTIONS Sync ───────────────────────────────────────────────────
+
+
+class TestTitleConventionsMatchSchema:
+    """TITLE_CONVENTIONS must cover all <title-convention> elements in schema.xml."""
+
+    def test_all_schema_title_conventions_in_python(self, schema_root: ET.Element) -> None:
+        task_titles_el = schema_root.find("task-titles")
+        assert task_titles_el is not None, "<task-titles> section not found in schema.xml"
+        schema_patterns = {
+            tc.get("pattern")
+            for tc in task_titles_el.findall("title-convention")
+            if tc.get("pattern")
+        }
+        python_patterns = {tc.pattern for tc in TITLE_CONVENTIONS}
+        assert python_patterns == schema_patterns, (
+            f"Title convention mismatch.\n"
+            f"In Python only: {python_patterns - schema_patterns}\n"
+            f"In schema only: {schema_patterns - python_patterns}"
+        )
+
+    def test_title_convention_label_refs_match_schema(self, schema_root: ET.Element) -> None:
+        task_titles_el = schema_root.find("task-titles")
+        if task_titles_el is None:
+            return
+        schema_by_pattern = {
+            tc.get("pattern"): tc
+            for tc in task_titles_el.findall("title-convention")
+            if tc.get("pattern")
+        }
+        for tc in TITLE_CONVENTIONS:
+            schema_tc = schema_by_pattern.get(tc.pattern)
+            if schema_tc is None:
+                continue
+            assert tc.label_ref == schema_tc.get("label-ref"), (
+                f"Title convention '{tc.pattern}' label_ref mismatch: "
+                f"Python={tc.label_ref!r}, schema={schema_tc.get('label-ref')!r}"
+            )
+
+
+# ─── PROCEDURE_STEPS Sync ─────────────────────────────────────────────────────
+
+
+class TestProcedureStepsMatchSchema:
+    """PROCEDURE_STEPS must be populated for supervisor and worker (UAT-6)."""
+
+    def test_all_roles_have_entry(self) -> None:
+        """Every RoleId has an entry in PROCEDURE_STEPS (even if empty)."""
+        for role in RoleId:
+            assert role in PROCEDURE_STEPS, (
+                f"Role {role} missing from PROCEDURE_STEPS"
+            )
+
+    def test_supervisor_has_procedure_steps(self) -> None:
+        """Supervisor role has non-empty procedure steps (UAT-6)."""
+        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        assert len(steps) > 0, "PROCEDURE_STEPS[supervisor] must be non-empty (UAT-6)"
+
+    def test_worker_has_procedure_steps(self) -> None:
+        """Worker role has non-empty procedure steps (UAT-6)."""
+        steps = PROCEDURE_STEPS[RoleId.WORKER]
+        assert len(steps) > 0, "PROCEDURE_STEPS[worker] must be non-empty (UAT-6)"
+
+    def test_supervisor_steps_from_schema(self, schema_root: ET.Element) -> None:
+        """Supervisor steps match startup-sequence from schema.xml phase p8."""
+        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        # Phase 8 substep s8 has a startup-sequence in schema.xml
+        startup_steps: list[str] = []
+        phases_el = schema_root.find("phases")
+        if phases_el is not None:
+            for phase in phases_el.findall("phase"):
+                if phase.get("id") != "p8":
+                    continue
+                substeps_el = phase.find("substeps")
+                if substeps_el is None:
+                    break
+                for substep in substeps_el.findall("substep"):
+                    startup_seq = substep.find("startup-sequence")
+                    if startup_seq is not None:
+                        for step in startup_seq.findall("step"):
+                            if step.text:
+                                startup_steps.append(step.text.strip())
+                break
+        assert len(steps) == len(startup_steps), (
+            f"Supervisor procedure step count mismatch: "
+            f"Python has {len(steps)}, schema has {len(startup_steps)} startup steps"
+        )
+        for i, (step, expected_text) in enumerate(zip(steps, startup_steps)):
+            assert step.description == expected_text, (
+                f"Supervisor step {i + 1} description mismatch: "
+                f"Python={step.description!r}, schema={expected_text!r}"
+            )
+
+    def test_procedure_steps_ordered(self) -> None:
+        """Procedure steps are in ascending order for all populated roles."""
+        for role, steps in PROCEDURE_STEPS.items():
+            if not steps:
+                continue
+            orders = [s.order for s in steps]
+            assert orders == sorted(orders), (
+                f"Procedure steps for {role} are not in order: {orders}"
+            )
+
+    def test_procedure_step_next_state_is_phase_id_or_none(self) -> None:
+        """Every ProcedureStep.next_state is either a PhaseId or None."""
+        for role, steps in PROCEDURE_STEPS.items():
+            for step in steps:
+                assert step.next_state is None or isinstance(step.next_state, PhaseId), (
+                    f"Role {role.value} step {step.order}: next_state must be PhaseId or None, "
+                    f"got {type(step.next_state)!r}"
+                )
+
+    def test_supervisor_step4_next_state_is_p8(self) -> None:
+        """Supervisor step 4 (decompose into slices) must have next_state=PhaseId.P8_IMPL_PLAN."""
+        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        step4 = next((s for s in steps if s.order == 4), None)
+        assert step4 is not None, "Supervisor must have a step 4"
+        assert step4.next_state == PhaseId.P8_IMPL_PLAN, (
+            f"Supervisor step 4 next_state expected P8_IMPL_PLAN, got {step4.next_state!r}"
+        )
+
+    def test_supervisor_step6_next_state_is_p9(self) -> None:
+        """Supervisor step 6 (spawn workers) must have next_state=PhaseId.P9_SLICE."""
+        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        step6 = next((s for s in steps if s.order == 6), None)
+        assert step6 is not None, "Supervisor must have a step 6"
+        assert step6.next_state == PhaseId.P9_SLICE, (
+            f"Supervisor step 6 next_state expected P9_SLICE, got {step6.next_state!r}"
+        )
+
+    def test_worker_step3_next_state_is_p9(self) -> None:
+        """Worker step 3 (make tests pass) must have next_state=PhaseId.P9_SLICE."""
+        steps = PROCEDURE_STEPS[RoleId.WORKER]
+        step3 = next((s for s in steps if s.order == 3), None)
+        assert step3 is not None, "Worker must have a step 3"
+        assert step3.next_state == PhaseId.P9_SLICE, (
+            f"Worker step 3 next_state expected P9_SLICE, got {step3.next_state!r}"
+        )

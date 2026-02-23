@@ -1,0 +1,39 @@
+id: no-n-tuple-annotation-field
+language: Python
+severity: warning
+message: >
+  Fixed-arity homogeneous str tuple in field annotation. Consider a named frozen
+  dataclass — tuple fields are accessed by index, not name.
+note: >
+  tuple[str, str, str, str] is accessed as t[0], t[1], t[2], t[3] or destructured
+  as (a, b, c, d) = t. A @dataclass(frozen=True) with named fields makes intent
+  self-documenting and access refactor-safe. Exception: tuple[str, ...] (variadic)
+  is intentional and is NOT matched by this rule.
+rule:
+  kind: assignment
+  any:
+    - pattern: "$_: tuple[str, str]"
+    - pattern: "$_: tuple[str, str, str]"
+    - pattern: "$_: tuple[str, str, str, str]"
+    - pattern: "$_: tuple[str, str, str, str, str]"
+ignores:
+  - "tests/**"
+---
+id: no-n-tuple-annotation-return
+language: Python
+severity: warning
+message: >
+  Fixed-arity homogeneous str tuple as return type. Consider a named frozen
+  dataclass — tuple fields are accessed by index, not name.
+note: >
+  Same reasoning as no-n-tuple-annotation-field: named fields are safer than
+  positional indices. tuple[str, ...] (variadic) is excluded by this rule.
+rule:
+  kind: function_definition
+  any:
+    - pattern: "def $F($$$) -> tuple[str, str]"
+    - pattern: "def $F($$$) -> tuple[str, str, str]"
+    - pattern: "def $F($$$) -> tuple[str, str, str, str]"
+    - pattern: "def $F($$$) -> tuple[str, str, str, str, str]"
+ignores:
+  - "tests/**"

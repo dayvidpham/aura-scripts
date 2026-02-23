@@ -1,0 +1,43 @@
+id: no-dict-tuple-value-field
+language: Python
+severity: error
+message: >
+  Field uses dict[str, tuple[str, ...]] — tuples are positionally accessed and force
+  callers to know field order by convention. Use a named dataclass as the value
+  type so fields have names, not indices.
+note: >
+  dict[str, tuple[str, str, str, str]] was the exact type of SchemaSpec.constraints
+  before the aura-plugins-94yc BLOCKER fix. Callers had to destructure:
+    given, when, then, should_not = spec.constraints[cid]
+  instead of named field access:
+    spec.constraints[cid].given
+  This rule prevents the same pattern from being re-introduced in field annotations.
+rule:
+  kind: assignment
+  any:
+    - pattern: "$_: dict[str, tuple[str, str]]"
+    - pattern: "$_: dict[str, tuple[str, str, str]]"
+    - pattern: "$_: dict[str, tuple[str, str, str, str]]"
+    - pattern: "$_: dict[str, tuple[str, str, str, str, str]]"
+ignores:
+  - "tests/**"
+---
+id: no-dict-tuple-value-return
+language: Python
+severity: error
+message: >
+  Return type dict[str, tuple[str, ...]] — tuples are positionally accessed. Use a
+  named dataclass as the value type so fields have names, not indices.
+note: >
+  dict[str, tuple[str, str, str, str]] was the exact return type of
+  _parse_constraints() before the aura-plugins-94yc BLOCKER fix.
+  This rule prevents the same pattern from being re-introduced in return types.
+rule:
+  kind: function_definition
+  any:
+    - pattern: "def $F($$$) -> dict[str, tuple[str, str]]"
+    - pattern: "def $F($$$) -> dict[str, tuple[str, str, str]]"
+    - pattern: "def $F($$$) -> dict[str, tuple[str, str, str, str]]"
+    - pattern: "def $F($$$) -> dict[str, tuple[str, str, str, str, str]]"
+ignores:
+  - "tests/**"
