@@ -8,7 +8,7 @@ Public API:
 
 The output is valid Python source that can be parsed by ast.parse().
 It contains:
-- Enum class stubs for ExecutionMode, ContentLevel, ReviewAxis
+- Enum class stubs for SubstepType, ExecutionMode, ContentLevel, ReviewAxis
 - Dataclass stubs for all 9 new spec types
 - Canonical dict stubs for all 6 new dicts
 - A header comment explaining this is a generated draft
@@ -78,6 +78,18 @@ from enum import Enum
 '''
 
 
+def _gen_substep_type_enum(spec: "SchemaSpec") -> str:
+    """Generate SubstepType enum from schema substep types."""
+    types = sorted({s.type.value for s in spec.substep_specs.values()})
+    lines = ["class SubstepType(str, Enum):"]
+    lines.append('    """Substep type classification within a phase."""')
+    lines.append("")
+    for t in types:
+        name = t.upper().replace("-", "_")
+        lines.append(f"    {name} = {_repr_str(t)}")
+    return "\n".join(lines)
+
+
 def _gen_execution_mode_enum(spec: "SchemaSpec") -> str:
     """Generate ExecutionMode enum from schema execution modes."""
     # Collect distinct execution modes from substep specs
@@ -126,7 +138,7 @@ def _gen_dataclass_stubs() -> str:
             class SubstepSpec:
                 \"\"\"Phase substep specification.\"\"\"
                 id: str
-                type: str
+                type: SubstepType
                 execution: ExecutionMode
                 order: int
                 label_ref: str
@@ -340,7 +352,7 @@ def generate_types_source(spec: "SchemaSpec") -> str:
 
     Returns:
         A string of valid Python source code containing:
-        - Enum stubs for ExecutionMode, ContentLevel, ReviewAxis
+        - Enum stubs for SubstepType, ExecutionMode, ContentLevel, ReviewAxis
         - Frozen dataclass stubs for all 9 new spec types
         - Populated canonical dicts: ROLE_SPECS, COMMAND_SPECS, LABEL_SPECS,
           REVIEW_AXIS_SPECS, TITLE_CONVENTIONS, PROCEDURE_STEPS
@@ -364,6 +376,8 @@ def generate_types_source(spec: "SchemaSpec") -> str:
     sections = [
         _gen_header(),
         "# ─── Enums ────────────────────────────────────────────────────────────────────\n",
+        _gen_substep_type_enum(spec),
+        "",
         _gen_execution_mode_enum(spec),
         "",
         _gen_content_level_enum(spec),

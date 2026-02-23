@@ -14,6 +14,7 @@ Enums:
     ExecutionMode — sequential, parallel
     ContentLevel  — full-provenance, summary-with-ids
     ReviewAxis    — A, B, C
+    SubstepType   — 13 values: classify, research, explore, elicit, urd, propose, review, uat, ratify, handoff, plan, slice, landing
 
 Frozen Dataclasses:
     Transition          — single valid phase transition
@@ -75,7 +76,7 @@ State Machine (from state_machine.py):
 
 Runtime Constraint Checking (from constraints.py):
     ConstraintViolation     — frozen dataclass: constraint_id, message, context
-    RuntimeConstraintChecker — checks all 22 C-* constraints against epoch state
+    RuntimeConstraintChecker — checks all 23 C-* constraints against epoch state
         check_state_constraints(state) — aggregates the 5 state-based checks
         check_transition_constraints(state, to_phase) — combines transition-specific checks
 
@@ -165,6 +166,7 @@ from aura_protocol.types import (
     RoleSpec,
     SeverityLevel,
     SubstepSpec,
+    SubstepType,
     TitleConvention,
     ToolPermissionRequest,
     Transition,
@@ -184,6 +186,7 @@ __all__ = [
     "ExecutionMode",
     "ContentLevel",
     "ReviewAxis",
+    "SubstepType",
     # Frozen dataclasses
     "Transition",
     "PhaseSpec",

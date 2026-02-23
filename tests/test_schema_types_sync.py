@@ -641,6 +641,11 @@ class TestProcedureStepsMatchSchema:
             f"Supervisor procedure step count mismatch: "
             f"Python has {len(steps)}, schema has {len(startup_steps)} startup steps"
         )
+        for i, (step, expected_text) in enumerate(zip(steps, startup_steps)):
+            assert step.description == expected_text, (
+                f"Supervisor step {i + 1} description mismatch: "
+                f"Python={step.description!r}, schema={expected_text!r}"
+            )
 
     def test_procedure_steps_ordered(self) -> None:
         """Procedure steps are in ascending order for all populated roles."""

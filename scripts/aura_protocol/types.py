@@ -3,7 +3,7 @@
 All enums are str Enums for JSON/Temporal serialization compatibility.
 All spec dataclasses are frozen (immutable) for use as dict keys and safe sharing.
 
-Source of truth: skills/protocol/schema.xml
+Source of truth: this file (types.py). schema.xml is generated from Python via gen_schema.py.
 Integration test: tests/test_schema_types_sync.py verifies Python types match schema.xml.
 """
 
@@ -114,6 +114,27 @@ class ReviewAxis(str, Enum):
     C = "C"
 
 
+class SubstepType(str, Enum):
+    """Substep type classification within a phase.
+
+    Values match schema.xml <substep type="..."> attributes.
+    """
+
+    CLASSIFY = "classify"
+    RESEARCH = "research"
+    EXPLORE = "explore"
+    ELICIT = "elicit"
+    URD = "urd"
+    PROPOSE = "propose"
+    REVIEW = "review"
+    UAT = "uat"
+    RATIFY = "ratify"
+    HANDOFF = "handoff"
+    PLAN = "plan"
+    SLICE = "slice"
+    LANDING = "landing"
+
+
 # ─── Frozen Dataclasses ───────────────────────────────────────────────────────
 
 
@@ -183,7 +204,7 @@ class SubstepSpec:
     """
 
     id: str
-    type: str
+    type: SubstepType
     execution: ExecutionMode
     order: int
     label_ref: str

@@ -163,8 +163,42 @@ class TestGenTypesDataIntegrity:
             )
 
     def test_frozen_dataclass_decorator_present(self, generated_source: str) -> None:
-        """All dataclass definitions use @dataclass(frozen=True)."""
-        assert "frozen=True" in generated_source
+        """All spec dataclass definitions use @dataclass(frozen=True), verified per-class."""
+        expected_frozen_classes = {
+            "SubstepSpec",
+            "RoleSpec",
+            "DelegateSpec",
+            "CommandSpec",
+            "LabelSpec",
+            "ReviewAxisSpec",
+            "TitleConvention",
+            "ProcedureStep",
+            "ConstraintContext",
+        }
+        tree = ast.parse(generated_source)
+        frozen_classes: set[str] = set()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            for decorator in node.decorator_list:
+                if (
+                    isinstance(decorator, ast.Call)
+                    and isinstance(decorator.func, ast.Name)
+                    and decorator.func.id == "dataclass"
+                    and any(
+                        isinstance(kw, ast.keyword)
+                        and kw.arg == "frozen"
+                        and isinstance(kw.value, ast.Constant)
+                        and kw.value.value is True
+                        for kw in decorator.keywords
+                    )
+                ):
+                    frozen_classes.add(node.name)
+        assert frozen_classes == expected_frozen_classes, (
+            f"Classes with @dataclass(frozen=True) mismatch.\n"
+            f"Expected: {sorted(expected_frozen_classes)}\n"
+            f"Got: {sorted(frozen_classes)}"
+        )
 
     def test_from_annotations_import(self, generated_source: str) -> None:
         """Output includes from __future__ import annotations."""
