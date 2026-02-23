@@ -268,13 +268,21 @@ def _parse_roles(root: ET.Element, path: Path) -> dict[RoleId, RoleSpec]:
             )
         name = _require(role.get("name"), "name", f"<role id='{rid_str}'>", path)
         description = role.get("description") or ""
-        owned_phases: set[str] = set()
+        owned_phases: set[PhaseId] = set()
         owns_phases_el = role.find("owns-phases")
         if owns_phases_el is not None:
             for pr in owns_phases_el.findall("phase-ref"):
                 ref = pr.get("ref")
                 if ref:
-                    owned_phases.add(ref)
+                    try:
+                        owned_phases.add(PhaseId(ref))
+                    except ValueError:
+                        raise SchemaParseError(
+                            f"Unknown phase ref '{ref}' in owns-phases for role "
+                            f"'{rid_str}' in {path}. "
+                            f"Valid phase ids: {[p.value for p in PhaseId]}. "
+                            f"Fix: correct the 'ref' attribute or add the phase to PhaseId enum."
+                        )
         result[rid] = RoleSpec(
             id=rid,
             name=name,

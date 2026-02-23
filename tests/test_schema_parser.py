@@ -98,13 +98,13 @@ class TestSchemaParserRoles:
     def test_supervisor_owned_phases(self, parsed_spec: SchemaSpec) -> None:
         sup = parsed_spec.roles[RoleId.SUPERVISOR]
         # Supervisor owns p7..p12
-        assert "p7" in sup.owned_phases
-        assert "p8" in sup.owned_phases
-        assert "p12" in sup.owned_phases
+        assert PhaseId.P7_HANDOFF in sup.owned_phases
+        assert PhaseId.P8_IMPL_PLAN in sup.owned_phases
+        assert PhaseId.P12_LANDING in sup.owned_phases
 
     def test_worker_owned_phases(self, parsed_spec: SchemaSpec) -> None:
         worker = parsed_spec.roles[RoleId.WORKER]
-        assert worker.owned_phases == frozenset({"p9"})
+        assert worker.owned_phases == frozenset({PhaseId.P9_SLICE})
 
     def test_epoch_owns_all_phases(self, parsed_spec: SchemaSpec) -> None:
         epoch = parsed_spec.roles[RoleId.EPOCH]

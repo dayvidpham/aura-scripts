@@ -202,7 +202,7 @@ class RoleSpec:
     id: RoleId
     name: str
     description: str
-    owned_phases: frozenset[str]
+    owned_phases: frozenset[PhaseId]
 
 
 @dataclass(frozen=True)
@@ -851,33 +851,42 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
         name="Epoch",
         description="Master orchestrator for full 12-phase workflow",
         owned_phases=frozenset({
-            "p1", "p2", "p3", "p4", "p5", "p6",
-            "p7", "p8", "p9", "p10", "p11", "p12",
+            PhaseId.P1_REQUEST, PhaseId.P2_ELICIT, PhaseId.P3_PROPOSE,
+            PhaseId.P4_REVIEW, PhaseId.P5_UAT, PhaseId.P6_RATIFY,
+            PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE,
+            PhaseId.P10_CODE_REVIEW, PhaseId.P11_IMPL_UAT, PhaseId.P12_LANDING,
         }),
     ),
     RoleId.ARCHITECT: RoleSpec(
         id=RoleId.ARCHITECT,
         name="Architect",
         description="Specification writer and implementation designer",
-        owned_phases=frozenset({"p1", "p2", "p3", "p4", "p5", "p6", "p7"}),
+        owned_phases=frozenset({
+            PhaseId.P1_REQUEST, PhaseId.P2_ELICIT, PhaseId.P3_PROPOSE,
+            PhaseId.P4_REVIEW, PhaseId.P5_UAT, PhaseId.P6_RATIFY,
+            PhaseId.P7_HANDOFF,
+        }),
     ),
     RoleId.REVIEWER: RoleSpec(
         id=RoleId.REVIEWER,
         name="Reviewer",
         description="End-user alignment reviewer for plans and code",
-        owned_phases=frozenset({"p4", "p10"}),
+        owned_phases=frozenset({PhaseId.P4_REVIEW, PhaseId.P10_CODE_REVIEW}),
     ),
     RoleId.SUPERVISOR: RoleSpec(
         id=RoleId.SUPERVISOR,
         name="Supervisor",
         description="Task coordinator, spawns workers, manages parallel execution",
-        owned_phases=frozenset({"p7", "p8", "p9", "p10", "p11", "p12"}),
+        owned_phases=frozenset({
+            PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE,
+            PhaseId.P10_CODE_REVIEW, PhaseId.P11_IMPL_UAT, PhaseId.P12_LANDING,
+        }),
     ),
     RoleId.WORKER: RoleSpec(
         id=RoleId.WORKER,
         name="Worker",
         description="Vertical slice implementer (full production code path)",
-        owned_phases=frozenset({"p9"}),
+        owned_phases=frozenset({PhaseId.P9_SLICE}),
     ),
 }
 

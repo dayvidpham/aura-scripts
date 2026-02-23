@@ -140,7 +140,7 @@ def _gen_dataclass_stubs() -> str:
                 id: RoleId
                 name: str
                 description: str
-                owned_phases: frozenset[str]
+                owned_phases: frozenset[PhaseId]
         """),
         textwrap.dedent("""\
             @dataclass(frozen=True)
@@ -217,8 +217,8 @@ def _gen_role_specs_dict(spec: "SchemaSpec") -> str:
     """Generate ROLE_SPECS dict from spec.roles."""
     lines = ["ROLE_SPECS: dict[RoleId, RoleSpec] = {"]
     for role_id, role in sorted(spec.roles.items(), key=lambda x: x[0].value):
-        phases_set = sorted(role.owned_phases)
-        phases_repr = "{" + ", ".join(_repr_str(p) for p in phases_set) + "}"
+        phases_set = sorted(role.owned_phases, key=lambda p: p.value)
+        phases_repr = "{" + ", ".join(f"PhaseId.{p.name}" for p in phases_set) + "}"
         lines.append(f"    RoleId.{role_id.name}: RoleSpec(")
         lines.append(f"        id=RoleId.{role_id.name},")
         lines.append(f"        name={_repr_str(role.name)},")

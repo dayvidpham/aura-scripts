@@ -856,9 +856,9 @@ def _build_roles(root: ET.Element) -> None:
         owns_el = ET.SubElement(role_el, "owns-phases")
         # Sort phases by number to ensure consistent output
         sorted_phases = sorted(spec.owned_phases,
-                               key=lambda p: int(p[1:]) if p[1:].isdigit() else 0)
+                               key=lambda p: int(p.value[1:]) if p.value[1:].isdigit() else 0)
         for phase_ref in sorted_phases:
-            ET.SubElement(owns_el, "phase-ref", ref=phase_ref)
+            ET.SubElement(owns_el, "phase-ref", ref=phase_ref.value)
 
         # Delegates (epoch only)
         if rid in _ROLE_DELEGATES:

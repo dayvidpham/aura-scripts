@@ -111,11 +111,10 @@ def _handoffs_for_role(role_id: RoleId) -> list[HandoffSpec]:
 def _owned_phase_details(role_spec: RoleSpec) -> list[PhaseSpec]:
     """Return PhaseSpec objects for phases owned by the role, sorted by number."""
     result = []
-    for phase_id_str in role_spec.owned_phases:
-        for phase_id, phase_spec in PHASE_SPECS.items():
-            if phase_id.value == phase_id_str:
-                result.append(phase_spec)
-                break
+    for phase_id in role_spec.owned_phases:
+        phase_spec = PHASE_SPECS.get(phase_id)
+        if phase_spec is not None:
+            result.append(phase_spec)
     return sorted(result, key=lambda p: p.number)
 
 
