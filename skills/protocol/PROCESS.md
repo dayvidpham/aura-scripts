@@ -396,10 +396,11 @@ Supervisor takes the ratified proposal and decomposes into **vertical slices** (
 **Supervisor startup sequence:**
 1. Call `Skill(/aura:supervisor)` to load role instructions
 2. Read RATIFIED_PLAN and URD via `bd show`
-3. **Create a standing explore team** via TeamCreate before any codebase exploration (see supervisor skill)
+3. **Create 3 Cartographers** (the standing explore + review team) via TeamCreate before any codebase exploration — always exactly 3, regardless of complexity (see supervisor skill)
 4. Decompose into vertical slices
-5. **Create leaf tasks (L1/L2/L3) for every slice** — a slice without leaf tasks is undecomposed
-6. Spawn workers for leaf tasks
+5. **Identify horizontal Layer Integration Points** — contracts shared across slices (see Layer Integration Points below)
+6. **Create leaf tasks (L1/L2/L3) for every slice** — a slice without leaf tasks is undecomposed
+7. Spawn workers for leaf tasks
 
 ```
 Layer 0: Shared infrastructure (common types, enums — optional, parallel)
@@ -412,9 +413,29 @@ Vertical Slices (parallel, each worker owns one slice):
 IMPLEMENTATION COMPLETE
 ```
 
-### Standing Explore Team
+### Cartographers (Standing Explore + Review Team)
 
-The supervisor MUST delegate codebase exploration to standing explore agents (created via TeamCreate) rather than exploring directly. Explore agents act as **context caches**: once an agent has explored a codebase area, follow-up questions about that area cost minimal effort. Minimum 1 standing explore agent; scale based on feature complexity. See `/aura:supervisor` skill for full setup guide.
+The supervisor MUST create **exactly 3 Cartographers** via TeamCreate before any codebase exploration — always 3, regardless of feature complexity. Cartographers are dual-role agents that persist for the **full Ride the Wave cycle**:
+
+- **Phase 8 role:** `/aura:explore` — map the codebase for workers, act as context caches. Once a Cartographer has explored an area, follow-up questions on that area cost minimal effort.
+- **Phase 10 role:** `/aura:reviewer` — the same 3 agents switch to reviewer role for code review. No respawn needed.
+
+**Cartographers MUST NEVER shut down between phases.** They persist from Phase 8 through Phase 10, maintaining their exploration context across the full implementation cycle. See `/aura:supervisor` skill for full setup guide.
+
+### Layer Integration Points
+
+When slices share types, interfaces, or data flows, the supervisor MUST identify **horizontal Layer Integration Points** in the IMPL_PLAN. These are contracts where one slice exports something another slice imports.
+
+**Rule: merge sooner, not later.** Divergence grows with delay. If SLICE-1 defines a type that SLICE-2 and SLICE-3 consume, SLICE-1 must complete its L1 (types) layer before SLICE-2 and SLICE-3 begin their L1.
+
+**Include an integration points table in the IMPL_PLAN design field:**
+
+| ID | Contract | Owner (exports) | Consumer(s) (imports) | Merge Timing |
+|----|----------|-----------------|----------------------|--------------|
+| IP-1 | PhaseEnum type | SLICE-1 | SLICE-2, SLICE-3 | L1 (types) |
+| IP-2 | EpochService interface | SLICE-2 | SLICE-3, SLICE-4 | L2 (tests) |
+
+If no integration points exist, include an empty table with a note: "No cross-slice contracts identified."
 
 ### IMPL_PLAN Task
 
@@ -591,13 +612,57 @@ mock out the system under test
 # - Tests import production code (not test-only export)
 ```
 
+### Ride the Wave — Worker Persistence
+
+**Ride the Wave** is the execution model for Phases 8–10: workers implement slices, Cartographers review them, workers fix findings — all in a single continuous cycle without agent teardown between phases.
+
+**Worker persistence rules:**
+
+- Workers do **NOT** shut down after completing implementation
+- When implementation is complete, workers signal via Beads comments (not `bd close`):
+  ```bash
+  bd comments add <slice-id> "Implementation complete, awaiting review"
+  ```
+- Workers stay alive for the review-fix cycle — Cartographers will review their work and may send findings back
+- Workers wait for review feedback and fix any BLOCKERs or IMPORTANT findings assigned to them
+- The supervisor receives completion notifications but does **NOT** close the slice
+
+### Slice Closure Rules
+
+- Slices **MUST NOT** be closed by workers immediately upon implementation completion
+- A slice must be reviewed **at least once** by Cartographers before it can close
+- **Only the supervisor closes slices**, after review passes (Phase 10) or after 3 review-fix cycles complete
+- Workers who finish implementation stay alive and await review feedback before the session ends
+
 ---
 
 ## Phase 10: Code Review (`aura:p10-impl`)
 
 ### Overview
 
-After all slices complete, spawn **3 independent reviewers** in parallel for code review. Code review uses the **full severity tree** with EAGER creation.
+After all slices complete, the **Cartographers switch role** from `/aura:explore` (Phase 8) to `/aura:reviewer` (Phase 10). The same 3 agents, the same team — no respawn needed. They review all slices in parallel using the **full severity tree** with EAGER creation, then enter a review-fix cycle with workers.
+
+### Review-Fix Cycle (Max 3)
+
+Phase 10 runs up to **3 review-fix cycles**. Workers do not shut down — they await findings and fix them in-place.
+
+**Cycle procedure:**
+
+1. **Cartographers review all slices** — create severity groups (BLOCKER/IMPORTANT/MINOR) for each slice per the EAGER creation protocol
+2. **Supervisor collects findings** — aggregates BLOCKERs and IMPORTANTs across all slices; sends findings to the relevant workers
+3. **Workers fix BLOCKERs + IMPORTANTs** — workers address assigned findings and notify the supervisor when done
+4. **Cartographers re-review fixed slices** — create new severity groups for the new round (round suffix increments: `-1`, `-2`, `-3`)
+5. **Repeat** — max 3 cycles total
+
+**Cycle exit conditions:**
+
+| Condition | Action |
+|-----------|--------|
+| All slices ACCEPT, no open BLOCKERs | Proceed to Phase 11 (Implementation UAT) |
+| 3 cycles exhausted, IMPORTANT remain | IMPORTANT → FOLLOWUP epic; proceed to UAT |
+| 3 cycles exhausted, only MINOR remain | MINOR → FOLLOWUP epic; proceed to UAT |
+
+After cycle 3: UAT is **NOT blocked** on remaining IMPORTANT or MINOR findings. The supervisor creates the FOLLOWUP epic to track them, then proceeds to Phase 11.
 
 ### Severity Tree (EAGER Creation)
 
@@ -664,6 +729,8 @@ bd dep add <followup-epic-id> --blocked-by <minor-group-id>
 ```
 
 The follow-up epic is created as soon as the review round completes, regardless of whether BLOCKERs are still being resolved. This ensures non-blocking improvements are tracked and not lost.
+
+**After 3 review-fix cycles:** Any remaining IMPORTANT and MINOR findings both route to the FOLLOWUP epic. UAT proceeds immediately — it is NOT blocked on IMPORTANT or MINOR findings after cycle 3. The supervisor creates the FOLLOWUP epic and then advances to Phase 11.
 
 ### Follow-up Lifecycle (FOLLOWUP_* Phases)
 
