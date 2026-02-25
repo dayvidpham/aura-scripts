@@ -18,6 +18,10 @@ Received handoff from architect with RATIFIED_PLAN task ID and placeholder IMPL_
 
 **Given** validation_checklist **when** distributing **then** include production code verification **should never** allow test-only validation
 
+**Given** multiple vertical slices **when** slices share types, interfaces, or data flows **then** identify horizontal Layer Integration Points where slices must inter-op and document them in the IMPL_PLAN with owning slice, consuming slices, and the shared contract (type, interface, or protocol) **should never** leave cross-slice dependencies implicit — divergence grows when slices develop in isolation without clear merge points
+
+**Given** integration points identified **when** creating slice tasks **then** include each integration point in the relevant slice descriptions so workers know what they must export and what they may import **should never** assume workers will discover cross-slice contracts on their own
+
 ## Critical: Vertical Slices, Not Horizontal Layers
 
 **ANTI-PATTERN (causes dual-export problem):**
@@ -68,7 +72,24 @@ SLICE-2: "feature detail command" (Worker B owns full vertical)
    - Shared utilities (not specific to one slice)
    - If significant, create Layer 0 tasks (parallel, no deps)
 
-5. **Create vertical slice tasks:**
+5. **Identify horizontal Layer Integration Points** (where slices must inter-op):
+   - For each pair of slices, ask: "Does slice A need to import/call/consume anything from slice B?"
+   - If yes, document the integration point: owning slice, consuming slice(s), and the shared contract
+   - Integration points should merge **sooner rather than later** — delaying inter-op causes divergence
+   - Common integration points: shared type definitions, event interfaces, registry patterns, DI bindings
+   - Each integration point gets an explicit owner (the slice that defines/exports it)
+
+   ```
+   ## Integration Points (example)
+
+   | ID | Contract | Owner (exports) | Consumer(s) (imports) | Merge Timing |
+   |----|----------|-----------------|----------------------|--------------|
+   | IP-1 | PhaseEnum type | SLICE-1 (foundation) | SLICE-2, SLICE-3, SLICE-4 | L1 (types) |
+   | IP-2 | ConstraintContext interface | SLICE-1 (foundation) | SLICE-2 (gen_schema) | L1 (types) |
+   | IP-3 | SkillRegistry protocol | SLICE-3 (gen_skills) | SLICE-4 (context_injection) | L3 (impl) |
+   ```
+
+6. **Create vertical slice tasks:**
    ```bash
    bd create --type=task \
      --labels="aura:p9-impl:s9-slice" \
@@ -147,7 +168,7 @@ SLICE-2: "feature detail command" (Worker B owns full vertical)
    bd dep add <impl-plan-id> --blocked-by <slice-task-id>
    ```
 
-6. **Update IMPL_PLAN with vertical slice breakdown:**
+7. **Update IMPL_PLAN with vertical slice breakdown + integration points:**
    ```bash
    bd update <impl-plan-id> --description="$(cat <<'EOF'
    ---
@@ -190,11 +211,21 @@ SLICE-2: "feature detail command" (Worker B owns full vertical)
    - Owns: SearchQuery types, search tests, searchItems() method, search CLI wiring
    - Task: aura-www
 
+   ## Horizontal Layer Integration Points
+
+   Where slices must inter-op. Merge sooner, not later — divergence grows with delay.
+
+   | ID | Contract | Owner (exports) | Consumer(s) (imports) | Merge Timing |
+   |----|----------|-----------------|----------------------|--------------|
+   | IP-1 | FeatureError enum | SLICE-1 | SLICE-2, SLICE-3, SLICE-4 | L1 (types) |
+   | IP-2 | BaseService interface | SLICE-1 | SLICE-2, SLICE-3 | L1 (types) |
+
    ## Execution Order
 
    1. Layer 0 (if needed): Shared infrastructure (parallel)
    2. SLICE-1 through SLICE-4: Each worker implements their vertical slice (parallel)
       - Within each slice: Types (L1) → Tests (L2) → Impl+Wiring (L3)
+   3. Integration points merge at documented timing (L1 contracts first, L3 wiring last)
 
    ## Validation
 
@@ -203,6 +234,7 @@ SLICE-2: "feature detail command" (Worker B owns full vertical)
    - ./bin/cli-tool feature list
    - ./bin/cli-tool feature detail <id>
    - ./bin/cli-tool feature search
+   - All integration points verified: contracts match between owner and consumers
    EOF
    )"
    ```

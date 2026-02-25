@@ -52,9 +52,9 @@ class TestSchemaParserEntityCounts:
         )
 
     def test_constraint_count(self, parsed_spec: SchemaSpec) -> None:
-        """AC1: 23 constraints extracted."""
-        assert len(parsed_spec.constraints) == 23, (
-            f"Expected 23 constraints, got {len(parsed_spec.constraints)}"
+        """AC1: 26 constraints extracted."""
+        assert len(parsed_spec.constraints) == 26, (
+            f"Expected 26 constraints, got {len(parsed_spec.constraints)}"
         )
 
     def test_handoff_count(self, parsed_spec: SchemaSpec) -> None:

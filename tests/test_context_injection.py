@@ -169,11 +169,11 @@ class TestRoleContextAbsence:
         ids = {c.id for c in ctx.constraints}
         assert "C-severity-eager" not in ids
 
-    def test_worker_excludes_c_supervisor_explore_team(self) -> None:
-        """WORKER has no exploration team responsibility."""
+    def test_worker_excludes_c_supervisor_cartographers(self) -> None:
+        """WORKER has no Cartographers responsibility."""
         ctx = get_role_context(RoleId.WORKER)
         ids = {c.id for c in ctx.constraints}
-        assert "C-supervisor-explore-team" not in ids
+        assert "C-supervisor-cartographers" not in ids
 
     def test_worker_excludes_c_review_consensus(self) -> None:
         """WORKER does not gate review consensus."""
@@ -554,10 +554,10 @@ class TestGetRoleContextWorker:
         )
 
     def test_supervisor_constraint_count_is_role_scoped(self) -> None:
-        """SUPERVISOR role should have 15 role-scoped constraints (not all 23)."""
+        """SUPERVISOR role should have 18 role-scoped constraints (not all 26)."""
         ctx = get_role_context(RoleId.SUPERVISOR)
-        assert len(ctx.constraints) == 15, (
-            f"Expected 15 role-scoped constraints for supervisor, got {len(ctx.constraints)}"
+        assert len(ctx.constraints) == 18, (
+            f"Expected 18 role-scoped constraints for supervisor, got {len(ctx.constraints)}"
         )
 
 

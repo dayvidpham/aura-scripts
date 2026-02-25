@@ -123,7 +123,10 @@ _GENERAL_CONSTRAINTS: frozenset[str] = frozenset({
 #   C-followup-timing         → SUPERVISOR (given: "code review completion" — supervisor orchestrates followup)
 #   C-vertical-slices         → SUPERVISOR (given: "implementation decomposition" when: "assigning work")
 #   C-supervisor-no-impl      → SUPERVISOR (given: "supervisor role")
-#   C-supervisor-explore-team → SUPERVISOR (given: "supervisor needs codebase exploration")
+#   C-supervisor-cartographers → SUPERVISOR (given: "supervisor needs codebase exploration and code review")
+#   C-integration-points      → SUPERVISOR (given: "multiple vertical slices share types" when: "decomposing IMPL_PLAN")
+#   C-slice-review-before-close → SUPERVISOR (given: "workers complete their implementation slices")
+#   C-max-review-cycles       → SUPERVISOR (given: "worker-Cartographer review-fix cycles are ongoing")
 #   C-slice-leaf-tasks        → SUPERVISOR (given: "vertical slice created" — supervisor creates slices)
 #   C-handoff-skill-invocation→ ARCHITECT + SUPERVISOR (both are sources of handoffs h1 and h2/h3)
 #   C-dep-direction           → ALL (see _GENERAL_CONSTRAINTS)
@@ -173,8 +176,14 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
         "C-review-consensus",
         # Supervisor must not implement code directly
         "C-supervisor-no-impl",
-        # Supervisor must use explore team for p8 codebase exploration
-        "C-supervisor-explore-team",
+        # Supervisor must use Cartographers for p8/p10 exploration and review
+        "C-supervisor-cartographers",
+        # Supervisor must document integration points between slices
+        "C-integration-points",
+        # Slices must be reviewed before closure
+        "C-slice-review-before-close",
+        # Worker-reviewer cycles capped at 3
+        "C-max-review-cycles",
         # Supervisor assigns vertical slices to workers
         "C-vertical-slices",
         # Supervisor creates slices and must add leaf tasks
@@ -214,7 +223,10 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
 #   C-followup-timing         → P10_CODE_REVIEW (given: "code review completion")
 #   C-vertical-slices         → P8_IMPL_PLAN, P9_SLICE (given: "implementation decomposition")
 #   C-supervisor-no-impl      → P8_IMPL_PLAN, P9_SLICE (given: "implementation phase")
-#   C-supervisor-explore-team → P8_IMPL_PLAN (given: "starting Phase 8 (IMPL_PLAN)")
+#   C-supervisor-cartographers → P8_IMPL_PLAN, P9_SLICE, P10_CODE_REVIEW (dual-role: explore then review)
+#   C-integration-points      → P8_IMPL_PLAN (given: "decomposing IMPL_PLAN in Phase 8")
+#   C-slice-review-before-close → P9_SLICE, P10_CODE_REVIEW (given: "slice implementation is done")
+#   C-max-review-cycles       → P10_CODE_REVIEW (given: "counting review-fix iterations")
 #   C-slice-leaf-tasks        → P8_IMPL_PLAN, P9_SLICE (vertical slices created in p8, tracked in p9)
 #   C-handoff-skill-invocation→ P7_HANDOFF (given: "new phase (especially p7 to p8 handoff)")
 #   C-dep-direction           → ALL phases
@@ -263,8 +275,10 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         "C-vertical-slices",
         # Supervisor must not implement directly
         "C-supervisor-no-impl",
-        # Supervisor must use explore team for codebase exploration in p8
-        "C-supervisor-explore-team",
+        # Supervisor must use Cartographers for p8 exploration
+        "C-supervisor-cartographers",
+        # Supervisor must document integration points in p8
+        "C-integration-points",
         # Each slice must have leaf tasks
         "C-slice-leaf-tasks",
     }),
@@ -279,6 +293,10 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         "C-supervisor-no-impl",
         # Slice tasks still need leaf tasks tracked
         "C-slice-leaf-tasks",
+        # Cartographers persist from p8 into p9/p10 — no shutdown between phases
+        "C-supervisor-cartographers",
+        # Slices must be reviewed before closure; workers notify, supervisor closes
+        "C-slice-review-before-close",
     }),
     PhaseId.P10_CODE_REVIEW: frozenset(_GENERAL_CONSTRAINTS | {
         # Code review → consensus required (all 3 reviewers ACCEPT)
@@ -297,6 +315,12 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         "C-followup-lifecycle",
         # Follow-up leaf adoption
         "C-followup-leaf-adoption",
+        # Cartographers switch to reviewer role in p10
+        "C-supervisor-cartographers",
+        # Slices reviewed before closure — supervisor closes after review passes
+        "C-slice-review-before-close",
+        # Review-fix cycles capped at 3; remaining IMPORTANTs move to FOLLOWUP
+        "C-max-review-cycles",
     }),
     PhaseId.P11_IMPL_UAT: frozenset(_GENERAL_CONSTRAINTS | {
         # Implementation UAT → verbatim capture

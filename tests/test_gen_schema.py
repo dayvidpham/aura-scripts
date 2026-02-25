@@ -313,7 +313,10 @@ class TestConstraintRolePhaseRefs:
         # Supervisor-specific constraints
         supervisor_constraints = [
             "C-supervisor-no-impl",
-            "C-supervisor-explore-team",
+            "C-supervisor-cartographers",
+            "C-integration-points",
+            "C-slice-review-before-close",
+            "C-max-review-cycles",
             "C-slice-leaf-tasks",
             "C-vertical-slices",
         ]

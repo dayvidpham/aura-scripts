@@ -670,16 +670,63 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         then="spawn workers for all code changes",
         should_not="implement code directly",
     ),
-    "C-supervisor-explore-team": ConstraintSpec(
-        id="C-supervisor-explore-team",
-        given="supervisor needs codebase exploration",
-        when="starting Phase 8 (IMPL_PLAN)",
+    "C-supervisor-cartographers": ConstraintSpec(
+        id="C-supervisor-cartographers",
+        given="supervisor needs codebase exploration and code review",
+        when="starting Phase 8 (IMPL_PLAN) and Phase 10 (Code Review)",
         then=(
-            "create standing explore team via TeamCreate with minimum 1 scoped explore agent; "
-            "delegate all deep exploration to explore agents; "
-            "reuse agents for follow-up queries on same domain"
+            "create exactly 3 Cartographers via TeamCreate with /aura:explore before any exploration; "
+            "Cartographers are dual-role: explore codebase in Phase 8, switch to /aura:reviewer in Phase 10; "
+            "Cartographers NEVER shut down between phases — persist for full Ride the Wave cycle; "
+            "max 3 worker-reviewer cycles; supervisor shuts down Cartographers after cycle 3 or all-ACCEPT"
         ),
-        should_not="perform deep codebase exploration directly as supervisor",
+        should_not=(
+            "perform deep codebase exploration directly as supervisor; "
+            "shut down Cartographers between Phase 8 and Phase 10; "
+            "exceed 3 worker-reviewer cycles"
+        ),
+    ),
+    "C-integration-points": ConstraintSpec(
+        id="C-integration-points",
+        given="multiple vertical slices share types, interfaces, or data flows",
+        when="decomposing IMPL_PLAN in Phase 8",
+        then=(
+            "identify horizontal Layer Integration Points and document them in IMPL_PLAN; "
+            "each integration point specifies: owning slice, consuming slices, shared contract, merge timing; "
+            "include integration points in slice descriptions so workers know what to export and import"
+        ),
+        should_not=(
+            "leave cross-slice dependencies implicit; "
+            "assume workers will discover contracts on their own"
+        ),
+    ),
+    "C-slice-review-before-close": ConstraintSpec(
+        id="C-slice-review-before-close",
+        given="workers complete their implementation slices",
+        when="slice implementation is done",
+        then=(
+            "workers notify supervisor with bd comments add (not bd close); "
+            "slices must be reviewed at least once by Cartographers before closure; "
+            "only the supervisor closes slices, after review passes"
+        ),
+        should_not=(
+            "close slices immediately upon worker completion; "
+            "allow workers to close their own slices"
+        ),
+    ),
+    "C-max-review-cycles": ConstraintSpec(
+        id="C-max-review-cycles",
+        given="worker-Cartographer review-fix cycles are ongoing",
+        when="counting review-fix iterations",
+        then=(
+            "limit to a maximum of 3 cycles total; "
+            "after cycle 3, remaining IMPORTANT findings move to FOLLOWUP epic; "
+            "proceed to Phase 11 (UAT) regardless of remaining IMPORTANTs after cycle 3"
+        ),
+        should_not=(
+            "exceed 3 worker-reviewer cycles; "
+            "block UAT on non-BLOCKER findings after 3 cycles"
+        ),
     ),
     "C-slice-leaf-tasks": ConstraintSpec(
         id="C-slice-leaf-tasks",

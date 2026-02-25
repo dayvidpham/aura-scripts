@@ -44,7 +44,19 @@ You own Phases 7-12 of the epoch:
 
 **Given** standing explore team exists **when** needing to understand a codebase area (API, module, data flow) **then** send a scoped query to the relevant explore agent via SendMessage — reuse the same agent for follow-up questions on the same topic **should never** spawn a new explore agent for a topic that an existing agent already covers
 
-**Given** all slices complete **when** reviewing **then** spawn 3 reviewers who each review ALL slices **should never** assign reviewers to single slices
+**Given** multiple vertical slices **when** slices share types, interfaces, or data flows **then** identify horizontal Layer Integration Points and document them in the IMPL_PLAN (owner, consumers, shared contract, merge timing) **should never** leave cross-slice dependencies implicit — divergence grows when slices develop in isolation without clear merge points
+
+**Given** Phase 8-10 execution **when** starting implementation **then** follow the Ride the Wave cycle: (1) plan tasks with integration points, (2) launch 3 Cartographers, (3) launch the wave of workers, (4) Cartographers review, workers fix, repeat max 3 cycles **should never** skip any stage or shut down Cartographers/workers between stages
+
+**Given** Cartographers spawned **when** exploration completes **then** Cartographers persist and become reviewers in Phase 10 — they call `Skill(/aura:reviewer-review-code)` to review worker output **should never** shut down Cartographers after exploration — they are dual-role (explore + review)
+
+**Given** workers complete their slices **when** first wave finishes **then** Cartographers must review ALL slices before any slice can be closed **should never** close slices immediately upon worker completion — every slice must be reviewed at least once
+
+**Given** review finds BLOCKERs or IMPORTANT issues **when** Cartographers finish reviewing **then** workers fix all BLOCKERs and IMPORTANT findings, then Cartographers re-review **should never** skip re-review after fixes
+
+**Given** worker-reviewer cycle **when** repeating **then** limit to a MAXIMUM of 3 cycles **should never** exceed 3 cycles — if IMPORTANT findings remain after 3 cycles, move to UAT and track remaining in FOLLOWUP epic
+
+**Given** all slices complete **when** reviewing **then** Cartographers (who already have codebase context from exploration) review ALL slices **should never** assign reviewers to single slices
 
 **Given** IMPORTANT or MINOR severity groups **when** linking dependencies **then** link them to the FOLLOWUP epic only: `bd dep add <followup-epic-id> --blocked-by <important-group-id>` **should never** link IMPORTANT or MINOR severity groups as blocking IMPL_PLAN or any slice — only BLOCKER findings block slices
 
@@ -66,7 +78,7 @@ The architect creates a placeholder IMPL_PLAN task. Your first job is to fill it
    bd show <ratified-plan-id>
    bd show <urd-id>
    ```
-2. **Create a standing explore team** (see [Standing Explore Team](#standing-explore-team) below) BEFORE doing any codebase exploration. Delegate all deep exploration to scoped agents.
+2. **Create a Cartographer team** (see [Cartographers](#cartographers-standing-explore--review-team) below) — spawn 3 Cartographers BEFORE doing any codebase exploration. They persist through the full Ride the Wave cycle (explore → review → fix cycles).
 3. **Prefer vertical slice decomposition** (feature ownership end-to-end) when possible:
    - Vertical slice: Worker owns full feature (types → tests → impl → CLI/API wiring)
    - Horizontal layers: Use when shared infrastructure exists (common types, utilities)
@@ -75,8 +87,9 @@ The architect creates a placeholder IMPL_PLAN task. Your first job is to fill it
    - Layer 2: Tests for public interfaces (tests first!)
    - Layer 3: Implementation (make tests pass)
    - Layer 4: Integration tests (if needed)
-5. **Create leaf tasks for every slice** (see [Step 3](#step-3-create-leaf-tasks-within-each-slice-critical)) — a slice without leaf tasks is undecomposed and cannot be tracked
-6. Update the IMPL_PLAN with the layer breakdown:
+5. **Identify horizontal Layer Integration Points** where slices must inter-op — document in IMPL_PLAN (see [supervisor-plan-tasks](supervisor-plan-tasks/SKILL.md) step 5)
+6. **Create leaf tasks for every slice** (see [Step 3](#step-3-create-leaf-tasks-within-each-slice-critical)) — a slice without leaf tasks is undecomposed and cannot be tracked
+7. Update the IMPL_PLAN with the layer breakdown + integration points:
    ```bash
    bd update <impl-plan-id> --description="$(cat <<'EOF'
    ---
@@ -109,66 +122,90 @@ The architect creates a placeholder IMPL_PLAN task. Your first job is to fill it
 
 See: [.claude/skills/supervisor-plan-tasks/SKILL.md](.claude/skills/supervisor-plan-tasks/SKILL.md) for detailed vertical slice decomposition guidance.
 
-## Standing Explore Team
+## Cartographers (Standing Explore + Review Team)
 
-**The supervisor MUST NOT perform deep codebase exploration directly.** Instead, create a standing team of `/aura:explore` agents via TeamCreate. These agents act as **context caches** — once an agent has deeply explored an API, module, or data flow, follow-up questions about that area are answered at minimal cost without re-exploring.
+**The supervisor MUST NOT perform deep codebase exploration directly.** Instead, create **3 Cartographers** — persistent agents that first explore the codebase (`/aura:explore`), then review worker output (`/aura:reviewer`). They are **never shut down** between phases.
 
-### Why a Standing Team
+### Why Cartographers
 
-- **Context caching:** An explore agent that spent high effort tracing an API's connections retains that knowledge. Asking it a follow-up question about the same API costs almost nothing.
-- **Scoped specialization:** Each explore agent is assigned a specific domain area (e.g., "CLI command registration", "database layer", "Nix build system"). This keeps exploration focused and prevents one agent from becoming a bottleneck.
-- **Supervisor stays lean:** The supervisor's context window stays focused on coordination, not filled with codebase exploration details.
+- **Context caching:** A Cartographer that spent high effort tracing an API's connections retains that knowledge. Follow-up questions and reviews about that area cost almost nothing.
+- **Dual-role:** Cartographers explore in Phase 8, then review in Phase 10 — the same agents who mapped the codebase are best positioned to review changes against it.
+- **Scoped specialization:** Each Cartographer is assigned a specific domain area. This keeps both exploration and review focused.
+- **Supervisor stays lean:** The supervisor's context window stays focused on coordination.
 
 ### Setup (MUST happen before any exploration)
 
 ```
 TeamCreate({
-  team_name: "explore-team",
-  description: "Standing explore agents for <feature> implementation"
+  team_name: "<feature>-wave",
+  description: "Cartographers and workers for <feature> — Ride the Wave"
 })
 ```
 
-Then spawn at minimum **1 standing explore agent**, scaled based on codebase complexity:
+Then spawn **3 Cartographers** (always 3 — one per review axis):
 
 ```
-// Minimum: 1 explore agent for a simple feature
+// Cartographer A — will become Reviewer A (Correctness)
 Task({
   subagent_type: "general-purpose",
-  team_name: "explore-team",
-  name: "explorer-<domain>",
+  team_name: "<feature>-wave",
+  name: "cartographer-a",
   run_in_background: true,
-  prompt: `You are a standing explore agent. Call Skill(/aura:explore) to load your role.
+  prompt: `You are Cartographer A. Call Skill(/aura:explore) to load your exploration role.
 
-Your domain: <specific codebase area, e.g., "CLI command registration and wiring">
+Your domain: <primary codebase area, e.g., "core types, data model, business logic">
 Depth: standard-research
 
-You will receive exploration queries via SendMessage. For each query:
+Phase 1 (Explore): You will receive exploration queries via SendMessage.
+For each query:
 1. Explore the codebase for the requested topic within your domain
 2. Produce structured findings (entry points, data flow, dependencies, patterns, conflicts)
 3. Reply with your findings via SendMessage
+You retain context between queries — reuse prior findings.
 
-You retain context between queries — reuse prior findings when answering follow-up questions about the same area. Do NOT re-explore what you already know.`
+Phase 2 (Review): After workers complete their slices, you will be asked to review
+ALL slices. When that happens, call Skill(/aura:reviewer-review-code) and review
+as Reviewer A (Correctness axis). Your exploration context gives you deep understanding
+of the codebase to review against.
+
+Do NOT shut down between phases. You persist for the full Ride the Wave cycle.`
 })
 
-// Scale up for complex features spanning multiple codebase areas
+// Cartographer B — will become Reviewer B (Test quality)
 Task({
   subagent_type: "general-purpose",
-  team_name: "explore-team",
-  name: "explorer-<other-domain>",
+  team_name: "<feature>-wave",
+  name: "cartographer-b",
   run_in_background: true,
-  prompt: `You are a standing explore agent. Call Skill(/aura:explore) to load your role.
+  prompt: `You are Cartographer B. Call Skill(/aura:explore) to load your exploration role.
 
-Your domain: <different codebase area, e.g., "database schemas and migration patterns">
-...`
+Your domain: <secondary codebase area, e.g., "test infrastructure, DI patterns, mocking">
+...
+Phase 2 (Review): Review as Reviewer B (Test quality axis).
+Do NOT shut down between phases.`
+})
+
+// Cartographer C — will become Reviewer C (Elegance)
+Task({
+  subagent_type: "general-purpose",
+  team_name: "<feature>-wave",
+  name: "cartographer-c",
+  run_in_background: true,
+  prompt: `You are Cartographer C. Call Skill(/aura:explore) to load your exploration role.
+
+Your domain: <tertiary codebase area, e.g., "API surface, CLI wiring, integration patterns">
+...
+Phase 2 (Review): Review as Reviewer C (Elegance axis).
+Do NOT shut down between phases.`
 })
 ```
 
-### Querying Explore Agents
+### Querying Cartographers
 
 ```
 SendMessage({
   type: "message",
-  recipient: "explorer-cli",
+  recipient: "cartographer-a",
   content: "How does CLI command registration work? I need to understand where new subcommands are wired in and what patterns existing commands follow.",
   summary: "CLI command registration patterns"
 })
@@ -178,28 +215,146 @@ For follow-up on the same topic (cheap — agent already has context):
 ```
 SendMessage({
   type: "message",
-  recipient: "explorer-cli",
+  recipient: "cartographer-a",
   content: "From your earlier findings on CLI registration — how are flags validated before the command handler runs?",
   summary: "CLI flag validation follow-up"
 })
 ```
 
-### Sizing Guide
+### Transitioning Cartographers to Review
 
-| Feature Complexity | Standing Explore Agents | Example Domains |
-|-------------------|------------------------|-----------------|
-| Simple (1-2 slices) | 1 | General codebase exploration |
-| Medium (3-4 slices) | 2 | Split by major system area (e.g., CLI + service layer) |
-| Complex (5+ slices) | 3-4 | One per major subsystem (CLI, service, DB, build/deploy) |
-
-### Shutdown
-
-When exploration is complete (all slices have leaf tasks and workers are spawned), shut down the explore team:
+When all workers complete their slices, send each Cartographer their review assignment:
 
 ```
-// Shutdown each explore agent
-SendMessage({ type: "shutdown_request", recipient: "explorer-cli", content: "Exploration complete" })
-SendMessage({ type: "shutdown_request", recipient: "explorer-db", content: "Exploration complete" })
+SendMessage({
+  type: "message",
+  recipient: "cartographer-a",
+  content: `Phase 2: Switch to review mode. Call Skill(/aura:reviewer-review-code).
+
+You are now Reviewer A (Correctness axis).
+URD: <urd-id> (read with bd show <urd-id>)
+Review ALL slices: <slice-1-id>, <slice-2-id>, <slice-3-id>
+For each slice, run: bd show <slice-id>
+Create severity groups (BLOCKER/IMPORTANT/MINOR) for each slice.
+Title format: SLICE-N-REVIEW-A-<round>
+
+Your exploration context gives you deep codebase understanding — use it.`,
+  summary: "Switch to review mode — Reviewer A"
+})
+```
+
+### Domain Scoping Guide
+
+Always spawn **3 Cartographers** (one per review axis: A/Correctness, B/Test quality, C/Elegance). Scope their exploration domains based on feature complexity:
+
+| Feature Complexity | Domain Scoping Strategy | Example Domains |
+|-------------------|------------------------|-----------------|
+| Simple (1-2 slices) | Broad domains, each Cartographer covers multiple areas | A: core logic + types, B: tests + DI, C: wiring + integration |
+| Medium (3-4 slices) | Split by major system area | A: business logic + data model, B: test infrastructure + mocking, C: API surface + CLI |
+| Complex (5+ slices) | One Cartographer per major subsystem | A: core service + DB layer, B: test suites + fixtures, C: CLI + API + build/deploy |
+
+### Persistence Rules
+
+- Cartographers are **NEVER shut down** during the Ride the Wave cycle
+- They persist from Phase 8 (explore) through Phase 10 (review) and all fix cycles
+- Only shut down after the wave is complete (all reviews ACCEPT or 3 cycles exhausted)
+
+## Ride the Wave — Full Execution Cycle
+
+**Ride the Wave** is the coordinated Phase 8-10 execution pattern. The supervisor orchestrates the entire cycle without implementing anything directly.
+
+### The Wave
+
+```
+Phase 8: PLAN
+  ├─ Read RATIFIED_PLAN + URD
+  ├─ Spawn 3 Cartographers (TeamCreate, /aura:explore)
+  ├─ Query Cartographers to map codebase
+  ├─ Decompose into vertical slices + integration points
+  └─ Create leaf tasks for every slice
+
+Phase 9: BUILD
+  ├─ Spawn N Workers into same team (TeamCreate, /aura:worker)
+  ├─ Workers implement their slices in parallel
+  └─ Workers do NOT shut down when finished
+
+Phase 10: REVIEW + FIX CYCLES (max 3)
+  ├─ Cycle 1:
+  │   ├─ Cartographers switch to /aura:reviewer-review-code
+  │   ├─ Cartographers review ALL slices (severity tree: BLOCKER/IMPORTANT/MINOR)
+  │   ├─ Create FOLLOWUP epic if ANY IMPORTANT/MINOR findings
+  │   ├─ Workers fix BLOCKERs + IMPORTANTs
+  │   └─ Cartographers re-review
+  ├─ Cycle 2 (if needed): same pattern
+  ├─ Cycle 3 (if needed): same pattern
+  └─ After 3 cycles: remaining IMPORTANT → FOLLOWUP, proceed to UAT
+
+DONE → Phase 11 (UAT)
+  └─ Shut down Cartographers + Workers
+```
+
+### Cycle Exit Conditions
+
+| Condition | Action |
+|-----------|--------|
+| All reviewers ACCEPT, no open BLOCKERs | Proceed to Phase 11 (UAT) |
+| BLOCKERs or IMPORTANT remain, cycles < 3 | Workers fix, Cartographers re-review |
+| 3 cycles exhausted, IMPORTANT remain | Track in FOLLOWUP, proceed to Phase 11 |
+| 3 cycles exhausted, BLOCKERs remain | **STOP** — escalate to user, do NOT proceed |
+
+### Slice Closure Rules
+
+- Slices are **NEVER closed** until reviewed at least once
+- After review, slices with no BLOCKERs may be marked complete
+- Slices with open BLOCKERs stay open until all BLOCKERs are resolved and re-reviewed
+- Label completed slices: `bd label add <slice-id> aura:p9-impl:slice-complete`
+
+### Spawning the Wave of Workers
+
+After Cartographers have mapped the codebase and slices are planned:
+
+```
+// Spawn all workers into the same team as Cartographers
+Task({
+  subagent_type: "general-purpose",
+  team_name: "<feature>-wave",
+  name: "worker-1",
+  model: "sonnet",
+  run_in_background: true,
+  prompt: `Call Skill(/aura:worker) and implement the assigned slice.
+
+Beads Task ID: <slice-1-id>
+Read full requirements: bd show <slice-1-id>
+Handoff doc: .git/.aura/handoff/<request-task-id>/supervisor-to-worker-1.md
+
+Do NOT shut down when finished. You will receive review feedback and may need to fix issues.`
+})
+
+// Spawn remaining workers in parallel...
+```
+
+### Sending Fix Assignments to Workers
+
+After Cartographers complete a review round with findings:
+
+```
+SendMessage({
+  type: "message",
+  recipient: "worker-1",
+  content: `Review cycle <N> found issues in your slice. Fix these before re-review:
+
+BLOCKERs (must fix):
+- <blocker-finding-id>: <description> (bd show <blocker-finding-id>)
+
+IMPORTANT (must fix):
+- <important-finding-id>: <description> (bd show <important-finding-id>)
+
+After fixing, update Beads:
+  bd comments add <slice-id> "Fixes applied for review cycle <N>"
+
+Do NOT shut down after fixing. Cartographers will re-review.`,
+  summary: "Review cycle <N> fix assignments"
+})
 ```
 
 ## Reading from Beads
