@@ -659,8 +659,10 @@ Phase 10 runs up to **3 review-fix cycles**. Workers do not shut down — they a
 | Condition | Action |
 |-----------|--------|
 | All slices ACCEPT, no open BLOCKERs | Proceed to Phase 11 (Implementation UAT) |
-| 3 cycles exhausted, IMPORTANT remain | IMPORTANT → FOLLOWUP epic; proceed to UAT |
-| 3 cycles exhausted, only MINOR remain | MINOR → FOLLOWUP epic; proceed to UAT |
+| BLOCKERs or IMPORTANT remain, cycles < 3 | Workers fix, Cartographers re-review (next cycle) |
+| 3 cycles exhausted, IMPORTANT remain | Track in FOLLOWUP epic; proceed to Phase 11 |
+| 3 cycles exhausted, only MINOR remain | Track in FOLLOWUP epic; proceed to Phase 11 |
+| 3 cycles exhausted, BLOCKERs remain | **STOP** — escalate to user, do NOT proceed to UAT |
 
 After cycle 3: UAT is **NOT blocked** on remaining IMPORTANT or MINOR findings. The supervisor creates the FOLLOWUP epic to track them, then proceeds to Phase 11.
 
