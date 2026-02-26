@@ -1337,6 +1337,41 @@ def _build_followup_lifecycle(root: ET.Element) -> None:
         ET.SubElement(handoff_chain_el, "transition", **attrs)
 
 
+def _build_procedure_steps(root: ET.Element) -> None:
+    """Append <procedure-steps> section to root, derived from PROCEDURE_STEPS.
+
+    Emits one <role ref="..."> per role that has non-empty steps. Each step
+    becomes a <step> element with order+instruction attributes, plus optional
+    command, context, and next-state attributes when non-None.
+
+    All attribute values are XML-escaped by ElementTree automatically.
+    """
+    # Role ordering for deterministic output
+    role_order = [RoleId.EPOCH, RoleId.ARCHITECT, RoleId.REVIEWER,
+                  RoleId.SUPERVISOR, RoleId.WORKER]
+
+    proc_el = ET.SubElement(root, "procedure-steps")
+
+    for role_id in role_order:
+        steps = PROCEDURE_STEPS.get(role_id, ())
+        if not steps:
+            continue
+
+        role_el = ET.SubElement(proc_el, "role", ref=role_id.value)
+        for step in steps:
+            step_attrs: dict[str, str] = {
+                "order": str(step.order),
+                "instruction": step.instruction,
+            }
+            if step.command is not None:
+                step_attrs["command"] = step.command
+            if step.context is not None:
+                step_attrs["context"] = step.context
+            if step.next_state is not None:
+                step_attrs["next-state"] = step.next_state.value
+            ET.SubElement(role_el, "step", **step_attrs)
+
+
 # ─── Section comment helper ────────────────────────────────────────────────────
 
 
@@ -1393,6 +1428,10 @@ def generate_schema(output: Path, diff: bool = True) -> str:
         OSError: If the output path's parent directory does not exist or is
             not writable. The error message includes the output path and the
             OS error details.
+
+    Side effects:
+        When diff=True and the output already exists with identical content,
+        prints "No changes --- schema.xml is up to date." to stdout (no write).
     """
     # Build the XML tree
     root = ET.Element("aura-protocol", version="2.0")
@@ -1493,6 +1532,13 @@ def generate_schema(output: Path, diff: bool = True) -> str:
     ))
     _build_followup_lifecycle(root)
 
+    root.append(_section_comment(
+        "PROCEDURE STEPS\n\n"
+        "     Per-role ordered steps (startup sequence for supervisor,\n"
+        "     TDD layers for worker). Only roles with non-empty steps are listed."
+    ))
+    _build_procedure_steps(root)
+
     # Serialize
     content = _serialize_tree(root)
 
@@ -1514,7 +1560,7 @@ def generate_schema(output: Path, diff: bool = True) -> str:
                 print(line)
             print(f"--- End diff ({len(diff_lines)} lines) ---\n")
         else:
-            print(f"No changes to {output}")
+            print(f"No changes — {output.name} is up to date.")
 
     # Write if changed or new
     if not output.exists() or output.read_text(encoding="UTF-8") != content:
@@ -1543,8 +1589,10 @@ def main() -> int:
         output = script_dir.parent.parent / "skills" / "protocol" / "schema.xml"
 
     try:
+        old_content = output.read_text(encoding="UTF-8") if output.exists() else None
         content = generate_schema(output, diff=True)
-        print(f"Generated {output} ({len(content)} bytes)")
+        if old_content != content:
+            print(f"Generated {output} ({len(content)} bytes)")
         return 0
     except OSError as e:
         print(f"Error writing {output}: {e}", file=sys.stderr)

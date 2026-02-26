@@ -1075,4 +1075,25 @@
       <transition order="8" handoff-ref="h4" description="Worker → Reviewer: Worker completes follow-up slice. Handoff includes which original leaf tasks were resolved." />
     </handoff-chain>
   </followup-lifecycle>
+  <!-- ═══════════════════════════════════════════════════════════════════════
+     PROCEDURE STEPS
+
+     Per-role ordered steps (startup sequence for supervisor,
+     TDD layers for worker). Only roles with non-empty steps are listed.
+     ═══════════════════════════════════════════════════════════════════════ -->
+  <procedure-steps>
+    <role ref="supervisor">
+      <step order="1" instruction="Call Skill(/aura:supervisor) to load role instructions" command="Skill(/aura:supervisor)" />
+      <step order="2" instruction="Read RATIFIED_PLAN and URD via bd show" command="bd show &lt;ratified-plan-id&gt; &amp;&amp; bd show &lt;urd-id&gt;" />
+      <step order="3" instruction="Create standing explore team via TeamCreate before any codebase exploration" context="TeamCreate with /aura:explore role; minimum 3 agents" />
+      <step order="4" instruction="Decompose into vertical slices" next-state="p8" />
+      <step order="5" instruction="Create leaf tasks (L1/L2/L3) for every slice" command="bd create --labels L1,L2,L3 &lt;task-id&gt;" />
+      <step order="6" instruction="Spawn workers for leaf tasks" command="aura-swarm start --epic &lt;epic-id&gt;" next-state="p9" />
+    </role>
+    <role ref="worker">
+      <step order="1" instruction="Types, interfaces, schemas (no deps)" />
+      <step order="2" instruction="Tests importing production code (will fail initially)" />
+      <step order="3" instruction="Make tests pass. Wire with real dependencies. No TODOs." next-state="p9" />
+    </role>
+  </procedure-steps>
 </aura-protocol>

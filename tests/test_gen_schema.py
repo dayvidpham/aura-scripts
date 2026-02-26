@@ -98,6 +98,7 @@ class TestValidationPasses:
             "enums", "labels", "review-axes", "phases", "roles",
             "commands", "handoffs", "constraints", "task-titles",
             "documents", "dependency-model", "followup-lifecycle",
+            "procedure-steps",
         ]
         for section in required_sections:
             assert generated_xml_root.find(section) is not None, (
@@ -200,6 +201,155 @@ class TestDiffOutput:
         assert has_diff, (
             f"Diff output does not look like unified diff format: "
             f"{diff_output[:500]!r}"
+        )
+
+
+# ─── Procedure-steps section ──────────────────────────────────────────────────
+
+
+class TestProcedureStepsSection:
+    """Verify <procedure-steps> section is generated with correct structure."""
+
+    def test_procedure_steps_section_exists(
+        self, generated_xml_root: ET.Element
+    ) -> None:
+        """The generated XML must contain a <procedure-steps> section."""
+        proc_el = generated_xml_root.find("procedure-steps")
+        assert proc_el is not None, (
+            "Missing <procedure-steps> section in generated schema.xml"
+        )
+
+    def test_supervisor_role_in_procedure_steps(
+        self, generated_xml_root: ET.Element
+    ) -> None:
+        """<procedure-steps> must contain a <role ref='supervisor'> with steps."""
+        proc_el = generated_xml_root.find("procedure-steps")
+        assert proc_el is not None
+
+        roles = {r.get("ref"): r for r in proc_el.findall("role")}
+        assert "supervisor" in roles, (
+            "Missing <role ref='supervisor'> in <procedure-steps>"
+        )
+        sup_role = roles["supervisor"]
+        steps = sup_role.findall("step")
+        assert len(steps) == len(PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+            f"Supervisor step count mismatch: "
+            f"XML={len(steps)}, Python={len(PROCEDURE_STEPS[RoleId.SUPERVISOR])}"
+        )
+        # Verify first step has instruction attribute
+        first_step = steps[0]
+        assert first_step.get("instruction") is not None, (
+            "First supervisor step missing 'instruction' attribute"
+        )
+        assert first_step.get("order") == "1", (
+            f"First supervisor step order should be '1', got {first_step.get('order')!r}"
+        )
+
+    def test_worker_role_in_procedure_steps(
+        self, generated_xml_root: ET.Element
+    ) -> None:
+        """<procedure-steps> must contain a <role ref='worker'> with steps."""
+        proc_el = generated_xml_root.find("procedure-steps")
+        assert proc_el is not None
+
+        roles = {r.get("ref"): r for r in proc_el.findall("role")}
+        assert "worker" in roles, (
+            "Missing <role ref='worker'> in <procedure-steps>"
+        )
+        worker_role = roles["worker"]
+        steps = worker_role.findall("step")
+        assert len(steps) == len(PROCEDURE_STEPS[RoleId.WORKER]), (
+            f"Worker step count mismatch: "
+            f"XML={len(steps)}, Python={len(PROCEDURE_STEPS[RoleId.WORKER])}"
+        )
+
+    def test_empty_roles_excluded(
+        self, generated_xml_root: ET.Element
+    ) -> None:
+        """Roles with empty PROCEDURE_STEPS must not appear in <procedure-steps>."""
+        proc_el = generated_xml_root.find("procedure-steps")
+        assert proc_el is not None
+
+        role_refs = {r.get("ref") for r in proc_el.findall("role")}
+        for role_id, steps in PROCEDURE_STEPS.items():
+            if not steps:
+                assert role_id.value not in role_refs, (
+                    f"Role {role_id.value!r} has empty PROCEDURE_STEPS "
+                    f"but appears in <procedure-steps> XML"
+                )
+
+    def test_optional_attributes_present_when_set(
+        self, generated_xml_root: ET.Element
+    ) -> None:
+        """Steps with command/context/next-state in Python emit those XML attributes."""
+        proc_el = generated_xml_root.find("procedure-steps")
+        assert proc_el is not None
+
+        sup_role = None
+        for r in proc_el.findall("role"):
+            if r.get("ref") == "supervisor":
+                sup_role = r
+                break
+        assert sup_role is not None
+
+        xml_steps = sup_role.findall("step")
+        python_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        for xml_step, py_step in zip(xml_steps, python_steps):
+            if py_step.command is not None:
+                assert xml_step.get("command") == py_step.command, (
+                    f"Step {py_step.order} command mismatch"
+                )
+            else:
+                assert xml_step.get("command") is None, (
+                    f"Step {py_step.order} should not have command attribute"
+                )
+            if py_step.context is not None:
+                assert xml_step.get("context") == py_step.context, (
+                    f"Step {py_step.order} context mismatch"
+                )
+            else:
+                assert xml_step.get("context") is None, (
+                    f"Step {py_step.order} should not have context attribute"
+                )
+            if py_step.next_state is not None:
+                assert xml_step.get("next-state") == py_step.next_state.value, (
+                    f"Step {py_step.order} next-state mismatch"
+                )
+            else:
+                assert xml_step.get("next-state") is None, (
+                    f"Step {py_step.order} should not have next-state attribute"
+                )
+
+
+# ─── No-changes message ──────────────────────────────────────────────────────
+
+
+class TestNoChangesMessage:
+    """Verify 'No changes' message when schema content is unchanged."""
+
+    def test_no_changes_on_second_generate(self, tmp_path: Path) -> None:
+        """Running generate_schema twice should print 'No changes' on second run."""
+        output = tmp_path / "schema.xml"
+        # First generate (creates the file)
+        generate_schema(output, diff=False)
+
+        # Second generate with diff=True (should detect no changes)
+        captured = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured
+        try:
+            generate_schema(output, diff=True)
+        finally:
+            sys.stdout = old_stdout
+
+        diff_output = captured.getvalue()
+        assert "No changes" in diff_output, (
+            f"Expected 'No changes' message on second generate, "
+            f"got: {diff_output[:300]!r}"
+        )
+        assert "up to date" in diff_output, (
+            f"Expected 'up to date' in no-changes message, "
+            f"got: {diff_output[:300]!r}"
         )
 
 
