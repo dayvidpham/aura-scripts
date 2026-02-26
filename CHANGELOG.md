@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.6.0] - 2026-02-26
+
+### Added
+- feat: plugin registry CLI + marketplace version fix + test quality [aura-plugins-0biw]
+- feat(gen-schema): emit procedure-steps section + print No changes when up to date (UAT BLOCKER)
+- feat(gen-skills): --init mode + fix marker strings to 'aura schema' (UAT BLOCKER)
+- feat(context-injection): add render_role_context_as_text + render_role_context_as_xml (UAT BLOCKER)
+- feat(protocol): propagate Ride the Wave + Cartographers to schema/Python/skills
+
+### Fixed
+- fix(gen_skills): phase slugs, table blank lines, and declaration order
+- fix(gen-schema): next-state as XML attribute on <step>, not child element
+- fix(protocol): ProcedureStep id field + XML step child elements
+- fix(types): restore ProcedureStep instruction/command/context fields (UAT BLOCKER)
+- fix(epoch): sync epoch SKILL.md + context_injection with Ride the Wave
+- fix(process): add missing rows to Phase 10 cycle exit conditions table
+
+### Changed
+- refactor(types): convert all (str, Enum) to StrEnum throughout types.py
+- refactor(types): add StepSlug + SkillRef StringEnums, replace stringly-typed step ids and skill commands
+- refactor(gen_schema): rename constraint dicts + slug pins + parser error + next-state docs (C1,C2,D1,D2,D3)
+
+### Documentation
+- docs(uat): capture full Phase 11 UAT Q&A for Protocol Engine v2 (4 rounds)
+- docs(process): restructure Phases 8-10 around Ride the Wave
+
+### Other
+- Merge branch 'aura-protocol': Protocol Engine v2 + gen_skills fixes
+- test: fix StrictUndefined isolation + add ProcedureStep coverage (A1, B1-B4)
+- test(context_injection): add EPOCH Ride the Wave constraint tests (A2)
+- chore: release agentfilter v0.4.0
+
 ## [0.5.0] - 2026-02-23
 
 ### Added
