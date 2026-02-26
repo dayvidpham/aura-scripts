@@ -146,6 +146,14 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
         "C-review-consensus",
         # Epoch creates handoffs as master orchestrator
         "C-handoff-skill-invocation",
+        # Epoch delegates p8/p10 exploration+review to 3 Cartographers (Ride the Wave)
+        "C-supervisor-cartographers",
+        # Epoch ensures supervisor documents integration points between slices
+        "C-integration-points",
+        # Epoch enforces: slices reviewed before closure; supervisor closes, not workers
+        "C-slice-review-before-close",
+        # Epoch enforces: max 3 worker-reviewer cycles; remaining IMPORTANT → FOLLOWUP
+        "C-max-review-cycles",
     }),
     RoleId.ARCHITECT: frozenset(_GENERAL_CONSTRAINTS | {
         # Architect creates proposals → must follow naming convention

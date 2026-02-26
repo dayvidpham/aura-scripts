@@ -310,21 +310,37 @@ class TestConstraintRolePhaseRefs:
             if cid:
                 by_id[cid] = c
 
-        # Supervisor-specific constraints
-        supervisor_constraints = [
+        # Supervisor-only constraints (not shared with epoch)
+        supervisor_only_constraints = [
             "C-supervisor-no-impl",
-            "C-supervisor-cartographers",
-            "C-integration-points",
-            "C-slice-review-before-close",
-            "C-max-review-cycles",
             "C-slice-leaf-tasks",
             "C-vertical-slices",
         ]
-        for cid in supervisor_constraints:
+        for cid in supervisor_only_constraints:
             if cid in by_id:
                 assert by_id[cid].get("role-ref") == "supervisor", (
                     f"{cid} should have role-ref='supervisor', "
                     f"got {by_id[cid].get('role-ref')!r}"
+                )
+
+        # Ride the Wave constraints shared between epoch and supervisor
+        ride_the_wave_constraints = [
+            "C-supervisor-cartographers",
+            "C-integration-points",
+            "C-slice-review-before-close",
+            "C-max-review-cycles",
+        ]
+        for cid in ride_the_wave_constraints:
+            if cid in by_id:
+                role_ref = by_id[cid].get("role-ref", "")
+                role_parts = set(role_ref.split(","))
+                assert "supervisor" in role_parts, (
+                    f"{cid} should include 'supervisor' in role-ref, "
+                    f"got {role_ref!r}"
+                )
+                assert "epoch" in role_parts, (
+                    f"{cid} should include 'epoch' in role-ref (Ride the Wave), "
+                    f"got {role_ref!r}"
                 )
 
         # Worker-specific constraint
