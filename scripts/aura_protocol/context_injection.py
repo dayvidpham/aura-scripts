@@ -32,6 +32,7 @@ Design:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from xml.sax.saxutils import escape as xml_escape
 
 from aura_protocol.types import (
     COMMAND_SPECS,
@@ -468,3 +469,82 @@ def get_phase_context(phase: PhaseId) -> PhaseContext:
         labels=labels,
         transitions=transitions,
     )
+
+
+# ─── Role Context Rendering ─────────────────────────────────────────────────
+
+
+def render_role_context_as_text(role: RoleId) -> str:
+    """Render role constraints as numbered, titled plain-text for prompt injection.
+
+    Format per constraint:
+        N. constraint: C-id
+           given:      <given text>
+           when:       <when text>
+           then:       <then text>
+           should not: <should_not text>
+
+    Returns a ready-to-embed string with a header line and all constraints
+    numbered and vertically aligned.
+    """
+    ctx = get_role_context(role)
+    constraints = sorted(ctx.constraints, key=lambda c: c.id)
+    n = len(constraints)
+
+    lines: list[str] = [f"## Role Constraints: {role.value} ({n} constraints)"]
+    lines.append("")
+
+    # Determine number width for right-aligning numbers
+    num_width = len(str(n))
+
+    for i, c in enumerate(constraints, start=1):
+        num_str = str(i).rjust(num_width)
+        # Constraint header line
+        lines.append(f"{num_str}. constraint: {c.id}")
+        # GWT+S fields — labels left-aligned at fixed indent
+        indent = " " * (num_width + 2)  # align under the 'c' in 'constraint'
+        lines.append(f"{indent}given:      {c.given}")
+        lines.append(f"{indent}when:       {c.when}")
+        lines.append(f"{indent}then:       {c.then}")
+        lines.append(f"{indent}should not: {c.should_not}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def render_role_context_as_xml(role: RoleId) -> str:
+    """Render role constraints as XML for structured prompt injection.
+
+    Format:
+        <role-constraints role="{role}" count="{N}">
+          <constraint id="C-id" n="{N}">
+            <given>{given}</given>
+            <when>{when}</when>
+            <then>{then}</then>
+            <should-not>{should_not}</should-not>
+          </constraint>
+          ...
+        </role-constraints>
+    """
+    ctx = get_role_context(role)
+    constraints = sorted(ctx.constraints, key=lambda c: c.id)
+    n = len(constraints)
+
+    _QUOT = {'"': "&quot;"}
+    role_escaped = xml_escape(role.value, entities=_QUOT)
+    lines: list[str] = [
+        f'<role-constraints role="{role_escaped}" count="{n}">'
+    ]
+
+    for i, c in enumerate(constraints, start=1):
+        id_escaped = xml_escape(c.id, entities=_QUOT)
+        lines.append(f'  <constraint id="{id_escaped}" n="{i}">')
+        lines.append(f"    <given>{xml_escape(c.given)}</given>")
+        lines.append(f"    <when>{xml_escape(c.when)}</when>")
+        lines.append(f"    <then>{xml_escape(c.then)}</then>")
+        lines.append(f"    <should-not>{xml_escape(c.should_not)}</should-not>")
+        lines.append("  </constraint>")
+
+    lines.append("</role-constraints>")
+
+    return "\n".join(lines)

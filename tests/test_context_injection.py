@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import pytest
 
+import xml.etree.ElementTree as ET
+
 from aura_protocol.context_injection import (
     PhaseContext,
     RoleContext,
@@ -22,6 +24,8 @@ from aura_protocol.context_injection import (
     _build_constraint_contexts,
     get_phase_context,
     get_role_context,
+    render_role_context_as_text,
+    render_role_context_as_xml,
 )
 from aura_protocol.types import (
     CONSTRAINT_SPECS,
@@ -642,3 +646,83 @@ class TestBuildConstraintContextsErrorHandling:
         """Unknown constraint ID must raise KeyError with actionable message."""
         with pytest.raises(KeyError, match="not found in CONSTRAINT_SPECS"):
             _build_constraint_contexts(frozenset({"C-nonexistent-constraint-xyz"}))
+
+
+# ─── Render Role Context Tests ────────────────────────────────────────────────
+
+
+class TestRenderRoleContext:
+    """Tests for render_role_context_as_text and render_role_context_as_xml."""
+
+    def test_render_text_contains_all_constraints(self) -> None:
+        """SUPERVISOR text output contains all 18 constraint IDs."""
+        text = render_role_context_as_text(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.SUPERVISOR)
+        for c in ctx.constraints:
+            assert c.id in text, f"Constraint {c.id!r} missing from text output"
+
+    def test_render_text_numbered_format(self) -> None:
+        """First constraint starts with ' 1. constraint:'."""
+        text = render_role_context_as_text(RoleId.SUPERVISOR)
+        lines = text.split("\n")
+        # Find the first numbered line (skip header and blank)
+        numbered_lines = [ln for ln in lines if ln.strip().startswith("1.")]
+        assert len(numbered_lines) >= 1, "No line starting with '1.' found"
+        assert "constraint:" in numbered_lines[0]
+
+    def test_render_text_all_four_fields(self) -> None:
+        """Output contains given:, when:, then:, should not: labels."""
+        text = render_role_context_as_text(RoleId.SUPERVISOR)
+        assert "given:" in text
+        assert "when:" in text
+        assert "then:" in text
+        assert "should not:" in text
+
+    def test_render_xml_valid_structure(self) -> None:
+        """Parse with xml.etree.ElementTree, root tag is role-constraints,
+        child count matches constraint count."""
+        xml_str = render_role_context_as_xml(RoleId.SUPERVISOR)
+        root = ET.fromstring(xml_str)
+        assert root.tag == "role-constraints"
+        assert root.attrib["role"] == "supervisor"
+        ctx = get_role_context(RoleId.SUPERVISOR)
+        constraint_elems = root.findall("constraint")
+        assert len(constraint_elems) == len(ctx.constraints)
+
+    def test_render_xml_contains_all_fields(self) -> None:
+        """Each <constraint> has <given>, <when>, <then>, <should-not> children."""
+        xml_str = render_role_context_as_xml(RoleId.SUPERVISOR)
+        root = ET.fromstring(xml_str)
+        for elem in root.findall("constraint"):
+            assert elem.find("given") is not None, f"Missing <given> in {elem.attrib}"
+            assert elem.find("when") is not None, f"Missing <when> in {elem.attrib}"
+            assert elem.find("then") is not None, f"Missing <then> in {elem.attrib}"
+            assert elem.find("should-not") is not None, f"Missing <should-not> in {elem.attrib}"
+
+    def test_render_xml_escapes_special_chars(self) -> None:
+        """Any constraint whose fields contain &, <, or > is properly escaped
+        (XML parses without error and round-trips correctly)."""
+        # The XML must parse — if special chars were unescaped, ET.fromstring would raise
+        for role in RoleId:
+            xml_str = render_role_context_as_xml(role)
+            root = ET.fromstring(xml_str)
+            # Verify round-trip: each field text matches the original ConstraintContext
+            ctx = get_role_context(role)
+            constraint_map = {c.id: c for c in ctx.constraints}
+            for elem in root.findall("constraint"):
+                cid = elem.attrib["id"]
+                orig = constraint_map[cid]
+                assert elem.findtext("given") == orig.given
+                assert elem.findtext("when") == orig.when
+                assert elem.findtext("then") == orig.then
+                assert elem.findtext("should-not") == orig.should_not
+
+    def test_render_both_stable(self) -> None:
+        """Calling render twice returns identical output (deterministic/sorted)."""
+        text1 = render_role_context_as_text(RoleId.SUPERVISOR)
+        text2 = render_role_context_as_text(RoleId.SUPERVISOR)
+        assert text1 == text2, "Text render is not deterministic"
+
+        xml1 = render_role_context_as_xml(RoleId.SUPERVISOR)
+        xml2 = render_role_context_as_xml(RoleId.SUPERVISOR)
+        assert xml1 == xml2, "XML render is not deterministic"

@@ -102,6 +102,8 @@ from aura_protocol.context_injection import (
     RoleContext,
     get_phase_context,
     get_role_context,
+    render_role_context_as_text,
+    render_role_context_as_xml,
 )
 from aura_protocol.gen_schema import (
     generate_schema,
@@ -250,4 +252,6 @@ __all__ = [
     "PhaseContext",
     "get_role_context",
     "get_phase_context",
+    "render_role_context_as_text",
+    "render_role_context_as_xml",
 ]
