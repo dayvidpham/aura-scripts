@@ -1,43 +1,28 @@
 <!-- BEGIN GENERATED FROM aura schema -->
 # Reviewer Agent
 
-**Role:** `reviewer` | **Phases owned:** PhaseId.P10_CODE_REVIEW, PhaseId.P4_REVIEW
+**Role:** `reviewer` | **Phases owned:** p4-review, p10-code-review
 
 ## Protocol Context (generated from schema.xml)
 
 ### Owned Phases
 
-
 | Phase | Name | Domain | Transitions |
 |-------|------|--------|-------------|
-
-| `p4` | Review | plan | → `p5` (all 3 reviewers vote ACCEPT); → `p3` (any reviewer votes REVISE) |
-
-| `p10` | Code Review | impl | → `p11` (all 3 reviewers ACCEPT, all BLOCKERs resolved); → `p9` (any reviewer votes REVISE) |
-
-
+| `p4-review` | Review | plan | → `p5-plan-uat` (all 3 reviewers vote ACCEPT); → `p3-propose` (any reviewer votes REVISE) |
+| `p10-code-review` | Code Review | impl | → `p11-impl-uat` (all 3 reviewers ACCEPT, all BLOCKERs resolved); → `p9-worker-slices` (any reviewer votes REVISE) |
 
 ### Commands
 
-
 | Command | Description | Phases |
 |---------|-------------|--------|
-
-| `aura:reviewer` | End-user alignment reviewer for plans and code | p4, p10 |
-
-| `aura:reviewer:review-plan` | Evaluate proposal against one axis (binary ACCEPT/REVISE) | p4 |
-
-| `aura:reviewer:review-code` | Review implementation slices with EAGER severity tree | p10 |
-
-| `aura:reviewer:comment` | Leave structured review comment via Beads | p4, p10 |
-
-| `aura:reviewer:vote` | Cast ACCEPT or REVISE vote (binary only) | p4, p10 |
-
-
+| `aura:reviewer` | End-user alignment reviewer for plans and code | p4-review, p10-code-review |
+| `aura:reviewer:review-plan` | Evaluate proposal against one axis (binary ACCEPT/REVISE) | p4-review |
+| `aura:reviewer:review-code` | Review implementation slices with EAGER severity tree | p10-code-review |
+| `aura:reviewer:comment` | Leave structured review comment via Beads | p4-review, p10-code-review |
+| `aura:reviewer:vote` | Cast ACCEPT or REVISE vote (binary only) | p4-review, p10-code-review |
 
 ### Constraints (Given/When/Then/Should Not)
-
-
 
 **[C-review-naming]**
 - Given: a review task
@@ -45,13 +30,11 @@
 - Then: title {SCOPE}-REVIEW-{axis}-{round} where axis=A|B|C, round starts at 1
 - Should not: use numeric reviewer IDs (1/2/3) instead of axis letters
 
-
 **[C-actionable-errors]**
 - Given: an error, exception, or user-facing message
 - When: creating or raising
 - Then: make it actionable: describe (1) what went wrong, (2) why it happened, (3) where it failed (file location, module, or function), (4) when it failed (step, operation, or timestamp), (5) what it means for the caller, and (6) how to fix it
 - Should not: raise generic or opaque error messages (e.g. 'invalid input', 'operation failed') that don't guide the user toward resolution
-
 
 **[C-review-consensus]**
 - Given: review cycle (p4 or p10)
@@ -59,13 +42,11 @@
 - Then: all 3 reviewers must ACCEPT before proceeding
 - Should not: proceed with any REVISE vote outstanding
 
-
 **[C-audit-never-delete]**
 - Given: any task or label
 - When: modifying
 - Then: add labels and comments only
 - Should not: delete or close tasks prematurely, remove labels
-
 
 **[C-audit-dep-chain]**
 - Given: any phase transition
@@ -73,13 +54,11 @@
 - Then: chain dependency: bd dep add parent --blocked-by child
 - Should not: skip dependency chaining or invert direction
 
-
 **[C-severity-eager]**
 - Given: code review round (p10 only)
 - When: starting review
 - Then: ALWAYS create 3 severity group tasks (BLOCKER, IMPORTANT, MINOR) immediately
 - Should not: lazily create severity groups only when findings exist
-
 
 **[C-severity-not-plan]**
 - Given: plan review (p4)
@@ -87,13 +66,11 @@
 - Then: use binary ACCEPT/REVISE only
 - Should not: create severity tree for plan reviews
 
-
 **[C-dep-direction]**
 - Given: adding a Beads dependency
 - When: determining direction
 - Then: parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first
 - Should not: invert (child blocked-by parent)
-
 
 **[C-blocker-dual-parent]**
 - Given: a BLOCKER finding in code review
@@ -101,13 +78,11 @@
 - Then: add as child of BOTH the severity group AND the slice it blocks
 - Should not: add to severity group only
 
-
 **[C-frontmatter-refs]**
 - Given: cross-task references (URD, request, etc.)
 - When: linking tasks
 - Then: use description frontmatter references: block
 - Should not: use bd dep relate (buggy) or blocking dependencies for reference docs
-
 
 **[C-review-binary]**
 - Given: a reviewer
@@ -116,27 +91,17 @@
 - Should not: use APPROVE, APPROVE_WITH_COMMENTS, REQUEST_CHANGES, or REJECT
 
 
-
-
 ### Handoffs
-
 
 | ID | Source | Target | Phase | Content Level | Required Fields |
 |----|--------|--------|-------|---------------|-----------------|
-
-| `h3` | `supervisor` | `reviewer` | `p10` | summary-with-ids | request, urd, proposal, ratified-plan, impl-plan, context, key-decisions, acceptance-criteria |
-
-| `h4` | `worker` | `reviewer` | `p10` | summary-with-ids | request, urd, impl-plan, slice, context, key-decisions, open-items |
-
-| `h5` | `reviewer` | `supervisor` | `p10` | summary-with-ids | request, urd, proposal, context, key-decisions, open-items, acceptance-criteria |
-
-
+| `h3` | `supervisor` | `reviewer` | `p10-code-review` | summary-with-ids | request, urd, proposal, ratified-plan, impl-plan, context, key-decisions, acceptance-criteria |
+| `h4` | `worker` | `reviewer` | `p10-code-review` | summary-with-ids | request, urd, impl-plan, slice, context, key-decisions, open-items |
+| `h5` | `reviewer` | `supervisor` | `p10-code-review` | summary-with-ids | request, urd, proposal, context, key-decisions, open-items, acceptance-criteria |
 
 ### Startup Sequence
 
-
 _(No startup sequence defined for this role)_
-
 <!-- END GENERATED FROM aura schema -->
 
 ---

@@ -46,6 +46,7 @@ from aura_protocol.types import (
     CommandSpec,
     ConstraintContext,
     HandoffSpec,
+    PhaseId,
     PhaseSpec,
     RoleId,
     RoleSpec,
@@ -224,17 +225,34 @@ def _render_header(
         loader=FileSystemLoader(str(template_dir)),
         undefined=StrictUndefined,
         keep_trailing_newline=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
     )
     template = env.get_template("skill_header.j2")
+
+    # Build phase slug map: PhaseId → "p7-handoff" (for display only; .value stays "p7").
+    # Falls back to bare .value for terminal states (e.g. COMPLETE) that have no PhaseSpec.
+    phase_slug: dict[PhaseId, str] = {
+        phase_id: (
+            f"{spec.id.value}-{spec.name.lower().replace(' ', '-')}"
+            if (spec := PHASE_SPECS.get(phase_id)) is not None
+            else phase_id.value
+        )
+        for phase_id in PhaseId
+    }
+
+    # Sort owned phases by declaration order in PhaseId (not string order)
+    owned_phases_sorted = [p for p in PhaseId if p in set(role_spec.owned_phases)]
 
     context: dict = {
         "role": role_spec,
         "commands": _commands_for_role(role_id),
         "constraints": _constraints_for_role(role_id),
         "handoffs": _handoffs_for_role(role_id),
-        "owned_phases": sorted(role_spec.owned_phases),
+        "owned_phases": owned_phases_sorted,
         "phases_detail": _owned_phase_details(role_spec),
         "steps": list(PROCEDURE_STEPS.get(role_id, [])),
+        "phase_slug": phase_slug,
     }
 
     return template.render(**context)

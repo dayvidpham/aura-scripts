@@ -1,39 +1,26 @@
 <!-- BEGIN GENERATED FROM aura schema -->
 # Worker Agent
 
-**Role:** `worker` | **Phases owned:** PhaseId.P9_SLICE
+**Role:** `worker` | **Phases owned:** p9-worker-slices
 
 ## Protocol Context (generated from schema.xml)
 
 ### Owned Phases
 
-
 | Phase | Name | Domain | Transitions |
 |-------|------|--------|-------------|
-
-| `p9` | Worker Slices | impl | → `p10` (all slices complete, quality gates pass) |
-
-
+| `p9-worker-slices` | Worker Slices | impl | → `p10-code-review` (all slices complete, quality gates pass) |
 
 ### Commands
 
-
 | Command | Description | Phases |
 |---------|-------------|--------|
-
-| `aura:worker` | Vertical slice implementer (full production code path) | p9 |
-
-| `aura:worker:implement` | Implement assigned vertical slice following TDD layers | p9 |
-
-| `aura:worker:complete` | Signal slice completion after quality gates pass | p9 |
-
-| `aura:worker:blocked` | Report a blocker to supervisor via Beads | p9 |
-
-
+| `aura:worker` | Vertical slice implementer (full production code path) | p9-worker-slices |
+| `aura:worker:implement` | Implement assigned vertical slice following TDD layers | p9-worker-slices |
+| `aura:worker:complete` | Signal slice completion after quality gates pass | p9-worker-slices |
+| `aura:worker:blocked` | Report a blocker to supervisor via Beads | p9-worker-slices |
 
 ### Constraints (Given/When/Then/Should Not)
-
-
 
 **[C-actionable-errors]**
 - Given: an error, exception, or user-facing message
@@ -41,13 +28,11 @@
 - Then: make it actionable: describe (1) what went wrong, (2) why it happened, (3) where it failed (file location, module, or function), (4) when it failed (step, operation, or timestamp), (5) what it means for the caller, and (6) how to fix it
 - Should not: raise generic or opaque error messages (e.g. 'invalid input', 'operation failed') that don't guide the user toward resolution
 
-
 **[C-dep-direction]**
 - Given: adding a Beads dependency
 - When: determining direction
 - Then: parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first
 - Should not: invert (child blocked-by parent)
-
 
 **[C-audit-never-delete]**
 - Given: any task or label
@@ -55,13 +40,11 @@
 - Then: add labels and comments only
 - Should not: delete or close tasks prematurely, remove labels
 
-
 **[C-audit-dep-chain]**
 - Given: any phase transition
 - When: creating new task
 - Then: chain dependency: bd dep add parent --blocked-by child
 - Should not: skip dependency chaining or invert direction
-
 
 **[C-frontmatter-refs]**
 - Given: cross-task references (URD, request, etc.)
@@ -69,13 +52,11 @@
 - Then: use description frontmatter references: block
 - Should not: use bd dep relate (buggy) or blocking dependencies for reference docs
 
-
 **[C-agent-commit]**
 - Given: code is ready to commit
 - When: committing
 - Then: use git agent-commit -m ...
 - Should not: use git commit -m ...
-
 
 **[C-worker-gates]**
 - Given: worker finishes implementation
@@ -84,27 +65,18 @@
 - Should not: close with only 'tests pass' as completion gate
 
 
-
-
 ### Handoffs
-
 
 | ID | Source | Target | Phase | Content Level | Required Fields |
 |----|--------|--------|-------|---------------|-----------------|
-
-| `h2` | `supervisor` | `worker` | `p9` | summary-with-ids | request, urd, proposal, ratified-plan, impl-plan, slice, context, key-decisions, open-items, acceptance-criteria |
-
-| `h4` | `worker` | `reviewer` | `p10` | summary-with-ids | request, urd, impl-plan, slice, context, key-decisions, open-items |
-
-
+| `h2` | `supervisor` | `worker` | `p9-worker-slices` | summary-with-ids | request, urd, proposal, ratified-plan, impl-plan, slice, context, key-decisions, open-items, acceptance-criteria |
+| `h4` | `worker` | `reviewer` | `p10-code-review` | summary-with-ids | request, urd, impl-plan, slice, context, key-decisions, open-items |
 
 ### Startup Sequence
 
 **Step 1:** Types, interfaces, schemas (no deps)
 **Step 2:** Tests importing production code (will fail initially)
 **Step 3:** Make tests pass. Wire with real dependencies. No TODOs. → `p9`
-
-
 <!-- END GENERATED FROM aura schema -->
 
 ---

@@ -1,7 +1,8 @@
 <!-- BEGIN GENERATED FROM aura schema -->
 # {{ role.name }} Agent
 
-**Role:** `{{ role.id.value }}` | **Phases owned:** {{ owned_phases | sort | join(", ") }}
+**Role:** `{{ role.id.value }}` | **Phases owned:** {% for p in owned_phases %}{{ phase_slug[p] }}{% if not loop.last %}, {% endif %}{% endfor %}
+
 
 ## Protocol Context (generated from schema.xml)
 
@@ -11,7 +12,7 @@
 | Phase | Name | Domain | Transitions |
 |-------|------|--------|-------------|
 {% for phase in phases_detail %}
-| `{{ phase.id.value }}` | {{ phase.name }} | {{ phase.domain.value }} | {% for t in phase.transitions %}→ `{{ t.to_phase.value }}` ({{ t.condition }}){% if not loop.last %}; {% endif %}{% endfor %} |
+| `{{ phase_slug[phase.id] }}` | {{ phase.name }} | {{ phase.domain.value }} | {% for t in phase.transitions %}→ `{{ phase_slug[t.to_phase] }}` ({{ t.condition }}){% if not loop.last %}; {% endif %}{% endfor %} |
 {% endfor %}
 {% else %}
 _(No phases owned)_
@@ -23,7 +24,7 @@ _(No phases owned)_
 | Command | Description | Phases |
 |---------|-------------|--------|
 {% for cmd in commands %}
-| `{{ cmd.name }}` | {{ cmd.description }} | {{ cmd.phases | join(", ") if cmd.phases else "—" }} |
+| `{{ cmd.name }}` | {{ cmd.description }} | {% if cmd.phases %}{% for p in cmd.phases %}{{ phase_slug[p] }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %} |
 {% endfor %}
 {% else %}
 _(No commands assigned to this role)_
@@ -50,7 +51,7 @@ _(No constraints defined)_
 | ID | Source | Target | Phase | Content Level | Required Fields |
 |----|--------|--------|-------|---------------|-----------------|
 {% for h in handoffs %}
-| `{{ h.id }}` | `{{ h.source_role.value }}` | `{{ h.target_role.value }}` | `{{ h.at_phase.value }}` | {{ h.content_level.value }} | {{ h.required_fields | join(", ") }} |
+| `{{ h.id }}` | `{{ h.source_role.value }}` | `{{ h.target_role.value }}` | `{{ phase_slug[h.at_phase] }}` | {{ h.content_level.value }} | {{ h.required_fields | join(", ") }} |
 {% endfor %}
 {% else %}
 _(No handoffs for this role)_
@@ -58,9 +59,9 @@ _(No handoffs for this role)_
 
 ### Startup Sequence
 
-{% if steps -%}
-{% for step in steps -%}
-**Step {{ step.order }}:** {{ step.instruction }}{% if step.command %} (`{{ step.command }}`){% endif %}{% if step.context %} — _{{ step.context }}_{% endif %}{% if step.next_state %} → `{{ step.next_state.value }}`{% endif %}
+{% if steps %}
+{% for step in steps %}
+**Step {{ step.order }}:** {{ step.instruction }}{{ " (`%s`)" % step.command if step.command else "" }}{{ " — _%s_" % step.context if step.context else "" }}{{ " → `%s`" % step.next_state.value if step.next_state else "" }}
 {% endfor %}
 {% else %}
 _(No startup sequence defined for this role)_
