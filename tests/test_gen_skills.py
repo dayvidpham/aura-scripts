@@ -700,3 +700,183 @@ class TestStrictUndefined:
 
         with pytest.raises(jinja2.UndefinedError):
             template.render()  # no 'missing_variable' in context
+
+
+# ─── Marker string values ─────────────────────────────────────────────────────
+
+
+class TestUpdatedMarkerStrings:
+    """Marker constants must contain 'aura schema'."""
+
+    def test_generated_begin_contains_aura_schema(self) -> None:
+        """GENERATED_BEGIN must contain 'aura schema'."""
+        assert "aura schema" in GENERATED_BEGIN, (
+            f"GENERATED_BEGIN must contain 'aura schema', got: {GENERATED_BEGIN!r}"
+        )
+
+    def test_generated_end_contains_aura_schema(self) -> None:
+        """GENERATED_END must contain 'aura schema'."""
+        assert "aura schema" in GENERATED_END, (
+            f"GENERATED_END must contain 'aura schema', got: {GENERATED_END!r}"
+        )
+
+    def test_begin_is_html_comment(self) -> None:
+        """GENERATED_BEGIN must be a valid HTML comment."""
+        assert GENERATED_BEGIN.startswith("<!--") and GENERATED_BEGIN.endswith("-->")
+
+    def test_end_is_html_comment(self) -> None:
+        """GENERATED_END must be a valid HTML comment."""
+        assert GENERATED_END.startswith("<!--") and GENERATED_END.endswith("-->")
+
+
+# ─── Init mode ─────────────────────────────────────────────────────────────────
+
+
+class TestInitMode:
+    """--init mode: prepend markers to unmarked files before generating."""
+
+    def test_init_mode_adds_markers_to_unmarked_file(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """init=True prepends markers to a file without them, then generates header."""
+        content = "# Hand-authored content\n\nKeep this body.\n"
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=True,
+            init=True,
+        )
+
+        # Markers must be present in output
+        assert GENERATED_BEGIN in result
+        assert GENERATED_END in result
+        # Original body must be preserved
+        assert "Hand-authored content" in result
+        assert "Keep this body." in result
+        # File on disk must match
+        written = skill_path.read_text(encoding="utf-8")
+        assert written == result
+
+    def test_init_mode_noop_on_marked_file(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """init=True doesn't double-add markers to a file that already has them."""
+        content = _minimal_with_markers(body="## Existing body\n")
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+            init=True,
+        )
+
+        # Should have exactly one pair of markers
+        assert result.count(GENERATED_BEGIN) == 1
+        assert result.count(GENERATED_END) == 1
+        # Body preserved
+        assert "Existing body" in result
+
+    def test_init_mode_false_raises_on_unmarked_file(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """init=False (default) still raises MarkerError on unmarked file."""
+        content = "# No markers here\n"
+        skill_path = _make_skill_file(tmp_path, content)
+
+        with pytest.raises(MarkerError):
+            generate_skill(
+                RoleId.SUPERVISOR,
+                skill_path,
+                template_dir=TEMPLATE_DIR,
+                diff=False,
+                write=False,
+                init=False,
+            )
+
+    def test_init_mode_generates_valid_header(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """init=True generates a valid header (not just empty markers)."""
+        content = "# Worker skill\n"
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+            init=True,
+        )
+
+        # Header must contain role name from rendered template
+        assert "Worker" in result
+        # Must contain protocol sections
+        assert "## Protocol Context" in result
+
+
+# ─── ProcedureStep rendering ──────────────────────────────────────────────────
+
+
+class TestProcedureStepsInGeneratedHeader:
+    """ProcedureStep fields (instruction, command, context) rendered in SKILL.md."""
+
+    def test_supervisor_has_step_instructions(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Supervisor steps must render instruction text."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        # Supervisor has steps — check that Step 1 instruction text is present
+        assert "**Step 1:**" in result
+        # The instruction text should be a non-empty string after "Step N:"
+        lines = [l for l in result.splitlines() if "**Step 1:**" in l]
+        assert len(lines) == 1
+        # After "**Step 1:** " there should be instruction text
+        step_line = lines[0]
+        after_prefix = step_line.split("**Step 1:**")[1].strip()
+        assert len(after_prefix) > 0, "Step 1 instruction text is empty"
+
+    def test_worker_has_step_instructions(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Worker steps must render instruction text."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "**Step 1:**" in result
+        lines = [l for l in result.splitlines() if "**Step 1:**" in l]
+        assert len(lines) == 1
+        step_line = lines[0]
+        after_prefix = step_line.split("**Step 1:**")[1].strip()
+        assert len(after_prefix) > 0, "Step 1 instruction text is empty"
