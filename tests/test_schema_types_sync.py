@@ -32,6 +32,7 @@ from aura_protocol import (
     PhaseId,
     RoleId,
     SeverityLevel,
+    SkillRef,
     Transition,
     VoteType,
 )
@@ -666,13 +667,13 @@ class TestProcedureStepsMatchSchema:
         has a non-None context value.
 
         AC-B1-1: Given PROCEDURE_STEPS[RoleId.SUPERVISOR], when values are
-        inspected directly, then at least one step has .command == 'Skill(/aura:supervisor)'
+        inspected directly, then at least one step has .command == SkillRef.SUPERVISOR
         and at least one step has non-None .context string.
         """
         steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
-        assert any(s.command == "Skill(/aura:supervisor)" for s in steps), (
+        assert any(s.command == SkillRef.SUPERVISOR for s in steps), (
             "Expected at least one supervisor step with "
-            ".command == 'Skill(/aura:supervisor)' in PROCEDURE_STEPS"
+            f".command == {SkillRef.SUPERVISOR!r} in PROCEDURE_STEPS"
         )
         assert any(s.context is not None for s in steps), (
             "Expected at least one supervisor step with non-None .context "

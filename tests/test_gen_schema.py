@@ -29,6 +29,7 @@ from aura_protocol import (
     ROLE_SPECS,
     TITLE_CONVENTIONS,
     RoleId,
+    StepSlug,
 )
 from aura_protocol.gen_schema import (
     _CONSTRAINT_TO_PHASE_REF,
@@ -1031,31 +1032,31 @@ class TestSchemaXmlDrift:
 
 
 class TestSlugPinLiterals:
-    """D1: Literal string assertions that specific step IDs exist in PROCEDURE_STEPS.
+    """D1: StepSlug enum assertions that specific step IDs exist in PROCEDURE_STEPS.
 
-    These are NOT Python-vs-Python cross-checks. They use literal strings to
-    guard against silent renames of well-known step IDs (e.g. via refactoring).
-    If a step is renamed in types.py, these tests will fail and require
-    an explicit update here — providing a visible audit trail.
+    These guard against silent renames of well-known step IDs. Using StepSlug
+    enum values instead of bare string literals ensures that any rename in
+    types.py causes a single canonical failure point in StepSlug, not a
+    scattered set of string hunts across the test suite.
     """
 
     def test_supervisor_call_skill_slug(self) -> None:
-        """S-supervisor-call-skill must exist as a supervisor procedure step."""
-        assert any(s.id == "S-supervisor-call-skill" for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
-            "Expected step 'S-supervisor-call-skill' in PROCEDURE_STEPS[SUPERVISOR]. "
-            "If this step was renamed, update the literal here to reflect the new name."
+        """StepSlug.Supervisor.CallSkill must exist as a supervisor procedure step."""
+        assert any(s.id == StepSlug.Supervisor.CallSkill for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+            f"Expected step {StepSlug.Supervisor.CallSkill!r} in PROCEDURE_STEPS[SUPERVISOR]. "
+            "If this step was renamed, update StepSlug.Supervisor.CallSkill to reflect the new name."
         )
 
     def test_supervisor_cartographers_slug(self) -> None:
-        """S-supervisor-cartographers must exist as a supervisor procedure step."""
-        assert any(s.id == "S-supervisor-cartographers" for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
-            "Expected step 'S-supervisor-cartographers' in PROCEDURE_STEPS[SUPERVISOR]. "
-            "If this step was renamed, update the literal here to reflect the new name."
+        """StepSlug.Supervisor.Cartographers must exist as a supervisor procedure step."""
+        assert any(s.id == StepSlug.Supervisor.Cartographers for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+            f"Expected step {StepSlug.Supervisor.Cartographers!r} in PROCEDURE_STEPS[SUPERVISOR]. "
+            "If this step was renamed, update StepSlug.Supervisor.Cartographers to reflect the new name."
         )
 
     def test_worker_types_slug(self) -> None:
-        """S-worker-types must exist as a worker procedure step."""
-        assert any(s.id == "S-worker-types" for s in PROCEDURE_STEPS[RoleId.WORKER]), (
-            "Expected step 'S-worker-types' in PROCEDURE_STEPS[WORKER]. "
-            "If this step was renamed, update the literal here to reflect the new name."
+        """StepSlug.Worker.Types must exist as a worker procedure step."""
+        assert any(s.id == StepSlug.Worker.Types for s in PROCEDURE_STEPS[RoleId.WORKER]), (
+            f"Expected step {StepSlug.Worker.Types!r} in PROCEDURE_STEPS[WORKER]. "
+            "If this step was renamed, update StepSlug.Worker.Types to reflect the new name."
         )

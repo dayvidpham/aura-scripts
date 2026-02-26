@@ -9,6 +9,7 @@ Integration test: tests/test_schema_types_sync.py verifies Python types match sc
 
 from __future__ import annotations
 
+import enum as _enum
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -133,6 +134,61 @@ class SubstepType(str, Enum):
     PLAN = "plan"
     SLICE = "slice"
     LANDING = "landing"
+
+
+# ─── Step Slug + Skill Ref Namespaces ─────────────────────────────────────────
+
+
+class StepSlug:
+    """Typed namespace for ProcedureStep.id slug constants.
+
+    Nested str enums allow typed references in PROCEDURE_STEPS and tests
+    without losing string interoperability (str comparison works as expected).
+
+    __str__ is overridden on each inner class to return the value (not the
+    enum member name), so that str(StepSlug.Supervisor.CallSkill) gives
+    'S-supervisor-call-skill' rather than 'Supervisor.CallSkill'. This is
+    required for transparent use in XML attribute construction and anywhere
+    else that calls str() on the field.
+    """
+
+    class Supervisor(str, _enum.Enum):
+        """Slug constants for supervisor procedure step IDs."""
+
+        CallSkill = "S-supervisor-call-skill"
+        ReadPlan = "S-supervisor-read-plan"
+        Cartographers = "S-supervisor-cartographers"
+        DecomposeSlices = "S-supervisor-decompose-slices"
+        CreateLeafTasks = "S-supervisor-create-leaf-tasks"
+        SpawnWorkers = "S-supervisor-spawn-workers"
+
+        def __str__(self) -> str:
+            return self.value
+
+    class Worker(str, _enum.Enum):
+        """Slug constants for worker procedure step IDs."""
+
+        Types = "S-worker-types"
+        Tests = "S-worker-tests"
+        Impl = "S-worker-impl"
+
+        def __str__(self) -> str:
+            return self.value
+
+
+class SkillRef(str, _enum.Enum):
+    """Skill invocation strings for ProcedureStep.command.
+
+    Values match the Skill(/aura:<role>) directive format.
+    __str__ returns the value so that str(SkillRef.SUPERVISOR) gives
+    'Skill(/aura:supervisor)' rather than 'SkillRef.SUPERVISOR'.
+    """
+
+    SUPERVISOR = "Skill(/aura:supervisor)"
+    WORKER = "Skill(/aura:worker)"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 # ─── Frozen Dataclasses ───────────────────────────────────────────────────────
@@ -1605,25 +1661,25 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
     RoleId.REVIEWER: (),
     RoleId.SUPERVISOR: (
         ProcedureStep(
-            id="S-supervisor-call-skill",
+            id=StepSlug.Supervisor.CallSkill,
             order=1,
             instruction="Call Skill(/aura:supervisor) to load role instructions",
-            command="Skill(/aura:supervisor)",
+            command=SkillRef.SUPERVISOR,
         ),
         ProcedureStep(
-            id="S-supervisor-read-plan",
+            id=StepSlug.Supervisor.ReadPlan,
             order=2,
             instruction="Read RATIFIED_PLAN and URD via bd show",
             command="bd show <ratified-plan-id> && bd show <urd-id>",
         ),
         ProcedureStep(
-            id="S-supervisor-cartographers",
+            id=StepSlug.Supervisor.Cartographers,
             order=3,
             instruction="Create standing explore team via TeamCreate before any codebase exploration",
             context="TeamCreate with /aura:explore role; minimum 3 agents",
         ),
         ProcedureStep(
-            id="S-supervisor-decompose-slices",
+            id=StepSlug.Supervisor.DecomposeSlices,
             order=4,
             instruction="Decompose into vertical slices",
             context=(
@@ -1633,7 +1689,7 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
             next_state=PhaseId.P8_IMPL_PLAN,
         ),
         ProcedureStep(
-            id="S-supervisor-create-leaf-tasks",
+            id=StepSlug.Supervisor.CreateLeafTasks,
             order=5,
             instruction="Create leaf tasks (L1/L2/L3) for every slice",
             command=(
@@ -1642,7 +1698,7 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
             ),
         ),
         ProcedureStep(
-            id="S-supervisor-spawn-workers",
+            id=StepSlug.Supervisor.SpawnWorkers,
             order=6,
             instruction="Spawn workers for leaf tasks",
             command="aura-swarm start --epic <epic-id>",
@@ -1651,17 +1707,17 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
     ),
     RoleId.WORKER: (
         ProcedureStep(
-            id="S-worker-types",
+            id=StepSlug.Worker.Types,
             order=1,
             instruction="Types, interfaces, schemas (no deps)",
         ),
         ProcedureStep(
-            id="S-worker-tests",
+            id=StepSlug.Worker.Tests,
             order=2,
             instruction="Tests importing production code (will fail initially)",
         ),
         ProcedureStep(
-            id="S-worker-impl",
+            id=StepSlug.Worker.Impl,
             order=3,
             instruction="Make tests pass. Wire with real dependencies. No TODOs.",
             next_state=PhaseId.P9_SLICE,
