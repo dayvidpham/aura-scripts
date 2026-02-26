@@ -334,3 +334,340 @@ class TestHandoffSpecs:
             assert isinstance(spec.required_fields, tuple), (
                 f"{hid} required_fields is not a tuple"
             )
+
+
+# ─── Contract Tests: SLICE-1 Types ────────────────────────────────────────────
+# These tests fail until SLICE-1 (aura-plugins-l6n8) implements the types.
+# They verify Temporal serializability (all fields must be JSON-compatible).
+
+
+class TestSerializableTransition:
+    """Contract tests for SerializableTransition (SLICE-1).
+
+    SerializableTransition is a JSON-serializable version of Transition for
+    use as Temporal activity/workflow input/output. Uses list-compatible types
+    instead of frozenset/tuple for Temporal DataConverter compatibility.
+    """
+
+    def test_importable(self) -> None:
+        from aura_protocol.types import SerializableTransition  # noqa: F401
+
+    def test_is_frozen(self) -> None:
+        from aura_protocol.types import SerializableTransition
+
+        t = SerializableTransition(to_phase=PhaseId.P2_ELICIT, condition="test")
+        with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
+            t.condition = "mutate"  # type: ignore[misc]
+
+    def test_construction_with_defaults(self) -> None:
+        from aura_protocol.types import SerializableTransition
+
+        t = SerializableTransition(to_phase=PhaseId.P2_ELICIT, condition="ok")
+        assert t.to_phase == PhaseId.P2_ELICIT
+        assert t.condition == "ok"
+        assert t.action is None
+
+    def test_construction_with_action(self) -> None:
+        from aura_protocol.types import SerializableTransition
+
+        t = SerializableTransition(to_phase=PhaseId.P3_PROPOSE, condition="ok", action="emit")
+        assert t.action == "emit"
+
+    def test_json_serializable(self) -> None:
+        from aura_protocol.types import SerializableTransition
+
+        t = SerializableTransition(to_phase=PhaseId.P2_ELICIT, condition="ok")
+        encoded = json.dumps(dataclasses.asdict(t))
+        decoded = json.loads(encoded)
+        assert decoded["to_phase"] == "p2"
+        assert decoded["condition"] == "ok"
+        assert decoded["action"] is None
+
+
+class TestSerializablePhaseSpec:
+    """Contract tests for SerializablePhaseSpec (SLICE-1).
+
+    SerializablePhaseSpec is a JSON-serializable version of PhaseSpec:
+    - owner_roles: list[RoleId] (not frozenset)
+    - transitions: list[SerializableTransition] (not tuple)
+    - from_spec() static method converts PhaseSpec → SerializablePhaseSpec
+    """
+
+    def test_importable(self) -> None:
+        from aura_protocol.types import SerializablePhaseSpec  # noqa: F401
+
+    def test_from_spec_converts_all_phase_specs(self) -> None:
+        from aura_protocol.types import SerializablePhaseSpec
+
+        for phase_id, spec in PHASE_SPECS.items():
+            result = SerializablePhaseSpec.from_spec(spec)
+            assert result.id == spec.id, f"{phase_id} id mismatch"
+            assert result.number == spec.number, f"{phase_id} number mismatch"
+            assert result.name == spec.name, f"{phase_id} name mismatch"
+            assert result.domain == spec.domain, f"{phase_id} domain mismatch"
+
+    def test_owner_roles_is_list_not_frozenset(self) -> None:
+        from aura_protocol.types import SerializablePhaseSpec
+
+        spec = PHASE_SPECS[PhaseId.P1_REQUEST]
+        result = SerializablePhaseSpec.from_spec(spec)
+        assert isinstance(result.owner_roles, list), (
+            f"owner_roles should be list, got {type(result.owner_roles)}"
+        )
+        assert not isinstance(result.owner_roles, frozenset)
+
+    def test_transitions_is_list_not_tuple(self) -> None:
+        from aura_protocol.types import SerializablePhaseSpec
+
+        spec = PHASE_SPECS[PhaseId.P1_REQUEST]
+        result = SerializablePhaseSpec.from_spec(spec)
+        assert isinstance(result.transitions, list), (
+            f"transitions should be list, got {type(result.transitions)}"
+        )
+        assert not isinstance(result.transitions, tuple)
+
+    def test_is_frozen(self) -> None:
+        from aura_protocol.types import SerializablePhaseSpec, SerializableTransition
+
+        sspec = SerializablePhaseSpec(
+            id=PhaseId.P1_REQUEST,
+            number=1,
+            domain=Domain.USER,
+            name="Request",
+            owner_roles=[RoleId.EPOCH],
+            transitions=[SerializableTransition(to_phase=PhaseId.P2_ELICIT, condition="ok")],
+        )
+        with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
+            sspec.name = "mutate"  # type: ignore[misc]
+
+    def test_json_serializable_roundtrip(self) -> None:
+        from aura_protocol.types import SerializablePhaseSpec
+
+        result = SerializablePhaseSpec.from_spec(PHASE_SPECS[PhaseId.P1_REQUEST])
+        encoded = json.dumps(dataclasses.asdict(result))
+        decoded = json.loads(encoded)
+        assert decoded["id"] == "p1"
+        assert decoded["number"] == 1
+        assert isinstance(decoded["owner_roles"], list)
+        assert isinstance(decoded["transitions"], list)
+
+
+class TestPhaseInput:
+    """Contract tests for PhaseInput (SLICE-1).
+
+    PhaseInput(epoch_id: str, phase_spec: SerializablePhaseSpec) is the frozen
+    dataclass passed as input to child phase workflows at the P9_SLICE boundary.
+    """
+
+    def test_importable(self) -> None:
+        from aura_protocol.types import PhaseInput  # noqa: F401
+
+    def test_is_frozen(self) -> None:
+        from aura_protocol.types import PhaseInput, SerializablePhaseSpec
+
+        spec = SerializablePhaseSpec.from_spec(PHASE_SPECS[PhaseId.P1_REQUEST])
+        inp = PhaseInput(epoch_id="test", phase_spec=spec)
+        with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
+            inp.epoch_id = "mutate"  # type: ignore[misc]
+
+    def test_epoch_id_and_phase_spec_fields(self) -> None:
+        from aura_protocol.types import PhaseInput, SerializablePhaseSpec
+
+        spec = SerializablePhaseSpec.from_spec(PHASE_SPECS[PhaseId.P9_SLICE])
+        inp = PhaseInput(epoch_id="test-epoch-001", phase_spec=spec)
+        assert inp.epoch_id == "test-epoch-001"
+        assert inp.phase_spec is spec
+        assert inp.phase_spec.id == PhaseId.P9_SLICE
+
+
+class TestPhaseResult:
+    """Contract tests for PhaseResult (SLICE-1).
+
+    PhaseResult(phase_id, success, blocker_count=0, vote_result=None) is
+    the frozen dataclass returned by child phase workflows.
+    """
+
+    def test_importable(self) -> None:
+        from aura_protocol.types import PhaseResult  # noqa: F401
+
+    def test_is_frozen(self) -> None:
+        from aura_protocol.types import PhaseResult
+
+        result = PhaseResult(phase_id=PhaseId.P9_SLICE, success=True)
+        with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
+            result.success = False  # type: ignore[misc]
+
+    def test_fields_with_defaults(self) -> None:
+        from aura_protocol.types import PhaseResult
+
+        result = PhaseResult(phase_id=PhaseId.P9_SLICE, success=True)
+        assert result.phase_id == PhaseId.P9_SLICE
+        assert result.success is True
+        assert result.blocker_count == 0
+        assert result.vote_result is None
+
+    def test_blocker_count_field(self) -> None:
+        from aura_protocol.types import PhaseResult
+
+        result = PhaseResult(phase_id=PhaseId.P4_REVIEW, success=False, blocker_count=3)
+        assert result.blocker_count == 3
+
+    def test_vote_result_field(self) -> None:
+        from aura_protocol.types import PhaseResult
+
+        result = PhaseResult(
+            phase_id=PhaseId.P4_REVIEW, success=True, vote_result=VoteType.ACCEPT,
+        )
+        assert result.vote_result == VoteType.ACCEPT
+
+    def test_json_serializable(self) -> None:
+        from aura_protocol.types import PhaseResult
+
+        result = PhaseResult(phase_id=PhaseId.P9_SLICE, success=True, blocker_count=0)
+        encoded = json.dumps(dataclasses.asdict(result))
+        decoded = json.loads(encoded)
+        assert decoded["phase_id"] == "p9"
+        assert decoded["success"] is True
+        assert decoded["blocker_count"] == 0
+
+
+# ─── Contract Tests: SLICE-2 Types ────────────────────────────────────────────
+# These tests fail until SLICE-2 (aura-plugins-vhtx) implements the types.
+
+
+class TestFileWithUri:
+    """Contract tests for FileWithUri (SLICE-2).
+
+    FileWithUri(uri: str, name: str | None = None, mime_type: str | None = None)
+    is a new frozen dataclass for A2A file references, replacing the flattened
+    file_uri field on FilePart.
+    """
+
+    def test_importable(self) -> None:
+        from aura_protocol.interfaces import FileWithUri  # noqa: F401
+
+    def test_is_frozen(self) -> None:
+        from aura_protocol.interfaces import FileWithUri
+
+        fwu = FileWithUri(uri="https://example.com/file.txt")
+        with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
+            fwu.uri = "mutate"  # type: ignore[misc]
+
+    def test_required_uri_field(self) -> None:
+        from aura_protocol.interfaces import FileWithUri
+
+        fwu = FileWithUri(uri="https://example.com/doc.md")
+        assert fwu.uri == "https://example.com/doc.md"
+
+    def test_optional_name_and_mime_type(self) -> None:
+        from aura_protocol.interfaces import FileWithUri
+
+        fwu_minimal = FileWithUri(uri="file:///tmp/x.txt")
+        assert fwu_minimal.name is None
+        assert fwu_minimal.mime_type is None
+
+        fwu_full = FileWithUri(
+            uri="file:///tmp/x.txt",
+            name="x.txt",
+            mime_type="text/plain",
+        )
+        assert fwu_full.name == "x.txt"
+        assert fwu_full.mime_type == "text/plain"
+
+
+class TestReviewAxisChangedValues:
+    """ReviewAxis enum must use semantic names after SLICE-2.
+
+    SLICE-2 renames ReviewAxis members from single letters (A/B/C) to
+    semantic names (CORRECTNESS/TEST_QUALITY/ELEGANCE) that match the
+    axis descriptions in schema.xml.
+
+    These tests fail until SLICE-2 (aura-plugins-vhtx) is merged.
+    """
+
+    def test_correctness_member_exists(self) -> None:
+        from aura_protocol.types import ReviewAxis
+
+        assert hasattr(ReviewAxis, "CORRECTNESS"), (
+            "ReviewAxis.CORRECTNESS not found — SLICE-2 must rename A → CORRECTNESS"
+        )
+
+    def test_test_quality_member_exists(self) -> None:
+        from aura_protocol.types import ReviewAxis
+
+        assert hasattr(ReviewAxis, "TEST_QUALITY"), (
+            "ReviewAxis.TEST_QUALITY not found — SLICE-2 must rename B → TEST_QUALITY"
+        )
+
+    def test_elegance_member_exists(self) -> None:
+        from aura_protocol.types import ReviewAxis
+
+        assert hasattr(ReviewAxis, "ELEGANCE"), (
+            "ReviewAxis.ELEGANCE not found — SLICE-2 must rename C → ELEGANCE"
+        )
+
+    def test_old_single_letter_names_removed(self) -> None:
+        from aura_protocol.types import ReviewAxis
+
+        for old_name in ("A", "B", "C"):
+            assert not hasattr(ReviewAxis, old_name), (
+                f"ReviewAxis.{old_name} should be removed by SLICE-2"
+            )
+
+    def test_is_str_enum(self) -> None:
+        from aura_protocol.types import ReviewAxis
+
+        assert isinstance(ReviewAxis.CORRECTNESS, str)
+
+
+class TestToolCallRenames:
+    """ToolCall field renames after SLICE-2.
+
+    SLICE-2 renames:
+      tool_input → raw_input
+      tool_output → raw_output
+    And adds:
+      tool_call_id: str | None = None
+
+    These tests fail until SLICE-2 (aura-plugins-vhtx) is merged.
+    """
+
+    def test_raw_input_field_exists(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        tc = ToolCall(tool_name="bash", raw_input={"command": "ls"})
+        assert tc.raw_input == {"command": "ls"}
+
+    def test_raw_output_field_with_value(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        tc = ToolCall(tool_name="bash", raw_input={}, raw_output={"stdout": "ok"})
+        assert tc.raw_output == {"stdout": "ok"}
+
+    def test_tool_call_id_optional_defaults_none(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        tc = ToolCall(tool_name="bash", raw_input={})
+        assert tc.tool_call_id is None
+
+    def test_tool_call_id_can_be_set(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        tc = ToolCall(tool_name="bash", raw_input={}, tool_call_id="call-abc-123")
+        assert tc.tool_call_id == "call-abc-123"
+
+    def test_old_tool_input_field_removed(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        field_names = {f.name for f in dataclasses.fields(ToolCall)}
+        assert "tool_input" not in field_names, (
+            "Old field 'tool_input' should be renamed to 'raw_input' by SLICE-2"
+        )
+
+    def test_old_tool_output_field_removed(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        field_names = {f.name for f in dataclasses.fields(ToolCall)}
+        assert "tool_output" not in field_names, (
+            "Old field 'tool_output' should be renamed to 'raw_output' by SLICE-2"
+        )

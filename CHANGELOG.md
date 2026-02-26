@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.0] - 2026-02-26
+
+### Added
+- feat(types): SerializableTransition + SerializablePhaseSpec (frozen, JSON-serializable, list-based) for Temporal cross-workflow boundary (SLICE-1)
+- feat(types): PhaseInput(epoch_id, phase_spec) + PhaseResult(phase_id, success, blocker_count, vote_result) for child workflow I/O (SLICE-1)
+- feat(interfaces): FileWithUri(uri, name, mime_type) frozen dataclass for A2A file references (SLICE-2)
+- feat(audit): audit_activities.py — init_audit_trail(), record_audit_event @activity, query_audit_events @activity, InMemoryAuditTrail (SLICE-3)
+- feat(infra): bin/worker.py Temporal worker entry point + nix/temporal-service.nix (SLICE-4)
+- test: contract tests for all new Temporal-serializable types (SLICE-5)
+- test: P9_SLICE fail-fast pattern (asyncio.wait FIRST_EXCEPTION + cancel-on-failure) (SLICE-5)
+- test: test_audit_activities.py — init/record/query via ActivityEnvironment (SLICE-5)
+
+### Changed
+- feat(types): ReviewAxis StrEnum values renamed to semantic names: CORRECTNESS, TEST_QUALITY, ELEGANCE (SLICE-2)
+- feat(interfaces): ToolCall fields renamed: tool_input→raw_input, tool_output→raw_output; new tool_call_id field (SLICE-2)
+- feat(interfaces): FilePart.file_uri→file_with_uri: FileWithUri (A2A spec alignment) (SLICE-2)
+- feat(interfaces): AuditTrail.query_events gains epoch_id parameter (SLICE-3)
+
 ## [0.6.0] - 2026-02-26
 
 ### Added

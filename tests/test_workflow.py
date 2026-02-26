@@ -70,6 +70,25 @@ from temporalio.common import SearchAttributeKey
 from temporalio.testing import ActivityEnvironment
 
 
+# ─── Activity Registration ─────────────────────────────────────────────────────
+# Centralized list of @activity.defn functions registered with Temporal workers
+# in sandbox tests. Extend here when new activity modules are added.
+
+_TEMPORAL_ACTIVITIES: list = [check_constraints, record_transition]
+
+try:
+    from aura_protocol.audit_activities import query_audit_events, record_audit_event
+
+    _TEMPORAL_ACTIVITIES = [
+        check_constraints,
+        record_transition,
+        record_audit_event,
+        query_audit_events,
+    ]
+except ImportError:
+    pass  # SLICE-3 (aura-plugins-sp6y) not yet merged
+
+
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 
@@ -1127,3 +1146,97 @@ class TestWorkflowEnvironmentSandbox:
                 assert state.last_error is not None
 
                 await handle.terminate("test complete")
+
+
+# ─── P9 Fail-Fast Pattern Tests ───────────────────────────────────────────────
+
+
+class TestP9SliceFailFastPattern:
+    """Tests for P9_SLICE fail-fast pattern: asyncio.wait(FIRST_EXCEPTION).
+
+    Tests the asyncio pattern that the P9 supervisor uses to run parallel slices
+    and cancel remaining slices on first failure. This tests the PATTERN — not an
+    actual P9 Temporal workflow (child workflows are future work per PROPOSAL-11
+    UAT-3).
+
+    Verifies:
+    1. FIRST_EXCEPTION returns as soon as any coroutine raises.
+    2. Pending tasks receive CancelledError after first failure and cancellation.
+    3. Happy path: all tasks complete successfully before FIRST_EXCEPTION returns.
+    """
+
+    @pytest.mark.asyncio
+    async def test_first_exception_returns_on_first_failure(self) -> None:
+        """asyncio.wait(FIRST_EXCEPTION) returns immediately when a task fails."""
+
+        async def fast_fail() -> None:
+            raise RuntimeError("Slice 0 failed with BLOCKER")
+
+        async def long_slice() -> None:
+            await asyncio.sleep(100)  # Would not finish in test time
+
+        tasks = [
+            asyncio.create_task(fast_fail(), name="fast-fail"),
+            asyncio.create_task(long_slice(), name="long-slice"),
+        ]
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+
+        # Clean up pending tasks before assertions
+        for t in pending:
+            t.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+
+        # At least one done task raised an exception
+        exceptions = [t.exception() for t in done if not t.cancelled()]
+        assert any(e is not None for e in exceptions), (
+            "Expected at least one task to have raised an exception"
+        )
+
+    @pytest.mark.asyncio
+    async def test_pending_tasks_cancelled_after_first_failure(self) -> None:
+        """Pending slice handles are cancelled when the first slice fails."""
+        cancellation_received = asyncio.Event()
+
+        async def failing_slice() -> None:
+            raise ValueError("BLOCKER found in slice")
+
+        async def pending_slice() -> None:
+            try:
+                await asyncio.sleep(100)
+            except asyncio.CancelledError:
+                cancellation_received.set()
+                raise
+
+        tasks = [
+            asyncio.create_task(failing_slice()),
+            asyncio.create_task(pending_slice()),
+        ]
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+
+        # Simulate supervisor cancel-on-failure
+        for t in pending:
+            t.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+
+        assert cancellation_received.is_set(), (
+            "Pending slice should receive CancelledError when cancelled after first failure"
+        )
+
+    @pytest.mark.asyncio
+    async def test_happy_path_all_slices_complete(self) -> None:
+        """Happy path: all slices complete successfully with FIRST_EXCEPTION wait."""
+        results: list[str] = []
+
+        async def successful_slice(slice_id: int) -> str:
+            await asyncio.sleep(0)  # Yield to event loop
+            results.append(f"slice-{slice_id}")
+            return f"done-{slice_id}"
+
+        tasks = [asyncio.create_task(successful_slice(i)) for i in range(3)]
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+
+        # When no exceptions occur, FIRST_EXCEPTION waits for ALL tasks
+        assert len(pending) == 0, "All slices should have completed"
+        assert len(done) == 3
+        assert all(t.exception() is None for t in done)
+        assert len(results) == 3
