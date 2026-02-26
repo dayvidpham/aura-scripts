@@ -31,8 +31,8 @@ from aura_protocol import (
     RoleId,
 )
 from aura_protocol.gen_schema import (
-    _PHASE_CONSTRAINTS,
-    _ROLE_CONSTRAINTS,
+    _CONSTRAINT_TO_PHASE_REF,
+    _CONSTRAINT_TO_ROLE_REF,
     generate_schema,
 )
 from aura_protocol.gen_skills import GENERATED_BEGIN, GENERATED_END, generate_skill
@@ -394,7 +394,7 @@ class TestConstraintRolePhaseRefs:
     def test_constraints_have_role_ref_when_defined(
         self, generated_xml_root: ET.Element
     ) -> None:
-        """Constraints with role-ref in _ROLE_CONSTRAINTS have role-ref attribute in XML."""
+        """Constraints with role-ref in _CONSTRAINT_TO_ROLE_REF have role-ref attribute in XML."""
         constraints_el = generated_xml_root.find("constraints")
         assert constraints_el is not None, "<constraints> section missing"
 
@@ -402,7 +402,7 @@ class TestConstraintRolePhaseRefs:
             cid = constraint.get("id")
             if cid is None:
                 continue
-            expected_role = _ROLE_CONSTRAINTS.get(cid)
+            expected_role = _CONSTRAINT_TO_ROLE_REF.get(cid)
             xml_role = constraint.get("role-ref")
             assert xml_role == expected_role, (
                 f"Constraint {cid!r}: expected role-ref={expected_role!r}, "
@@ -412,7 +412,7 @@ class TestConstraintRolePhaseRefs:
     def test_constraints_have_phase_ref_when_defined(
         self, generated_xml_root: ET.Element
     ) -> None:
-        """Constraints with phase-ref in _PHASE_CONSTRAINTS have phase-ref attribute in XML."""
+        """Constraints with phase-ref in _CONSTRAINT_TO_PHASE_REF have phase-ref attribute in XML."""
         constraints_el = generated_xml_root.find("constraints")
         assert constraints_el is not None, "<constraints> section missing"
 
@@ -420,7 +420,7 @@ class TestConstraintRolePhaseRefs:
             cid = constraint.get("id")
             if cid is None:
                 continue
-            expected_phase = _PHASE_CONSTRAINTS.get(cid)
+            expected_phase = _CONSTRAINT_TO_PHASE_REF.get(cid)
             xml_phase = constraint.get("phase-ref")
             assert xml_phase == expected_phase, (
                 f"Constraint {cid!r}: expected phase-ref={expected_phase!r}, "
@@ -1024,4 +1024,38 @@ class TestSchemaXmlDrift:
         assert content == canonical, (
             "Generated schema.xml differs from canonical. "
             "Run: uv run python scripts/aura_protocol/gen_schema.py to regenerate."
+        )
+
+
+# ─── D1: Slug pin literals — guard against silent step ID renames ──────────────
+
+
+class TestSlugPinLiterals:
+    """D1: Literal string assertions that specific step IDs exist in PROCEDURE_STEPS.
+
+    These are NOT Python-vs-Python cross-checks. They use literal strings to
+    guard against silent renames of well-known step IDs (e.g. via refactoring).
+    If a step is renamed in types.py, these tests will fail and require
+    an explicit update here — providing a visible audit trail.
+    """
+
+    def test_supervisor_call_skill_slug(self) -> None:
+        """S-supervisor-call-skill must exist as a supervisor procedure step."""
+        assert any(s.id == "S-supervisor-call-skill" for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+            "Expected step 'S-supervisor-call-skill' in PROCEDURE_STEPS[SUPERVISOR]. "
+            "If this step was renamed, update the literal here to reflect the new name."
+        )
+
+    def test_supervisor_cartographers_slug(self) -> None:
+        """S-supervisor-cartographers must exist as a supervisor procedure step."""
+        assert any(s.id == "S-supervisor-cartographers" for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+            "Expected step 'S-supervisor-cartographers' in PROCEDURE_STEPS[SUPERVISOR]. "
+            "If this step was renamed, update the literal here to reflect the new name."
+        )
+
+    def test_worker_types_slug(self) -> None:
+        """S-worker-types must exist as a worker procedure step."""
+        assert any(s.id == "S-worker-types" for s in PROCEDURE_STEPS[RoleId.WORKER]), (
+            "Expected step 'S-worker-types' in PROCEDURE_STEPS[WORKER]. "
+            "If this step was renamed, update the literal here to reflect the new name."
         )

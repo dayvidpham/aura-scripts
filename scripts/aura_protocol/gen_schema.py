@@ -5,7 +5,8 @@ that matches the existing structure and passes validate_schema.py with 0 errors.
 
 New in this generator (UAT-2, UAT-3):
 - role-ref and phase-ref attributes on <constraint> elements, derived from
-  context_injection._ROLE_CONSTRAINTS and _PHASE_CONSTRAINTS (single source).
+  context_injection._ROLE_CONSTRAINTS and _PHASE_CONSTRAINTS (single source,
+  inverted into _CONSTRAINT_TO_ROLE_REF and _CONSTRAINT_TO_PHASE_REF).
 - Unified diff shown to stdout before writing (UAT-2).
 - SUBSTEP_DATA, _PHASE_TRANSITIONS, _PHASE_TASK_TITLES derived from types.py (DRY).
 
@@ -22,6 +23,7 @@ from __future__ import annotations
 
 import difflib
 import io
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -54,9 +56,9 @@ from aura_protocol.types import (
 # role→constraints (1:many). These dicts are built by inverting context_injection's
 # mappings at import time so the two modules stay in sync automatically.
 #
-# role-ref: ALL matching roles, comma-separated (e.g. "reviewer,supervisor,epoch").
+# _CONSTRAINT_TO_ROLE_REF: ALL matching roles per constraint, comma-separated.
 # Constraints in _GENERAL_CONSTRAINTS (all roles) → None (omit role-ref from XML).
-# phase-ref: ALL matching phases, comma-separated (e.g. "p4,p10").
+# _CONSTRAINT_TO_PHASE_REF: ALL matching phases per constraint, comma-separated.
 # Constraints present in ALL phases (general) → None (omit phase-ref from XML).
 
 _ROLE_PRIORITY: tuple[RoleId, ...] = (
@@ -108,10 +110,10 @@ def _build_constraint_phase_refs() -> dict[str, str | None]:
 
 
 # Constraint → comma-separated role string(s) (or None for global) — for XML role-ref attribute.
-_ROLE_CONSTRAINTS: dict[str, str | None] = _build_constraint_role_refs()
+_CONSTRAINT_TO_ROLE_REF: dict[str, str | None] = _build_constraint_role_refs()
 
 # Constraint → comma-separated phase string(s) (or None for global) — for XML phase-ref attribute.
-_PHASE_CONSTRAINTS: dict[str, str | None] = _build_constraint_phase_refs()
+_CONSTRAINT_TO_PHASE_REF: dict[str, str | None] = _build_constraint_phase_refs()
 
 
 # ─── Phase substep, task-title, and transition data ───────────────────────────
@@ -566,6 +568,7 @@ def _build_phases(root: ET.Element) -> None:
                         if step.context is not None:
                             ctx_el = ET.SubElement(step_el, "context")
                             ctx_el.text = step.context
+                        # next-state is optional — only emitted when next_state is not None
                         if step.next_state is not None:
                             step_el.set("next-state", step.next_state.value)
 
@@ -888,7 +891,7 @@ def _build_constraints(root: ET.Element) -> None:
     """Append <constraints> section to root, derived from CONSTRAINT_SPECS.
 
     Adds role-ref and phase-ref attributes on each constraint element
-    derived from _ROLE_CONSTRAINTS and _PHASE_CONSTRAINTS static dicts (UAT-3).
+    derived from _CONSTRAINT_TO_ROLE_REF and _CONSTRAINT_TO_PHASE_REF static dicts (UAT-3).
     """
     constraints_el = ET.SubElement(root, "constraints")
 
@@ -923,10 +926,10 @@ def _build_constraints(root: ET.Element) -> None:
             "should-not": spec.should_not,
         }
         # UAT-3: add role-ref and phase-ref when present
-        role_ref = _ROLE_CONSTRAINTS.get(cid)
+        role_ref = _CONSTRAINT_TO_ROLE_REF.get(cid)
         if role_ref is not None:
             c_attrs["role-ref"] = role_ref
-        phase_ref = _PHASE_CONSTRAINTS.get(cid)
+        phase_ref = _CONSTRAINT_TO_PHASE_REF.get(cid)
         if phase_ref is not None:
             c_attrs["phase-ref"] = phase_ref
 
@@ -1379,6 +1382,7 @@ def _build_procedure_steps(root: ET.Element) -> None:
             if step.context is not None:
                 ctx_el = ET.SubElement(step_el, "context")
                 ctx_el.text = step.context
+            # next-state is optional — only emitted when next_state is not None
             if step.next_state is not None:
                 step_el.set("next-state", step.next_state.value)
 
@@ -1591,8 +1595,6 @@ def main() -> int:
     Default output: skills/protocol/schema.xml (relative to script's parent dir).
     Returns: 0 on success, 1 on error.
     """
-    import sys
-
     if len(sys.argv) > 1:
         output = Path(sys.argv[1])
     else:
@@ -1611,5 +1613,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import sys
     sys.exit(main())

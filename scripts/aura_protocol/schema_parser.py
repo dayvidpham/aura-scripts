@@ -233,12 +233,20 @@ def _parse_procedure_steps(
                 )
                 # instruction child element (required)
                 instr_el = step_el.find("instruction")
-                instruction = instr_el.text.strip() if instr_el is not None and instr_el.text else ""
+                if instr_el is None or not instr_el.text:
+                    raise SchemaParseError(
+                        f"Missing required <instruction> child element on <step id='{step_id}'> "
+                        f"in startup-sequence in {path}. "
+                        f"Instruction is required for all procedure steps. "
+                        f"Fix: add <instruction>...</instruction> as a child element of the <step>."
+                    )
+                instruction = instr_el.text.strip()
                 # optional child elements
                 cmd_el = step_el.find("command")
                 command = cmd_el.text.strip() if cmd_el is not None and cmd_el.text else None
                 ctx_el = step_el.find("context")
                 context = ctx_el.text.strip() if ctx_el is not None and ctx_el.text else None
+                # next-state is optional — attribute may be absent; None if not present
                 ns_val = step_el.get("next-state")
                 next_state: PhaseId | None = None
                 if ns_val:

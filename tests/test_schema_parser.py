@@ -332,6 +332,45 @@ class TestSchemaParserErrorPaths:
             parse_schema(xml)
         assert "number" in str(exc_info.value).lower() or "integer" in str(exc_info.value).lower()
 
+    def test_parse_schema_raises_on_missing_instruction(self, tmp_path: Path) -> None:
+        """SchemaParseError raised when a <step> in a startup-sequence has no <instruction>."""
+        # The parser looks for startup-sequence inside substeps of phase p8.
+        # Construct a minimal schema with a phase p8 substep containing a
+        # startup-sequence where the step is missing its <instruction> child element.
+        xml_content = textwrap.dedent("""\
+            <?xml version="1.0"?>
+            <aura-protocol version="2.0">
+              <phases>
+                <phase id="p8" number="8" domain="impl" name="Impl Plan">
+                  <substeps>
+                    <substep id="s8" type="plan" execution="sequential" order="1"
+                             label-ref="L-p8s8">
+                      <startup-sequence role="supervisor">
+                        <step order="1" id="S-test">
+                          <!-- No <instruction> child element — must raise SchemaParseError -->
+                        </step>
+                      </startup-sequence>
+                    </substep>
+                  </substeps>
+                </phase>
+              </phases>
+              <roles/>
+              <commands/>
+              <constraints/>
+              <handoffs/>
+              <labels/>
+              <review-axes/>
+              <task-titles/>
+            </aura-protocol>
+        """)
+        schema_path = tmp_path / "schema_missing_instruction.xml"
+        schema_path.write_text(xml_content)
+        with pytest.raises(SchemaParseError) as exc_info:
+            parse_schema(schema_path)
+        assert "S-test" in str(exc_info.value), (
+            f"Expected step id 'S-test' in error message, got: {exc_info.value}"
+        )
+
     def test_error_on_unknown_role_id(self, tmp_path: Path) -> None:
         """SchemaParseError when a role has an id not in the RoleId enum."""
         xml = tmp_path / "unknown_role.xml"
