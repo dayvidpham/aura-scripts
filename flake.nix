@@ -69,9 +69,10 @@
         };
       });
 
-      # ── Home Manager Module ──────────────────────────────────
+      # ── Home Manager Modules ─────────────────────────────────
       homeManagerModules = {
         aura-config-sync = import ./nix/hm-module.nix { inherit self; };
+        temporal-service = import ./nix/temporal-service.nix;
       };
 
       # ── Dev Shell (for working on aura-plugins itself) ───────
