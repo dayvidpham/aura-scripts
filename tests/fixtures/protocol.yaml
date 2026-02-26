@@ -1,0 +1,648 @@
+# Combinatorial Test Fixture for Aura Protocol
+# =============================================
+#
+# This fixture defines reusable components that can be combined to generate
+# comprehensive test cases for the aura_protocol state machine and related types.
+# Instead of manually listing hundreds of test paths, we define:
+#
+# 1. phase_specs: Canonical PhaseSpec entries (phase_id, domain, owner_roles, transitions)
+# 2. epoch_states: Pre-built epoch states at various lifecycle positions
+# 3. vote_combinations: Review vote combinations for consensus testing
+# 4. audit_events: Sample AuditEvent objects for record/query test data
+#
+# Test generators combine these components to produce parametrized test cases.
+
+# ─── Phase Specifications ─────────────────────────────────────────────────────
+# Each entry mirrors PHASE_SPECS from aura_protocol/types.py.
+# These are used to validate that the live PHASE_SPECS dict matches expectations,
+# and to generate transition test cases by crossing phase_specs × transitions.
+
+phase_specs:
+  p1_request:
+    phase_id: p1
+    name: Request
+    number: 1
+    domain: user
+    owner_roles:
+      - epoch
+      - architect
+    transitions:
+      - target: p2
+        condition: "classification confirmed, research and explore complete"
+
+  p2_elicit:
+    phase_id: p2
+    name: Elicit
+    number: 2
+    domain: user
+    owner_roles:
+      - epoch
+      - architect
+    transitions:
+      - target: p3
+        condition: "URD created with structured requirements"
+
+  p3_propose:
+    phase_id: p3
+    name: Propose
+    number: 3
+    domain: plan
+    owner_roles:
+      - epoch
+      - architect
+    transitions:
+      - target: p4
+        condition: "proposal created"
+
+  p4_review:
+    phase_id: p4
+    name: Review
+    number: 4
+    domain: plan
+    owner_roles:
+      - epoch
+      - architect
+      - reviewer
+    transitions:
+      - target: p5
+        condition: "all 3 reviewers vote ACCEPT"
+      - target: p3
+        condition: "any reviewer votes REVISE"
+        action: "create PROPOSAL-{N+1}, mark current aura:superseded"
+
+  p5_uat:
+    phase_id: p5
+    name: Plan UAT
+    number: 5
+    domain: user
+    owner_roles:
+      - epoch
+      - architect
+    transitions:
+      - target: p6
+        condition: "user accepts plan"
+      - target: p3
+        condition: "user requests changes"
+        action: "create PROPOSAL-{N+1}"
+
+  p6_ratify:
+    phase_id: p6
+    name: Ratify
+    number: 6
+    domain: plan
+    owner_roles:
+      - epoch
+      - architect
+    transitions:
+      - target: p7
+        condition: "proposal ratified, IMPL_PLAN placeholder created"
+
+  p7_handoff:
+    phase_id: p7
+    name: Handoff
+    number: 7
+    domain: plan
+    owner_roles:
+      - epoch
+      - architect
+      - supervisor
+    transitions:
+      - target: p8
+        condition: "handoff document stored at .git/.aura/handoff/"
+
+  p8_impl_plan:
+    phase_id: p8
+    name: Impl Plan
+    number: 8
+    domain: impl
+    owner_roles:
+      - epoch
+      - supervisor
+    transitions:
+      - target: p9
+        condition: "all slices created with leaf tasks, assigned, and dependency-chained"
+
+  p9_slice:
+    phase_id: p9
+    name: Worker Slices
+    number: 9
+    domain: impl
+    owner_roles:
+      - epoch
+      - supervisor
+      - worker
+    transitions:
+      - target: p10
+        condition: "all slices complete, quality gates pass"
+
+  p10_code_review:
+    phase_id: p10
+    name: Code Review
+    number: 10
+    domain: impl
+    owner_roles:
+      - epoch
+      - supervisor
+      - reviewer
+    transitions:
+      - target: p11
+        condition: "all 3 reviewers ACCEPT, all BLOCKERs resolved"
+      - target: p9
+        condition: "any reviewer votes REVISE"
+        action: "fix BLOCKERs in affected slices, then re-review"
+
+  p11_impl_uat:
+    phase_id: p11
+    name: Impl UAT
+    number: 11
+    domain: user
+    owner_roles:
+      - epoch
+      - supervisor
+    transitions:
+      - target: p12
+        condition: "user accepts implementation"
+      - target: p9
+        condition: "user requests changes"
+        action: "create fix tasks in affected slices"
+
+  p12_landing:
+    phase_id: p12
+    name: Landing
+    number: 12
+    domain: impl
+    owner_roles:
+      - epoch
+      - supervisor
+    transitions:
+      - target: complete
+        condition: "git push succeeds, all tasks closed or dependency-resolved"
+
+
+# ─── Epoch States ─────────────────────────────────────────────────────────────
+# Pre-built epoch state snapshots for use in parametrized tests.
+# These represent common positions in the lifecycle that tests often need.
+
+epoch_states:
+  fresh:
+    description: "Brand-new epoch at P1, no history"
+    current_phase: p1
+    completed_phases: []
+    review_votes: {}
+    blocker_count: 0
+    epoch_id: test-epoch-fresh
+
+  at_p2:
+    description: "Epoch that has completed P1 and is now at P2"
+    current_phase: p2
+    completed_phases:
+      - p1
+    review_votes: {}
+    blocker_count: 0
+    epoch_id: test-epoch-p2
+
+  at_p3:
+    description: "Epoch at P3 (Propose)"
+    current_phase: p3
+    completed_phases:
+      - p1
+      - p2
+    review_votes: {}
+    blocker_count: 0
+    epoch_id: test-epoch-p3
+
+  at_p4_reviewing:
+    description: "Epoch at P4 (Review), no votes yet"
+    current_phase: p4
+    completed_phases:
+      - p1
+      - p2
+      - p3
+    review_votes: {}
+    blocker_count: 0
+    epoch_id: test-epoch-p4
+
+  at_p4_partial_accept:
+    description: "Epoch at P4 with one ACCEPT vote (not yet consensus)"
+    current_phase: p4
+    completed_phases:
+      - p1
+      - p2
+      - p3
+    review_votes:
+      correctness: ACCEPT
+    blocker_count: 0
+    epoch_id: test-epoch-p4-partial
+
+  at_p4_two_accepts:
+    description: "Epoch at P4 with two ACCEPT votes (still not consensus)"
+    current_phase: p4
+    completed_phases:
+      - p1
+      - p2
+      - p3
+    review_votes:
+      correctness: ACCEPT
+      test_quality: ACCEPT
+    blocker_count: 0
+    epoch_id: test-epoch-p4-two-accepts
+
+  at_p4_all_accept:
+    description: "Epoch at P4 with full consensus (all 3 ACCEPT)"
+    current_phase: p4
+    completed_phases:
+      - p1
+      - p2
+      - p3
+    review_votes:
+      correctness: ACCEPT
+      test_quality: ACCEPT
+      elegance: ACCEPT
+    blocker_count: 0
+    epoch_id: test-epoch-p4-consensus
+
+  at_p4_revise:
+    description: "Epoch at P4 with a REVISE vote (drives back to P3)"
+    current_phase: p4
+    completed_phases:
+      - p1
+      - p2
+      - p3
+    review_votes:
+      correctness: ACCEPT
+      test_quality: REVISE
+      elegance: ACCEPT
+    blocker_count: 0
+    epoch_id: test-epoch-p4-revise
+
+  at_p10_reviewing:
+    description: "Epoch at P10 (Code Review), no votes yet"
+    current_phase: p10
+    completed_phases:
+      - p1
+      - p2
+      - p3
+      - p4
+      - p5
+      - p6
+      - p7
+      - p8
+      - p9
+    review_votes: {}
+    blocker_count: 0
+    epoch_id: test-epoch-p10
+
+  at_p10_with_blocker:
+    description: "Epoch at P10 with a blocker (blocks advance to P11)"
+    current_phase: p10
+    completed_phases:
+      - p1
+      - p2
+      - p3
+      - p4
+      - p5
+      - p6
+      - p7
+      - p8
+      - p9
+    review_votes:
+      correctness: ACCEPT
+      test_quality: ACCEPT
+      elegance: ACCEPT
+    blocker_count: 1
+    epoch_id: test-epoch-p10-blocker
+
+  at_p10_all_accept:
+    description: "Epoch at P10 with full consensus, no blockers (can advance to P11)"
+    current_phase: p10
+    completed_phases:
+      - p1
+      - p2
+      - p3
+      - p4
+      - p5
+      - p6
+      - p7
+      - p8
+      - p9
+    review_votes:
+      correctness: ACCEPT
+      test_quality: ACCEPT
+      elegance: ACCEPT
+    blocker_count: 0
+    epoch_id: test-epoch-p10-all-accept
+
+  at_p10_revise:
+    description: "Epoch at P10 with a REVISE vote (drives back to P9)"
+    current_phase: p10
+    completed_phases:
+      - p1
+      - p2
+      - p3
+      - p4
+      - p5
+      - p6
+      - p7
+      - p8
+      - p9
+    review_votes:
+      correctness: ACCEPT
+      test_quality: REVISE
+      elegance: ACCEPT
+    blocker_count: 0
+    epoch_id: test-epoch-p10-revise
+
+  at_p12:
+    description: "Epoch at P12 (Landing), almost complete"
+    current_phase: p12
+    completed_phases:
+      - p1
+      - p2
+      - p3
+      - p4
+      - p5
+      - p6
+      - p7
+      - p8
+      - p9
+      - p10
+      - p11
+    review_votes: {}
+    blocker_count: 0
+    epoch_id: test-epoch-p12
+
+
+# ─── Vote Combinations ────────────────────────────────────────────────────────
+# Combinations of review votes for the 3 axes: correctness, test_quality, elegance.
+# Used to parametrize consensus gate and revise-back tests.
+
+vote_combinations:
+  all_accept:
+    description: "All three axes vote ACCEPT (consensus reached)"
+    votes:
+      correctness: ACCEPT
+      test_quality: ACCEPT
+      elegance: ACCEPT
+    has_consensus: true
+    has_revise: false
+
+  all_revise:
+    description: "All three axes vote REVISE (no consensus)"
+    votes:
+      correctness: REVISE
+      test_quality: REVISE
+      elegance: REVISE
+    has_consensus: false
+    has_revise: true
+
+  mixed_one_revise_correctness:
+    description: "Correctness is REVISE, others ACCEPT"
+    votes:
+      correctness: REVISE
+      test_quality: ACCEPT
+      elegance: ACCEPT
+    has_consensus: false
+    has_revise: true
+
+  mixed_one_revise_test_quality:
+    description: "Test quality is REVISE, others ACCEPT"
+    votes:
+      correctness: ACCEPT
+      test_quality: REVISE
+      elegance: ACCEPT
+    has_consensus: false
+    has_revise: true
+
+  mixed_one_revise_elegance:
+    description: "Elegance is REVISE, others ACCEPT"
+    votes:
+      correctness: ACCEPT
+      test_quality: ACCEPT
+      elegance: REVISE
+    has_consensus: false
+    has_revise: true
+
+  partial_one_axis:
+    description: "Only one axis voted (correctness ACCEPT, others absent)"
+    votes:
+      correctness: ACCEPT
+    has_consensus: false
+    has_revise: false
+
+  partial_two_axes:
+    description: "Two axes voted ACCEPT (test_quality absent)"
+    votes:
+      correctness: ACCEPT
+      elegance: ACCEPT
+    has_consensus: false
+    has_revise: false
+
+  empty:
+    description: "No votes cast yet"
+    votes: {}
+    has_consensus: false
+    has_revise: false
+
+
+# ─── Audit Events ─────────────────────────────────────────────────────────────
+# Sample AuditEvent objects used to test recording and querying of audit trails.
+# Each entry maps to an AuditEvent(epoch_id, event_type, phase, role, payload).
+
+audit_events:
+  phase_advance_p1_to_p2:
+    description: "Phase advance from P1 to P2"
+    epoch_id: test-epoch-audit-001
+    event_type: phase_advance
+    phase: p1
+    role: architect
+    payload:
+      from_phase: p1
+      to_phase: p2
+      triggered_by: architect
+      condition_met: "classification confirmed, research and explore complete"
+
+  phase_advance_p3_to_p4:
+    description: "Phase advance from P3 to P4"
+    epoch_id: test-epoch-audit-001
+    event_type: phase_advance
+    phase: p3
+    role: architect
+    payload:
+      from_phase: p3
+      to_phase: p4
+      triggered_by: architect
+      condition_met: "proposal created"
+
+  vote_recorded_accept:
+    description: "Reviewer votes ACCEPT on correctness"
+    epoch_id: test-epoch-audit-001
+    event_type: vote_recorded
+    phase: p4
+    role: reviewer
+    payload:
+      axis: correctness
+      vote: ACCEPT
+      reviewer_id: reviewer-1
+
+  vote_recorded_revise:
+    description: "Reviewer votes REVISE on test_quality"
+    epoch_id: test-epoch-audit-001
+    event_type: vote_recorded
+    phase: p10
+    role: reviewer
+    payload:
+      axis: test_quality
+      vote: REVISE
+      reviewer_id: reviewer-2
+
+  blocker_recorded:
+    description: "Blocker finding recorded in code review"
+    epoch_id: test-epoch-audit-002
+    event_type: blocker_recorded
+    phase: p10
+    role: reviewer
+    payload:
+      severity: BLOCKER
+      finding: "Critical bug in state machine transition guard"
+      slice_id: aura-plugins-0001
+
+  blocker_resolved:
+    description: "Blocker cleared after fix"
+    epoch_id: test-epoch-audit-002
+    event_type: blocker_resolved
+    phase: p10
+    role: supervisor
+    payload:
+      severity: BLOCKER
+      slice_id: aura-plugins-0001
+      resolution: "Fixed guard condition in advance()"
+
+  constraint_check_passed:
+    description: "Constraint check that passed"
+    epoch_id: test-epoch-audit-003
+    event_type: constraint_check
+    phase: p4
+    role: epoch
+    payload:
+      constraint_id: C-review-consensus
+      passed: true
+      message: null
+
+  constraint_check_failed:
+    description: "Constraint check that failed"
+    epoch_id: test-epoch-audit-003
+    event_type: constraint_check
+    phase: p4
+    role: epoch
+    payload:
+      constraint_id: C-review-consensus
+      passed: false
+      message: "Missing vote on axis: elegance"
+
+
+# ─── Phase Forward Path ───────────────────────────────────────────────────────
+# The single linear happy path through all phases (no revisions).
+# Used to generate sequential transition test cases.
+
+forward_phase_path:
+  - p1
+  - p2
+  - p3
+  - p4
+  - p5
+  - p6
+  - p7
+  - p8
+  - p9
+  - p10
+  - p11
+  - p12
+  - complete
+
+
+# ─── Transition Test Matrix ───────────────────────────────────────────────────
+# Predefined expected behaviors for key transitions.
+# format: source → target, with expected result and reason.
+
+transition_matrix:
+  # Valid forward transitions
+  valid_forward:
+    - source: p1
+      target: p2
+      expected_success: true
+      requires_consensus: false
+      requires_blocker_clear: false
+      description: "P1 → P2: Basic forward transition"
+
+    - source: p2
+      target: p3
+      expected_success: true
+      requires_consensus: false
+      requires_blocker_clear: false
+      description: "P2 → P3: Basic forward transition"
+
+    - source: p3
+      target: p4
+      expected_success: true
+      requires_consensus: false
+      requires_blocker_clear: false
+      description: "P3 → P4: Forward to review phase"
+
+    - source: p4
+      target: p5
+      expected_success: true
+      requires_consensus: true
+      requires_blocker_clear: false
+      description: "P4 → P5: Requires all-ACCEPT consensus"
+
+    - source: p10
+      target: p11
+      expected_success: true
+      requires_consensus: true
+      requires_blocker_clear: true
+      description: "P10 → P11: Requires consensus AND blocker-free"
+
+    - source: p12
+      target: complete
+      expected_success: true
+      requires_consensus: false
+      requires_blocker_clear: false
+      description: "P12 → COMPLETE: Final transition"
+
+  # Valid backward/revision transitions
+  valid_backward:
+    - source: p4
+      target: p3
+      expected_success: true
+      requires_consensus: false
+      requires_blocker_clear: false
+      description: "P4 → P3: Review forces revision (any REVISE vote)"
+
+    - source: p10
+      target: p9
+      expected_success: true
+      requires_consensus: false
+      requires_blocker_clear: false
+      description: "P10 → P9: Code review forces revision (any REVISE vote)"
+
+  # Invalid skip transitions (should fail)
+  invalid_skips:
+    - source: p1
+      target: p3
+      expected_success: false
+      description: "P1 → P3: Skip P2 (invalid)"
+
+    - source: p1
+      target: p8
+      expected_success: false
+      description: "P1 → P8: Major skip (invalid)"
+
+    - source: p4
+      target: p6
+      expected_success: false
+      description: "P4 → P6: Skip P5 (invalid)"
+
+    - source: p2
+      target: p1
+      expected_success: false
+      description: "P2 → P1: Backward without revision semantics (invalid)"
