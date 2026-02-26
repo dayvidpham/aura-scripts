@@ -304,11 +304,18 @@ class TitleConvention:
 class ProcedureStep:
     """A single step in a role's startup or operational procedure.
 
-    Derived from schema.xml <step> elements within <startup-sequence>.
+    Fields:
+        order:       Step number (1-based).
+        instruction: Human-readable description of what to do.
+        command:     Optional exact shell/bd command to run (e.g. 'bd dep add ...').
+        context:     Optional situational context (e.g. 'only if working on a follow-up').
+        next_state:  Phase this step transitions to, if any.
     """
 
     order: int
-    description: str
+    instruction: str
+    command: str | None = None
+    context: str | None = None
     next_state: PhaseId | None = None
 
 
@@ -1595,35 +1602,47 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
     RoleId.ARCHITECT: (),
     RoleId.REVIEWER: (),
     RoleId.SUPERVISOR: (
-        ProcedureStep(order=1, description="Call Skill(/aura:supervisor) to load role instructions"),
-        ProcedureStep(order=2, description="Read RATIFIED_PLAN and URD via bd show"),
+        ProcedureStep(
+            order=1,
+            instruction="Call Skill(/aura:supervisor) to load role instructions",
+            command="Skill(/aura:supervisor)",
+        ),
+        ProcedureStep(
+            order=2,
+            instruction="Read RATIFIED_PLAN and URD via bd show",
+            command="bd show <ratified-plan-id> && bd show <urd-id>",
+        ),
         ProcedureStep(
             order=3,
-            description=(
-                "Create standing explore team via TeamCreate before any codebase exploration"
-            ),
+            instruction="Create standing explore team via TeamCreate before any codebase exploration",
+            context="TeamCreate with /aura:explore role; minimum 3 agents",
         ),
         ProcedureStep(
             order=4,
-            description="Decompose into vertical slices",
+            instruction="Decompose into vertical slices",
             next_state=PhaseId.P8_IMPL_PLAN,
         ),
-        ProcedureStep(order=5, description="Create leaf tasks (L1/L2/L3) for every slice"),
+        ProcedureStep(
+            order=5,
+            instruction="Create leaf tasks (L1/L2/L3) for every slice",
+            command="bd create --labels L1,L2,L3 <task-id>",
+        ),
         ProcedureStep(
             order=6,
-            description="Spawn workers for leaf tasks",
+            instruction="Spawn workers for leaf tasks",
+            command="aura-swarm start --epic <epic-id>",
             next_state=PhaseId.P9_SLICE,
         ),
     ),
     RoleId.WORKER: (
-        ProcedureStep(order=1, description="Types, interfaces, schemas (no deps)"),
+        ProcedureStep(order=1, instruction="Types, interfaces, schemas (no deps)"),
         ProcedureStep(
             order=2,
-            description="Tests importing production code (will fail initially)",
+            instruction="Tests importing production code (will fail initially)",
         ),
         ProcedureStep(
             order=3,
-            description="Make tests pass. Wire with real dependencies. No TODOs.",
+            instruction="Make tests pass. Wire with real dependencies. No TODOs.",
             next_state=PhaseId.P9_SLICE,
         ),
     ),

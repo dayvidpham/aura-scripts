@@ -227,7 +227,7 @@ def _parse_procedure_steps(
                         f"Fix: correct the 'order' attribute."
                     )
                 text = step_el.text.strip() if step_el.text else ""
-                sup_steps.append(ProcedureStep(order=order, description=text))
+                sup_steps.append(ProcedureStep(order=order, instruction=text))
             sup_steps.sort(key=lambda s: s.order)
             steps[RoleId.SUPERVISOR] = tuple(sup_steps)
         break
@@ -247,7 +247,7 @@ def _parse_procedure_steps(
                 num = int(num_str)
             except ValueError:
                 continue
-            worker_steps.append(ProcedureStep(order=num, description=desc))
+            worker_steps.append(ProcedureStep(order=num, instruction=desc))
         worker_steps.sort(key=lambda s: s.order)
         steps[RoleId.WORKER] = tuple(worker_steps)
         break

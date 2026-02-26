@@ -60,7 +60,7 @@ _(No handoffs for this role)_
 
 {% if steps -%}
 {% for step in steps -%}
-**Step {{ step.order }}:** {{ step.description }}{% if step.next_state %} → `{{ step.next_state.value }}`{% endif %}
+**Step {{ step.order }}:** {{ step.instruction }}{% if step.command %} (`{{ step.command }}`){% endif %}{% if step.context %} — _{{ step.context }}_{% endif %}{% if step.next_state %} → `{{ step.next_state.value }}`{% endif %}
 {% endfor %}
 {% else %}
 _(No startup sequence defined for this role)_

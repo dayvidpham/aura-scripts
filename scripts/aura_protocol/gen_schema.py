@@ -559,7 +559,7 @@ def _build_phases(root: ET.Element) -> None:
                         if step.next_state is not None:
                             step_attrs["next-state"] = step.next_state.value
                         step_el = ET.SubElement(startup_el, "step", **step_attrs)
-                        step_el.text = step.description
+                        step_el.text = step.instruction
 
         # Task-title(s) for this phase
         if pid in _PHASE_TASK_TITLES:
@@ -585,7 +585,7 @@ def _build_phases(root: ET.Element) -> None:
                 ET.SubElement(tdd_el, "layer",
                               number=str(step.order),
                               name=layer_names[step.order - 1],
-                              description=step.description)
+                              description=step.instruction)
         elif pid == "p10":
             sev_tree = ET.SubElement(phase_el, "severity-tree",
                                      enabled="true", creation="eager")

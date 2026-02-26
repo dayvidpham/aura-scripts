@@ -635,9 +635,9 @@ class TestRoundTripConsistency:
             f"parsed={len(parsed_steps)}, python={len(python_steps)}"
         )
         for i, (py_step, parsed_step) in enumerate(zip(python_steps, parsed_steps)):
-            assert parsed_step.description == py_step.description, (
-                f"Supervisor step[{i}] description mismatch: "
-                f"parsed={parsed_step.description!r}, python={py_step.description!r}"
+            assert parsed_step.instruction == py_step.instruction, (
+                f"Supervisor step[{i}] instruction mismatch: "
+                f"parsed={parsed_step.instruction!r}, python={py_step.instruction!r}"
             )
             assert parsed_step.order == py_step.order, (
                 f"Supervisor step[{i}] order mismatch: "
@@ -653,9 +653,9 @@ class TestRoundTripConsistency:
             f"parsed={len(parsed_steps)}, python={len(python_steps)}"
         )
         for i, (py_step, parsed_step) in enumerate(zip(python_steps, parsed_steps)):
-            assert parsed_step.description == py_step.description, (
-                f"Worker step[{i}] description mismatch: "
-                f"parsed={parsed_step.description!r}, python={py_step.description!r}"
+            assert parsed_step.instruction == py_step.instruction, (
+                f"Worker step[{i}] instruction mismatch: "
+                f"parsed={parsed_step.instruction!r}, python={py_step.instruction!r}"
             )
             assert parsed_step.order == py_step.order, (
                 f"Worker step[{i}] order mismatch: "
