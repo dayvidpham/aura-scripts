@@ -8,12 +8,18 @@ Usage
 Markers must be placed manually in the target SKILL.md before this
 script will touch it:
 
-    <!-- BEGIN GENERATED FROM schema -->
+    <!-- BEGIN GENERATED FROM aura schema -->
     (any existing content here will be replaced)
-    <!-- END GENERATED -->
+    <!-- END GENERATED FROM aura schema -->
 
 Running generate_skill() on a file that is missing either marker raises
-MarkerError — no silent prepending.
+MarkerError — no silent prepending.  Use ``init=True`` to prepend markers
+to files that lack them before generating.
+
+Usage (CLI)
+-----------
+    python -m aura_protocol.gen_skills              # generate all roles
+    python -m aura_protocol.gen_skills --init       # add markers + generate
 
 Public API
 ----------
@@ -40,6 +46,7 @@ from aura_protocol.types import (
     CommandSpec,
     ConstraintContext,
     HandoffSpec,
+    PhaseId,
     PhaseSpec,
     RoleId,
     RoleSpec,
@@ -47,8 +54,8 @@ from aura_protocol.types import (
 
 # ─── Marker constants ─────────────────────────────────────────────────────────
 
-GENERATED_BEGIN = "<!-- BEGIN GENERATED FROM schema -->"
-GENERATED_END = "<!-- END GENERATED -->"
+GENERATED_BEGIN = "<!-- BEGIN GENERATED FROM aura schema -->"
+GENERATED_END = "<!-- END GENERATED FROM aura schema -->"
 
 # ─── Default template directory ───────────────────────────────────────────────
 
@@ -70,8 +77,8 @@ class MarkerError(ValueError):
 
     How to fix: Add the following pair to the target SKILL.md (in order):
 
-        <!-- BEGIN GENERATED FROM schema -->
-        <!-- END GENERATED -->
+        <!-- BEGIN GENERATED FROM aura schema -->
+        <!-- END GENERATED FROM aura schema -->
 
     The hand-authored body goes below the END marker; the generator will
     replace everything between (and including) the markers.
@@ -218,23 +225,45 @@ def _render_header(
         loader=FileSystemLoader(str(template_dir)),
         undefined=StrictUndefined,
         keep_trailing_newline=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
     )
     template = env.get_template("skill_header.j2")
+
+    # Build phase slug map: PhaseId → "p7-handoff" (for display only; .value stays "p7").
+    # Falls back to bare .value for terminal states (e.g. COMPLETE) that have no PhaseSpec.
+    phase_slug: dict[PhaseId, str] = {
+        phase_id: (
+            f"{spec.id.value}-{spec.name.lower().replace(' ', '-')}"
+            if (spec := PHASE_SPECS.get(phase_id)) is not None
+            else phase_id.value
+        )
+        for phase_id in PhaseId
+    }
+
+    # Sort owned phases by declaration order in PhaseId (not string order)
+    owned_phases_sorted = [p for p in PhaseId if p in set(role_spec.owned_phases)]
 
     context: dict = {
         "role": role_spec,
         "commands": _commands_for_role(role_id),
         "constraints": _constraints_for_role(role_id),
         "handoffs": _handoffs_for_role(role_id),
-        "owned_phases": sorted(role_spec.owned_phases),
+        "owned_phases": owned_phases_sorted,
         "phases_detail": _owned_phase_details(role_spec),
         "steps": list(PROCEDURE_STEPS.get(role_id, [])),
+        "phase_slug": phase_slug,
     }
 
     return template.render(**context)
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
+
+
+def _has_markers(content: str) -> bool:
+    """Return True if content contains both BEGIN and END markers."""
+    return GENERATED_BEGIN in content and GENERATED_END in content
 
 
 def generate_skill(
@@ -244,6 +273,7 @@ def generate_skill(
     template_dir: pathlib.Path | str | None = None,
     diff: bool = True,
     write: bool = True,
+    init: bool = False,
 ) -> str:
     """Generate the SKILL.md header for a role and (optionally) write it.
 
@@ -253,7 +283,7 @@ def generate_skill(
         The role to generate for (must be in ROLE_SPECS).
     skill_path:
         Path to the target SKILL.md file.  The file must already exist
-        and contain the BEGIN/END marker pair.
+        and contain the BEGIN/END marker pair (unless *init* is True).
     template_dir:
         Directory containing ``skill_header.j2``.  Defaults to the
         ``skills/templates/`` directory relative to the repo root.
@@ -263,6 +293,10 @@ def generate_skill(
     write:
         If True (default), write the new content to *skill_path*.
         Set False for dry-run / test assertions.
+    init:
+        If True, prepend BEGIN/END markers to files that lack them before
+        generating.  Files that already have markers are left as-is.
+        When False (default), missing markers raise MarkerError.
 
     Returns
     -------
@@ -273,7 +307,8 @@ def generate_skill(
     ------
     MarkerError
         If *skill_path* is missing the BEGIN/END marker pair or the
-        markers are malformed (e.g., reversed order, duplicate).
+        markers are malformed (e.g., reversed order, duplicate), and
+        *init* is False.
     FileNotFoundError
         If *skill_path* does not exist.
     jinja2.UndefinedError
@@ -287,6 +322,15 @@ def generate_skill(
 
     # Read existing file
     old_content = skill_path.read_text(encoding="utf-8")
+
+    # In --init mode, prepend markers if missing
+    if init and not _has_markers(old_content):
+        marker_prefix = f"{GENERATED_BEGIN}\n{GENERATED_END}\n\n"
+        old_content = marker_prefix + old_content
+        # Write the marker-prepended content so subsequent logic works
+        if write:
+            skill_path.write_text(old_content, encoding="utf-8")
+
     old_lines = old_content.splitlines(keepends=True)
 
     # Locate markers — raises MarkerError on any problem
@@ -328,3 +372,58 @@ def generate_skill(
         skill_path.write_text(new_content, encoding="utf-8")
 
     return new_content
+
+
+# ─── CLI ──────────────────────────────────────────────────────────────────────
+
+# Mapping from RoleId → skill directory name (relative to skills/)
+_ROLE_SKILL_DIRS: dict[RoleId, str] = {
+    RoleId.SUPERVISOR: "supervisor",
+    RoleId.WORKER: "worker",
+    RoleId.REVIEWER: "reviewer",
+    RoleId.ARCHITECT: "architect",
+}
+
+
+def main() -> int:
+    """CLI entry point. Generates SKILL.md headers for all roles.
+
+    Usage: python -m aura_protocol.gen_skills [--init]
+
+    --init: Prepend BEGIN/END markers to SKILL.md files that lack them,
+            then generate headers. Without --init, files missing markers
+            raise MarkerError.
+
+    Returns: 0 on success, 1 on error.
+    """
+    import sys
+
+    init_mode = "--init" in sys.argv[1:]
+    script_dir = pathlib.Path(__file__).resolve().parent
+    skills_dir = script_dir.parent.parent / "skills"
+
+    errors: list[str] = []
+    for role_id, dir_name in _ROLE_SKILL_DIRS.items():
+        skill_path = skills_dir / dir_name / "SKILL.md"
+        if not skill_path.exists():
+            print(f"Skipping {skill_path} (not found)", file=sys.stderr)
+            continue
+        try:
+            generate_skill(role_id, skill_path, diff=True, init=init_mode)
+            print(f"Generated {skill_path}")
+        except MarkerError as e:
+            errors.append(str(e))
+            print(f"ERROR: {e}", file=sys.stderr)
+        except OSError as e:
+            errors.append(str(e))
+            print(f"ERROR writing {skill_path}: {e}", file=sys.stderr)
+
+    if errors:
+        print(f"\n{len(errors)} error(s) encountered.", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())

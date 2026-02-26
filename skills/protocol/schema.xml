@@ -253,12 +253,30 @@
         <substep id="s8" type="plan" execution="sequential" order="1" label-ref="L-p8s8">
           <description>Identify production code paths. Create SLICE-N tasks with leaf tasks. Assign workers.</description>
           <startup-sequence>
-            <step order="1">Call Skill(/aura:supervisor) to load role instructions</step>
-            <step order="2">Read RATIFIED_PLAN and URD via bd show</step>
-            <step order="3">Create standing explore team via TeamCreate before any codebase exploration</step>
-            <step order="4" next-state="p8">Decompose into vertical slices</step>
-            <step order="5">Create leaf tasks (L1/L2/L3) for every slice</step>
-            <step order="6" next-state="p9">Spawn workers for leaf tasks</step>
+            <step order="1" id="S-supervisor-call-skill">
+              <instruction>Call Skill(/aura:supervisor) to load role instructions</instruction>
+              <command>Skill(/aura:supervisor)</command>
+            </step>
+            <step order="2" id="S-supervisor-read-plan">
+              <instruction>Read RATIFIED_PLAN and URD via bd show</instruction>
+              <command>bd show &lt;ratified-plan-id&gt; &amp;&amp; bd show &lt;urd-id&gt;</command>
+            </step>
+            <step order="3" id="S-supervisor-cartographers">
+              <instruction>Create standing explore team via TeamCreate before any codebase exploration</instruction>
+              <context>TeamCreate with /aura:explore role; minimum 3 agents</context>
+            </step>
+            <step order="4" id="S-supervisor-decompose-slices" next-state="p8">
+              <instruction>Decompose into vertical slices</instruction>
+              <context>Vertical slices give one worker end-to-end ownership of a feature path (types → tests → impl → wiring) with clear file boundaries</context>
+            </step>
+            <step order="5" id="S-supervisor-create-leaf-tasks">
+              <instruction>Create leaf tasks (L1/L2/L3) for every slice</instruction>
+              <command>bd create --labels aura:p9-impl:s9-slice --title "SLICE-{K}-L{1,2,3}: &lt;description&gt;" ...</command>
+            </step>
+            <step order="6" id="S-supervisor-spawn-workers" next-state="p9">
+              <instruction>Spawn workers for leaf tasks</instruction>
+              <command>aura-swarm start --epic &lt;epic-id&gt;</command>
+            </step>
           </startup-sequence>
         </substep>
       </substeps>
@@ -822,7 +840,10 @@
     <!-- Ownership -->
     <constraint id="C-vertical-slices" given="implementation decomposition" when="assigning work" then="each production code path owned by exactly ONE worker (full vertical)" should-not="assign horizontal layers or same path to multiple workers" role-ref="supervisor" phase-ref="p8,p9" />
     <constraint id="C-supervisor-no-impl" given="supervisor role" when="implementation phase" then="spawn workers for all code changes" should-not="implement code directly" role-ref="supervisor" phase-ref="p8,p9" />
-    <constraint id="C-supervisor-explore-team" given="supervisor needs codebase exploration" when="starting Phase 8 (IMPL_PLAN)" then="create standing explore team via TeamCreate with minimum 1 scoped explore agent; delegate all deep exploration to explore agents; reuse agents for follow-up queries on same domain" should-not="perform deep codebase exploration directly as supervisor" role-ref="supervisor" phase-ref="p8" />
+    <constraint id="C-supervisor-cartographers" given="supervisor needs codebase exploration and code review" when="starting Phase 8 (IMPL_PLAN) and Phase 10 (Code Review)" then="create exactly 3 Cartographers via TeamCreate with /aura:explore before any exploration; Cartographers are dual-role: explore codebase in Phase 8, switch to /aura:reviewer in Phase 10; Cartographers NEVER shut down between phases — persist for full Ride the Wave cycle; max 3 worker-reviewer cycles; supervisor shuts down Cartographers after cycle 3 or all-ACCEPT" should-not="perform deep codebase exploration directly as supervisor; shut down Cartographers between Phase 8 and Phase 10; exceed 3 worker-reviewer cycles" role-ref="epoch,supervisor" phase-ref="p8,p9,p10" />
+    <constraint id="C-integration-points" given="multiple vertical slices share types, interfaces, or data flows" when="decomposing IMPL_PLAN in Phase 8" then="identify horizontal Layer Integration Points and document them in IMPL_PLAN; each integration point specifies: owning slice, consuming slices, shared contract, merge timing; include integration points in slice descriptions so workers know what to export and import" should-not="leave cross-slice dependencies implicit; assume workers will discover contracts on their own" role-ref="epoch,supervisor" phase-ref="p8" />
+    <constraint id="C-slice-review-before-close" given="workers complete their implementation slices" when="slice implementation is done" then="workers notify supervisor with bd comments add (not bd close); slices must be reviewed at least once by Cartographers before closure; only the supervisor closes slices, after review passes" should-not="close slices immediately upon worker completion; allow workers to close their own slices" role-ref="epoch,supervisor" phase-ref="p9,p10" />
+    <constraint id="C-max-review-cycles" given="worker-Cartographer review-fix cycles are ongoing" when="counting review-fix iterations" then="limit to a maximum of 3 cycles total; after cycle 3, remaining IMPORTANT findings move to FOLLOWUP epic; proceed to Phase 11 (UAT) regardless of remaining IMPORTANTs after cycle 3" should-not="exceed 3 worker-reviewer cycles; block UAT on non-BLOCKER findings after 3 cycles" role-ref="epoch,supervisor" phase-ref="p10" />
     <constraint id="C-slice-leaf-tasks" given="vertical slice created" when="decomposing slice into implementation units" then="create Beads leaf tasks (L1: types, L2: tests, L3: impl) within each slice with bd dep add slice-id --blocked-by leaf-task-id" should-not="create slices without leaf tasks — a slice with no children is undecomposed and cannot be tracked" role-ref="supervisor" phase-ref="p8,p9" />
     <constraint id="C-handoff-skill-invocation" given="an agent is launched for a new phase (especially p7 to p8 handoff)" when="composing the launch prompt" then="prompt MUST start with Skill(/aura:{role}) invocation directive so the agent loads its role instructions" should-not="launch agents without skill invocation — they skip role-critical procedures like explore team setup and leaf task creation" role-ref="epoch,architect,supervisor" phase-ref="p7" />
     <!-- Task management -->
@@ -1072,4 +1093,49 @@
       <transition order="8" handoff-ref="h4" description="Worker → Reviewer: Worker completes follow-up slice. Handoff includes which original leaf tasks were resolved." />
     </handoff-chain>
   </followup-lifecycle>
+  <!-- ═══════════════════════════════════════════════════════════════════════
+     PROCEDURE STEPS
+
+     Per-role ordered steps (startup sequence for supervisor,
+     TDD layers for worker). Only roles with non-empty steps are listed.
+     ═══════════════════════════════════════════════════════════════════════ -->
+  <procedure-steps>
+    <role ref="supervisor">
+      <step order="1" id="S-supervisor-call-skill">
+        <instruction>Call Skill(/aura:supervisor) to load role instructions</instruction>
+        <command>Skill(/aura:supervisor)</command>
+      </step>
+      <step order="2" id="S-supervisor-read-plan">
+        <instruction>Read RATIFIED_PLAN and URD via bd show</instruction>
+        <command>bd show &lt;ratified-plan-id&gt; &amp;&amp; bd show &lt;urd-id&gt;</command>
+      </step>
+      <step order="3" id="S-supervisor-cartographers">
+        <instruction>Create standing explore team via TeamCreate before any codebase exploration</instruction>
+        <context>TeamCreate with /aura:explore role; minimum 3 agents</context>
+      </step>
+      <step order="4" id="S-supervisor-decompose-slices" next-state="p8">
+        <instruction>Decompose into vertical slices</instruction>
+        <context>Vertical slices give one worker end-to-end ownership of a feature path (types → tests → impl → wiring) with clear file boundaries</context>
+      </step>
+      <step order="5" id="S-supervisor-create-leaf-tasks">
+        <instruction>Create leaf tasks (L1/L2/L3) for every slice</instruction>
+        <command>bd create --labels aura:p9-impl:s9-slice --title "SLICE-{K}-L{1,2,3}: &lt;description&gt;" ...</command>
+      </step>
+      <step order="6" id="S-supervisor-spawn-workers" next-state="p9">
+        <instruction>Spawn workers for leaf tasks</instruction>
+        <command>aura-swarm start --epic &lt;epic-id&gt;</command>
+      </step>
+    </role>
+    <role ref="worker">
+      <step order="1" id="S-worker-types">
+        <instruction>Types, interfaces, schemas (no deps)</instruction>
+      </step>
+      <step order="2" id="S-worker-tests">
+        <instruction>Tests importing production code (will fail initially)</instruction>
+      </step>
+      <step order="3" id="S-worker-impl" next-state="p9">
+        <instruction>Make tests pass. Wire with real dependencies. No TODOs.</instruction>
+      </step>
+    </role>
+  </procedure-steps>
 </aura-protocol>

@@ -29,10 +29,11 @@ from aura_protocol import (
     ROLE_SPECS,
     TITLE_CONVENTIONS,
     RoleId,
+    StepSlug,
 )
 from aura_protocol.gen_schema import (
-    _PHASE_CONSTRAINTS,
-    _ROLE_CONSTRAINTS,
+    _CONSTRAINT_TO_PHASE_REF,
+    _CONSTRAINT_TO_ROLE_REF,
     generate_schema,
 )
 from aura_protocol.gen_skills import GENERATED_BEGIN, GENERATED_END, generate_skill
@@ -98,6 +99,7 @@ class TestValidationPasses:
             "enums", "labels", "review-axes", "phases", "roles",
             "commands", "handoffs", "constraints", "task-titles",
             "documents", "dependency-model", "followup-lifecycle",
+            "procedure-steps",
         ]
         for section in required_sections:
             assert generated_xml_root.find(section) is not None, (
@@ -203,6 +205,187 @@ class TestDiffOutput:
         )
 
 
+# ─── Procedure-steps section ──────────────────────────────────────────────────
+
+
+class TestProcedureStepsSection:
+    """Verify <procedure-steps> section is generated with correct structure."""
+
+    def test_procedure_steps_section_exists(
+        self, generated_xml_root: ET.Element
+    ) -> None:
+        """The generated XML must contain a <procedure-steps> section."""
+        proc_el = generated_xml_root.find("procedure-steps")
+        assert proc_el is not None, (
+            "Missing <procedure-steps> section in generated schema.xml"
+        )
+
+    def test_supervisor_role_in_procedure_steps(
+        self, generated_xml_root: ET.Element
+    ) -> None:
+        """<procedure-steps> must contain a <role ref='supervisor'> with steps."""
+        proc_el = generated_xml_root.find("procedure-steps")
+        assert proc_el is not None
+
+        roles = {r.get("ref"): r for r in proc_el.findall("role")}
+        assert "supervisor" in roles, (
+            "Missing <role ref='supervisor'> in <procedure-steps>"
+        )
+        sup_role = roles["supervisor"]
+        steps = sup_role.findall("step")
+        assert len(steps) == len(PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+            f"Supervisor step count mismatch: "
+            f"XML={len(steps)}, Python={len(PROCEDURE_STEPS[RoleId.SUPERVISOR])}"
+        )
+        # Verify first step has id and order attributes, and <instruction> child element
+        first_step = steps[0]
+        assert first_step.get("id") is not None, (
+            "First supervisor step missing 'id' attribute"
+        )
+        assert first_step.get("order") == "1", (
+            f"First supervisor step order should be '1', got {first_step.get('order')!r}"
+        )
+        instr_el = first_step.find("instruction")
+        assert instr_el is not None and instr_el.text, (
+            "First supervisor step missing <instruction> child element"
+        )
+
+    def test_worker_role_in_procedure_steps(
+        self, generated_xml_root: ET.Element
+    ) -> None:
+        """<procedure-steps> must contain a <role ref='worker'> with steps."""
+        proc_el = generated_xml_root.find("procedure-steps")
+        assert proc_el is not None
+
+        roles = {r.get("ref"): r for r in proc_el.findall("role")}
+        assert "worker" in roles, (
+            "Missing <role ref='worker'> in <procedure-steps>"
+        )
+        worker_role = roles["worker"]
+        steps = worker_role.findall("step")
+        assert len(steps) == len(PROCEDURE_STEPS[RoleId.WORKER]), (
+            f"Worker step count mismatch: "
+            f"XML={len(steps)}, Python={len(PROCEDURE_STEPS[RoleId.WORKER])}"
+        )
+
+    def test_empty_roles_excluded(
+        self, generated_xml_root: ET.Element
+    ) -> None:
+        """Roles with empty PROCEDURE_STEPS must not appear in <procedure-steps>."""
+        proc_el = generated_xml_root.find("procedure-steps")
+        assert proc_el is not None
+
+        role_refs = {r.get("ref") for r in proc_el.findall("role")}
+        for role_id, steps in PROCEDURE_STEPS.items():
+            if not steps:
+                assert role_id.value not in role_refs, (
+                    f"Role {role_id.value!r} has empty PROCEDURE_STEPS "
+                    f"but appears in <procedure-steps> XML"
+                )
+
+    def test_optional_child_elements_present_when_set(
+        self, generated_xml_root: ET.Element
+    ) -> None:
+        """Steps with command/context in Python emit those as child elements; next-state as attribute."""
+        proc_el = generated_xml_root.find("procedure-steps")
+        assert proc_el is not None
+
+        sup_role = None
+        for r in proc_el.findall("role"):
+            if r.get("ref") == "supervisor":
+                sup_role = r
+                break
+        assert sup_role is not None
+
+        xml_steps = sup_role.findall("step")
+        python_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        for xml_step, py_step in zip(xml_steps, python_steps):
+            # id and order are XML attributes
+            assert xml_step.get("id") == py_step.id, (
+                f"Step {py_step.order} id mismatch: "
+                f"XML={xml_step.get('id')!r}, Python={py_step.id!r}"
+            )
+            # instruction is always a child element
+            instr_el = xml_step.find("instruction")
+            assert instr_el is not None and instr_el.text is not None, (
+                f"Step {py_step.order} missing <instruction> child element"
+            )
+            assert instr_el.text.strip() == py_step.instruction, (
+                f"Step {py_step.order} instruction mismatch"
+            )
+            # command: child element when set, absent when None
+            cmd_el = xml_step.find("command")
+            if py_step.command is not None:
+                assert cmd_el is not None and cmd_el.text is not None, (
+                    f"Step {py_step.order} missing <command> child element"
+                )
+                assert cmd_el.text.strip() == py_step.command, (
+                    f"Step {py_step.order} command mismatch"
+                )
+            else:
+                assert cmd_el is None, (
+                    f"Step {py_step.order} should not have <command> child element"
+                )
+            # context: child element when set, absent when None
+            ctx_el = xml_step.find("context")
+            if py_step.context is not None:
+                assert ctx_el is not None and ctx_el.text is not None, (
+                    f"Step {py_step.order} missing <context> child element"
+                )
+                assert ctx_el.text.strip() == py_step.context, (
+                    f"Step {py_step.order} context mismatch"
+                )
+            else:
+                assert ctx_el is None, (
+                    f"Step {py_step.order} should not have <context> child element"
+                )
+            # next-state: XML attribute when set, absent when None
+            ns_attr = xml_step.get("next-state")
+            if py_step.next_state is not None:
+                assert ns_attr is not None, (
+                    f"Step {py_step.order} missing next-state attribute"
+                )
+                assert ns_attr == py_step.next_state.value, (
+                    f"Step {py_step.order} next-state mismatch"
+                )
+            else:
+                assert ns_attr is None, (
+                    f"Step {py_step.order} should not have next-state attribute"
+                )
+
+
+# ─── No-changes message ──────────────────────────────────────────────────────
+
+
+class TestNoChangesMessage:
+    """Verify 'No changes' message when schema content is unchanged."""
+
+    def test_no_changes_on_second_generate(self, tmp_path: Path) -> None:
+        """Running generate_schema twice should print 'No changes' on second run."""
+        output = tmp_path / "schema.xml"
+        # First generate (creates the file)
+        generate_schema(output, diff=False)
+
+        # Second generate with diff=True (should detect no changes)
+        captured = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured
+        try:
+            generate_schema(output, diff=True)
+        finally:
+            sys.stdout = old_stdout
+
+        diff_output = captured.getvalue()
+        assert "No changes" in diff_output, (
+            f"Expected 'No changes' message on second generate, "
+            f"got: {diff_output[:300]!r}"
+        )
+        assert "up to date" in diff_output, (
+            f"Expected 'up to date' in no-changes message, "
+            f"got: {diff_output[:300]!r}"
+        )
+
+
 # ─── AC2b: role-ref/phase-ref on constraint elements ─────────────────────────
 
 
@@ -212,7 +395,7 @@ class TestConstraintRolePhaseRefs:
     def test_constraints_have_role_ref_when_defined(
         self, generated_xml_root: ET.Element
     ) -> None:
-        """Constraints with role-ref in _ROLE_CONSTRAINTS have role-ref attribute in XML."""
+        """Constraints with role-ref in _CONSTRAINT_TO_ROLE_REF have role-ref attribute in XML."""
         constraints_el = generated_xml_root.find("constraints")
         assert constraints_el is not None, "<constraints> section missing"
 
@@ -220,7 +403,7 @@ class TestConstraintRolePhaseRefs:
             cid = constraint.get("id")
             if cid is None:
                 continue
-            expected_role = _ROLE_CONSTRAINTS.get(cid)
+            expected_role = _CONSTRAINT_TO_ROLE_REF.get(cid)
             xml_role = constraint.get("role-ref")
             assert xml_role == expected_role, (
                 f"Constraint {cid!r}: expected role-ref={expected_role!r}, "
@@ -230,7 +413,7 @@ class TestConstraintRolePhaseRefs:
     def test_constraints_have_phase_ref_when_defined(
         self, generated_xml_root: ET.Element
     ) -> None:
-        """Constraints with phase-ref in _PHASE_CONSTRAINTS have phase-ref attribute in XML."""
+        """Constraints with phase-ref in _CONSTRAINT_TO_PHASE_REF have phase-ref attribute in XML."""
         constraints_el = generated_xml_root.find("constraints")
         assert constraints_el is not None, "<constraints> section missing"
 
@@ -238,7 +421,7 @@ class TestConstraintRolePhaseRefs:
             cid = constraint.get("id")
             if cid is None:
                 continue
-            expected_phase = _PHASE_CONSTRAINTS.get(cid)
+            expected_phase = _CONSTRAINT_TO_PHASE_REF.get(cid)
             xml_phase = constraint.get("phase-ref")
             assert xml_phase == expected_phase, (
                 f"Constraint {cid!r}: expected phase-ref={expected_phase!r}, "
@@ -310,18 +493,37 @@ class TestConstraintRolePhaseRefs:
             if cid:
                 by_id[cid] = c
 
-        # Supervisor-specific constraints
-        supervisor_constraints = [
+        # Supervisor-only constraints (not shared with epoch)
+        supervisor_only_constraints = [
             "C-supervisor-no-impl",
-            "C-supervisor-explore-team",
             "C-slice-leaf-tasks",
             "C-vertical-slices",
         ]
-        for cid in supervisor_constraints:
+        for cid in supervisor_only_constraints:
             if cid in by_id:
                 assert by_id[cid].get("role-ref") == "supervisor", (
                     f"{cid} should have role-ref='supervisor', "
                     f"got {by_id[cid].get('role-ref')!r}"
+                )
+
+        # Ride the Wave constraints shared between epoch and supervisor
+        ride_the_wave_constraints = [
+            "C-supervisor-cartographers",
+            "C-integration-points",
+            "C-slice-review-before-close",
+            "C-max-review-cycles",
+        ]
+        for cid in ride_the_wave_constraints:
+            if cid in by_id:
+                role_ref = by_id[cid].get("role-ref", "")
+                role_parts = set(role_ref.split(","))
+                assert "supervisor" in role_parts, (
+                    f"{cid} should include 'supervisor' in role-ref, "
+                    f"got {role_ref!r}"
+                )
+                assert "epoch" in role_parts, (
+                    f"{cid} should include 'epoch' in role-ref (Ride the Wave), "
+                    f"got {role_ref!r}"
                 )
 
         # Worker-specific constraint
@@ -608,7 +810,13 @@ class TestRoundTripConsistency:
         )
 
     def test_roundtrip_procedure_steps_supervisor(self, parsed_spec) -> None:
-        """Round-trip: supervisor procedure steps match PROCEDURE_STEPS field-by-field."""
+        """Round-trip (AC-B3-1): supervisor procedure steps match PROCEDURE_STEPS —
+        all 6 fields asserted field-by-field.
+
+        Supervisor steps are parsed from <startup-sequence> in schema.xml phase p8;
+        the parser round-trips id, order, instruction, command, context, and
+        next_state for each step.
+        """
         python_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
         parsed_steps = parsed_spec.procedure_steps.get(RoleId.SUPERVISOR, ())
         assert len(parsed_steps) == len(python_steps), (
@@ -616,17 +824,39 @@ class TestRoundTripConsistency:
             f"parsed={len(parsed_steps)}, python={len(python_steps)}"
         )
         for i, (py_step, parsed_step) in enumerate(zip(python_steps, parsed_steps)):
-            assert parsed_step.description == py_step.description, (
-                f"Supervisor step[{i}] description mismatch: "
-                f"parsed={parsed_step.description!r}, python={py_step.description!r}"
+            assert parsed_step.id == py_step.id, (
+                f"Supervisor step[{i}] id mismatch: "
+                f"parsed={parsed_step.id!r}, python={py_step.id!r}"
             )
             assert parsed_step.order == py_step.order, (
                 f"Supervisor step[{i}] order mismatch: "
                 f"parsed={parsed_step.order!r}, python={py_step.order!r}"
             )
+            assert parsed_step.instruction == py_step.instruction, (
+                f"Supervisor step[{i}] instruction mismatch: "
+                f"parsed={parsed_step.instruction!r}, python={py_step.instruction!r}"
+            )
+            assert parsed_step.command == py_step.command, (
+                f"Supervisor step[{i}] command mismatch: "
+                f"parsed={parsed_step.command!r}, python={py_step.command!r}"
+            )
+            assert parsed_step.context == py_step.context, (
+                f"Supervisor step[{i}] context mismatch: "
+                f"parsed={parsed_step.context!r}, python={py_step.context!r}"
+            )
+            assert parsed_step.next_state == py_step.next_state, (
+                f"Supervisor step[{i}] next_state mismatch: "
+                f"parsed={parsed_step.next_state!r}, python={py_step.next_state!r}"
+            )
 
     def test_roundtrip_procedure_steps_worker(self, parsed_spec) -> None:
-        """Round-trip: worker procedure steps match PROCEDURE_STEPS field-by-field."""
+        """Round-trip (AC-B3-2): worker procedure steps match PROCEDURE_STEPS —
+        id/order/instruction match; command/context/next_state are each explicitly None.
+
+        Worker steps are parsed from <tdd-layers> in schema.xml phase p9.  The parser
+        intentionally does not set command, context, or next_state for worker steps
+        (those fields are not present in <tdd-layers>), so each must be None.
+        """
         python_steps = PROCEDURE_STEPS[RoleId.WORKER]
         parsed_steps = parsed_spec.procedure_steps.get(RoleId.WORKER, ())
         assert len(parsed_steps) == len(python_steps), (
@@ -634,13 +864,34 @@ class TestRoundTripConsistency:
             f"parsed={len(parsed_steps)}, python={len(python_steps)}"
         )
         for i, (py_step, parsed_step) in enumerate(zip(python_steps, parsed_steps)):
-            assert parsed_step.description == py_step.description, (
-                f"Worker step[{i}] description mismatch: "
-                f"parsed={parsed_step.description!r}, python={py_step.description!r}"
+            assert parsed_step.id == py_step.id, (
+                f"Worker step[{i}] id mismatch: "
+                f"parsed={parsed_step.id!r}, python={py_step.id!r}"
             )
             assert parsed_step.order == py_step.order, (
                 f"Worker step[{i}] order mismatch: "
                 f"parsed={parsed_step.order!r}, python={py_step.order!r}"
+            )
+            assert parsed_step.instruction == py_step.instruction, (
+                f"Worker step[{i}] instruction mismatch: "
+                f"parsed={parsed_step.instruction!r}, python={py_step.instruction!r}"
+            )
+            # Worker steps come from <tdd-layers>, not <startup-sequence>;
+            # the parser intentionally discards command/context/next_state.
+            assert parsed_step.command is None, (
+                f"Worker step[{i}] command must be None "
+                f"(worker steps have no command in <tdd-layers>), "
+                f"got {parsed_step.command!r}"
+            )
+            assert parsed_step.context is None, (
+                f"Worker step[{i}] context must be None "
+                f"(worker steps have no context in <tdd-layers>), "
+                f"got {parsed_step.context!r}"
+            )
+            assert parsed_step.next_state is None, (
+                f"Worker step[{i}] next_state must be None "
+                f"(worker steps have no next-state in <tdd-layers>), "
+                f"got {parsed_step.next_state!r}"
             )
 
 
@@ -774,4 +1025,38 @@ class TestSchemaXmlDrift:
         assert content == canonical, (
             "Generated schema.xml differs from canonical. "
             "Run: uv run python scripts/aura_protocol/gen_schema.py to regenerate."
+        )
+
+
+# ─── D1: Slug pin literals — guard against silent step ID renames ──────────────
+
+
+class TestSlugPinLiterals:
+    """D1: StepSlug enum assertions that specific step IDs exist in PROCEDURE_STEPS.
+
+    These guard against silent renames of well-known step IDs. Using StepSlug
+    enum values instead of bare string literals ensures that any rename in
+    types.py causes a single canonical failure point in StepSlug, not a
+    scattered set of string hunts across the test suite.
+    """
+
+    def test_supervisor_call_skill_slug(self) -> None:
+        """StepSlug.Supervisor.CallSkill must exist as a supervisor procedure step."""
+        assert any(s.id == StepSlug.Supervisor.CallSkill for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+            f"Expected step {StepSlug.Supervisor.CallSkill!r} in PROCEDURE_STEPS[SUPERVISOR]. "
+            "If this step was renamed, update StepSlug.Supervisor.CallSkill to reflect the new name."
+        )
+
+    def test_supervisor_cartographers_slug(self) -> None:
+        """StepSlug.Supervisor.Cartographers must exist as a supervisor procedure step."""
+        assert any(s.id == StepSlug.Supervisor.Cartographers for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+            f"Expected step {StepSlug.Supervisor.Cartographers!r} in PROCEDURE_STEPS[SUPERVISOR]. "
+            "If this step was renamed, update StepSlug.Supervisor.Cartographers to reflect the new name."
+        )
+
+    def test_worker_types_slug(self) -> None:
+        """StepSlug.Worker.Types must exist as a worker procedure step."""
+        assert any(s.id == StepSlug.Worker.Types for s in PROCEDURE_STEPS[RoleId.WORKER]), (
+            f"Expected step {StepSlug.Worker.Types!r} in PROCEDURE_STEPS[WORKER]. "
+            "If this step was renamed, update StepSlug.Worker.Types to reflect the new name."
         )

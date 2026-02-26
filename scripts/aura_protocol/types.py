@@ -10,14 +10,14 @@ Integration test: tests/test_schema_types_sync.py verifies Python types match sc
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
 
-class PhaseId(str, Enum):
+class PhaseId(StrEnum):
     """12-phase epoch lifecycle + COMPLETE sentinel.
 
     Values match schema.xml <phase id="..."> elements.
@@ -38,7 +38,7 @@ class PhaseId(str, Enum):
     COMPLETE = "complete"
 
 
-class Domain(str, Enum):
+class Domain(StrEnum):
     """Phase domain classification.
 
     Values match schema.xml <enum name="DomainType"> entries.
@@ -49,7 +49,7 @@ class Domain(str, Enum):
     IMPL = "impl"
 
 
-class RoleId(str, Enum):
+class RoleId(StrEnum):
     """Agent role identifiers.
 
     Values match schema.xml <role id="..."> elements.
@@ -62,7 +62,7 @@ class RoleId(str, Enum):
     WORKER = "worker"
 
 
-class VoteType(str, Enum):
+class VoteType(StrEnum):
     """Binary review vote.
 
     Values match schema.xml <enum name="VoteType"> entries.
@@ -72,7 +72,7 @@ class VoteType(str, Enum):
     REVISE = "REVISE"
 
 
-class SeverityLevel(str, Enum):
+class SeverityLevel(StrEnum):
     """Code review finding severity.
 
     Values match schema.xml <enum name="SeverityLevel"> entries.
@@ -83,7 +83,7 @@ class SeverityLevel(str, Enum):
     MINOR = "MINOR"
 
 
-class ExecutionMode(str, Enum):
+class ExecutionMode(StrEnum):
     """Substep execution mode within a phase.
 
     Values match schema.xml <enum name="ExecutionMode"> entries.
@@ -93,7 +93,7 @@ class ExecutionMode(str, Enum):
     PARALLEL = "parallel"
 
 
-class ContentLevel(str, Enum):
+class ContentLevel(StrEnum):
     """Handoff document content level.
 
     Values match schema.xml <enum name="ContentLevel"> entries.
@@ -103,7 +103,7 @@ class ContentLevel(str, Enum):
     SUMMARY_WITH_IDS = "summary-with-ids"
 
 
-class ReviewAxis(str, Enum):
+class ReviewAxis(StrEnum):
     """Review axis identifier letters used in review votes.
 
     Values match schema.xml <axis letter="..."> elements.
@@ -114,7 +114,7 @@ class ReviewAxis(str, Enum):
     C = "C"
 
 
-class SubstepType(str, Enum):
+class SubstepType(StrEnum):
     """Substep type classification within a phase.
 
     Values match schema.xml <substep type="..."> attributes.
@@ -133,6 +133,45 @@ class SubstepType(str, Enum):
     PLAN = "plan"
     SLICE = "slice"
     LANDING = "landing"
+
+
+# ─── Step Slug + Skill Ref Namespaces ─────────────────────────────────────────
+
+
+class StepSlug:
+    """Typed namespace for ProcedureStep.id slug constants.
+
+    Nested StrEnums allow typed references in PROCEDURE_STEPS and tests
+    while remaining transparently interoperable with str (comparison,
+    XML attribute assignment, etc. all work without conversion).
+    """
+
+    class Supervisor(StrEnum):
+        """Slug constants for supervisor procedure step IDs."""
+
+        CallSkill = "S-supervisor-call-skill"
+        ReadPlan = "S-supervisor-read-plan"
+        Cartographers = "S-supervisor-cartographers"
+        DecomposeSlices = "S-supervisor-decompose-slices"
+        CreateLeafTasks = "S-supervisor-create-leaf-tasks"
+        SpawnWorkers = "S-supervisor-spawn-workers"
+
+    class Worker(StrEnum):
+        """Slug constants for worker procedure step IDs."""
+
+        Types = "S-worker-types"
+        Tests = "S-worker-tests"
+        Impl = "S-worker-impl"
+
+
+class SkillRef(StrEnum):
+    """Skill invocation strings for ProcedureStep.command.
+
+    Values match the Skill(/aura:<role>) directive format.
+    """
+
+    SUPERVISOR = "Skill(/aura:supervisor)"
+    WORKER = "Skill(/aura:worker)"
 
 
 # ─── Frozen Dataclasses ───────────────────────────────────────────────────────
@@ -304,11 +343,20 @@ class TitleConvention:
 class ProcedureStep:
     """A single step in a role's startup or operational procedure.
 
-    Derived from schema.xml <step> elements within <startup-sequence>.
+    Fields:
+        id:          Unique step identifier, e.g. 'S-supervisor-call-skill'.
+        order:       Step number (1-based).
+        instruction: Human-readable description of what to do.
+        command:     Optional exact shell/bd command to run (e.g. 'bd dep add ...').
+        context:     Optional situational context (e.g. 'only if working on a follow-up').
+        next_state:  Phase this step transitions to, if any.
     """
 
+    id: str
     order: int
-    description: str
+    instruction: str
+    command: str | None = None
+    context: str | None = None
     next_state: PhaseId | None = None
 
 
@@ -670,16 +718,63 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         then="spawn workers for all code changes",
         should_not="implement code directly",
     ),
-    "C-supervisor-explore-team": ConstraintSpec(
-        id="C-supervisor-explore-team",
-        given="supervisor needs codebase exploration",
-        when="starting Phase 8 (IMPL_PLAN)",
+    "C-supervisor-cartographers": ConstraintSpec(
+        id="C-supervisor-cartographers",
+        given="supervisor needs codebase exploration and code review",
+        when="starting Phase 8 (IMPL_PLAN) and Phase 10 (Code Review)",
         then=(
-            "create standing explore team via TeamCreate with minimum 1 scoped explore agent; "
-            "delegate all deep exploration to explore agents; "
-            "reuse agents for follow-up queries on same domain"
+            "create exactly 3 Cartographers via TeamCreate with /aura:explore before any exploration; "
+            "Cartographers are dual-role: explore codebase in Phase 8, switch to /aura:reviewer in Phase 10; "
+            "Cartographers NEVER shut down between phases — persist for full Ride the Wave cycle; "
+            "max 3 worker-reviewer cycles; supervisor shuts down Cartographers after cycle 3 or all-ACCEPT"
         ),
-        should_not="perform deep codebase exploration directly as supervisor",
+        should_not=(
+            "perform deep codebase exploration directly as supervisor; "
+            "shut down Cartographers between Phase 8 and Phase 10; "
+            "exceed 3 worker-reviewer cycles"
+        ),
+    ),
+    "C-integration-points": ConstraintSpec(
+        id="C-integration-points",
+        given="multiple vertical slices share types, interfaces, or data flows",
+        when="decomposing IMPL_PLAN in Phase 8",
+        then=(
+            "identify horizontal Layer Integration Points and document them in IMPL_PLAN; "
+            "each integration point specifies: owning slice, consuming slices, shared contract, merge timing; "
+            "include integration points in slice descriptions so workers know what to export and import"
+        ),
+        should_not=(
+            "leave cross-slice dependencies implicit; "
+            "assume workers will discover contracts on their own"
+        ),
+    ),
+    "C-slice-review-before-close": ConstraintSpec(
+        id="C-slice-review-before-close",
+        given="workers complete their implementation slices",
+        when="slice implementation is done",
+        then=(
+            "workers notify supervisor with bd comments add (not bd close); "
+            "slices must be reviewed at least once by Cartographers before closure; "
+            "only the supervisor closes slices, after review passes"
+        ),
+        should_not=(
+            "close slices immediately upon worker completion; "
+            "allow workers to close their own slices"
+        ),
+    ),
+    "C-max-review-cycles": ConstraintSpec(
+        id="C-max-review-cycles",
+        given="worker-Cartographer review-fix cycles are ongoing",
+        when="counting review-fix iterations",
+        then=(
+            "limit to a maximum of 3 cycles total; "
+            "after cycle 3, remaining IMPORTANT findings move to FOLLOWUP epic; "
+            "proceed to Phase 11 (UAT) regardless of remaining IMPORTANTs after cycle 3"
+        ),
+        should_not=(
+            "exceed 3 worker-reviewer cycles; "
+            "block UAT on non-BLOCKER findings after 3 cycles"
+        ),
     ),
     "C-slice-leaf-tasks": ConstraintSpec(
         id="C-slice-leaf-tasks",
@@ -1548,35 +1643,66 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
     RoleId.ARCHITECT: (),
     RoleId.REVIEWER: (),
     RoleId.SUPERVISOR: (
-        ProcedureStep(order=1, description="Call Skill(/aura:supervisor) to load role instructions"),
-        ProcedureStep(order=2, description="Read RATIFIED_PLAN and URD via bd show"),
         ProcedureStep(
+            id=StepSlug.Supervisor.CallSkill,
+            order=1,
+            instruction="Call Skill(/aura:supervisor) to load role instructions",
+            command=SkillRef.SUPERVISOR,
+        ),
+        ProcedureStep(
+            id=StepSlug.Supervisor.ReadPlan,
+            order=2,
+            instruction="Read RATIFIED_PLAN and URD via bd show",
+            command="bd show <ratified-plan-id> && bd show <urd-id>",
+        ),
+        ProcedureStep(
+            id=StepSlug.Supervisor.Cartographers,
             order=3,
-            description=(
-                "Create standing explore team via TeamCreate before any codebase exploration"
+            instruction="Create standing explore team via TeamCreate before any codebase exploration",
+            context="TeamCreate with /aura:explore role; minimum 3 agents",
+        ),
+        ProcedureStep(
+            id=StepSlug.Supervisor.DecomposeSlices,
+            order=4,
+            instruction="Decompose into vertical slices",
+            context=(
+                "Vertical slices give one worker end-to-end ownership of a feature path "
+                "(types → tests → impl → wiring) with clear file boundaries"
+            ),
+            next_state=PhaseId.P8_IMPL_PLAN,
+        ),
+        ProcedureStep(
+            id=StepSlug.Supervisor.CreateLeafTasks,
+            order=5,
+            instruction="Create leaf tasks (L1/L2/L3) for every slice",
+            command=(
+                'bd create --labels aura:p9-impl:s9-slice --title '
+                '"SLICE-{K}-L{1,2,3}: <description>" ...'
             ),
         ),
         ProcedureStep(
-            order=4,
-            description="Decompose into vertical slices",
-            next_state=PhaseId.P8_IMPL_PLAN,
-        ),
-        ProcedureStep(order=5, description="Create leaf tasks (L1/L2/L3) for every slice"),
-        ProcedureStep(
+            id=StepSlug.Supervisor.SpawnWorkers,
             order=6,
-            description="Spawn workers for leaf tasks",
+            instruction="Spawn workers for leaf tasks",
+            command="aura-swarm start --epic <epic-id>",
             next_state=PhaseId.P9_SLICE,
         ),
     ),
     RoleId.WORKER: (
-        ProcedureStep(order=1, description="Types, interfaces, schemas (no deps)"),
         ProcedureStep(
-            order=2,
-            description="Tests importing production code (will fail initially)",
+            id=StepSlug.Worker.Types,
+            order=1,
+            instruction="Types, interfaces, schemas (no deps)",
         ),
         ProcedureStep(
+            id=StepSlug.Worker.Tests,
+            order=2,
+            instruction="Tests importing production code (will fail initially)",
+        ),
+        ProcedureStep(
+            id=StepSlug.Worker.Impl,
             order=3,
-            description="Make tests pass. Wire with real dependencies. No TODOs.",
+            instruction="Make tests pass. Wire with real dependencies. No TODOs.",
             next_state=PhaseId.P9_SLICE,
         ),
     ),

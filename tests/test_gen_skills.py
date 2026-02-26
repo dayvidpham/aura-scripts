@@ -11,6 +11,7 @@ Acceptance Criteria covered:
 from __future__ import annotations
 
 import pathlib
+import re
 
 import jinja2
 import pytest
@@ -688,15 +689,274 @@ class TestStartupSequenceSection:
 class TestStrictUndefined:
     """AC8: Jinja2 StrictUndefined is active — undefined variables raise UndefinedError."""
 
-    def test_undefined_variable_raises_undefined_error(self) -> None:
-        """A template referencing an undefined variable must raise jinja2.UndefinedError.
+    def test_undefined_variable_raises_undefined_error(self, tmp_path: pathlib.Path) -> None:
+        """generate_skill() must raise jinja2.UndefinedError when the template references
+        an undefined variable.
 
         This is a regression test for the StrictUndefined mode set in gen_skills.py.
         If someone removes ``undefined=StrictUndefined`` from the Environment
         constructor, this test will fail, catching the regression.
-        """
-        env = jinja2.Environment(undefined=jinja2.StrictUndefined)
-        template = env.from_string("{{ missing_variable }}")
 
+        The test goes through generate_skill() — NOT a manually constructed
+        jinja2.Environment — so it exercises the actual production code path.
+        """
+        # (a) Create a temp template dir with skill_header.j2 containing an undefined var.
+        #     The template file MUST be named skill_header.j2 — _render_header() loads it
+        #     via env.get_template('skill_header.j2').  Any other name causes
+        #     TemplateNotFound, not UndefinedError.
+        template_dir = tmp_path / "templates"
+        template_dir.mkdir()
+        (template_dir / "skill_header.j2").write_text(
+            "{{ undefined_var }}", encoding="utf-8"
+        )
+
+        # (b) Create a valid SKILL.md with BEGIN/END markers at skill_path.
+        #     Without valid markers generate_skill() raises MarkerError before rendering.
+        skill_path = tmp_path / "SKILL.md"
+        skill_path.write_text(
+            f"{GENERATED_BEGIN}\n(placeholder)\n{GENERATED_END}\n",
+            encoding="utf-8",
+        )
+
+        # generate_skill() must raise UndefinedError because skill_header.j2
+        # references {{ undefined_var }} which is not provided to the render context.
         with pytest.raises(jinja2.UndefinedError):
-            template.render()  # no 'missing_variable' in context
+            generate_skill(RoleId.SUPERVISOR, skill_path, template_dir=template_dir)
+
+
+# ─── Marker string values ─────────────────────────────────────────────────────
+
+
+class TestUpdatedMarkerStrings:
+    """Marker constants must contain 'aura schema'."""
+
+    def test_generated_begin_contains_aura_schema(self) -> None:
+        """GENERATED_BEGIN must contain 'aura schema'."""
+        assert "aura schema" in GENERATED_BEGIN, (
+            f"GENERATED_BEGIN must contain 'aura schema', got: {GENERATED_BEGIN!r}"
+        )
+
+    def test_generated_end_contains_aura_schema(self) -> None:
+        """GENERATED_END must contain 'aura schema'."""
+        assert "aura schema" in GENERATED_END, (
+            f"GENERATED_END must contain 'aura schema', got: {GENERATED_END!r}"
+        )
+
+    def test_begin_is_html_comment(self) -> None:
+        """GENERATED_BEGIN must be a valid HTML comment."""
+        assert GENERATED_BEGIN.startswith("<!--") and GENERATED_BEGIN.endswith("-->")
+
+    def test_end_is_html_comment(self) -> None:
+        """GENERATED_END must be a valid HTML comment."""
+        assert GENERATED_END.startswith("<!--") and GENERATED_END.endswith("-->")
+
+
+# ─── Init mode ─────────────────────────────────────────────────────────────────
+
+
+class TestInitMode:
+    """--init mode: prepend markers to unmarked files before generating."""
+
+    def test_init_mode_adds_markers_to_unmarked_file(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """init=True prepends markers to a file without them, then generates header."""
+        content = "# Hand-authored content\n\nKeep this body.\n"
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=True,
+            init=True,
+        )
+
+        # Markers must be present in output
+        assert GENERATED_BEGIN in result
+        assert GENERATED_END in result
+        # Original body must be preserved
+        assert "Hand-authored content" in result
+        assert "Keep this body." in result
+        # File on disk must match
+        written = skill_path.read_text(encoding="utf-8")
+        assert written == result
+
+    def test_init_mode_noop_on_marked_file(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """init=True doesn't double-add markers to a file that already has them."""
+        content = _minimal_with_markers(body="## Existing body\n")
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+            init=True,
+        )
+
+        # Should have exactly one pair of markers
+        assert result.count(GENERATED_BEGIN) == 1
+        assert result.count(GENERATED_END) == 1
+        # Body preserved
+        assert "Existing body" in result
+
+    def test_init_mode_false_raises_on_unmarked_file(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """init=False (default) still raises MarkerError on unmarked file."""
+        content = "# No markers here\n"
+        skill_path = _make_skill_file(tmp_path, content)
+
+        with pytest.raises(MarkerError):
+            generate_skill(
+                RoleId.SUPERVISOR,
+                skill_path,
+                template_dir=TEMPLATE_DIR,
+                diff=False,
+                write=False,
+                init=False,
+            )
+
+    def test_init_mode_generates_valid_header(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """init=True generates a valid header (not just empty markers)."""
+        content = "# Worker skill\n"
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+            init=True,
+        )
+
+        # Header must contain role name from rendered template
+        assert "Worker" in result
+        # Must contain protocol sections
+        assert "## Protocol Context" in result
+
+
+# ─── ProcedureStep rendering ──────────────────────────────────────────────────
+
+
+class TestProcedureStepsInGeneratedHeader:
+    """ProcedureStep fields (instruction, command, context) rendered in SKILL.md."""
+
+    def test_supervisor_has_step_instructions(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Supervisor steps must render instruction text."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        # Supervisor has steps — check that Step 1 instruction text is present
+        assert "**Step 1:**" in result
+        # The instruction text should be a non-empty string after "Step N:"
+        lines = [l for l in result.splitlines() if "**Step 1:**" in l]
+        assert len(lines) == 1
+        # After "**Step 1:** " there should be instruction text
+        step_line = lines[0]
+        after_prefix = step_line.split("**Step 1:**")[1].strip()
+        assert len(after_prefix) > 0, "Step 1 instruction text is empty"
+
+    def test_worker_has_step_instructions(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Worker steps must render instruction text."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "**Step 1:**" in result
+        lines = [l for l in result.splitlines() if "**Step 1:**" in l]
+        assert len(lines) == 1
+        step_line = lines[0]
+        after_prefix = step_line.split("**Step 1:**")[1].strip()
+        assert len(after_prefix) > 0, "Step 1 instruction text is empty"
+
+
+# ─── ProcedureStep rendering format (B2) ─────────────────────────────────────
+
+
+class TestProcedureStepFormatting:
+    """B2: generate_skill() renders ProcedureStep.command with backticks and
+    ProcedureStep.context with em-dash italic pattern."""
+
+    def test_supervisor_steps_rendered_with_backtick_command(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Supervisor output must contain a backtick-wrapped command string.
+
+        Supervisor steps with a .command field (e.g. 'Skill(/aura:supervisor)')
+        must be rendered inside backticks in the generated SKILL.md header.
+        """
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        output = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert re.search(r"`[^`]+`", output), (
+            "Expected at least one backtick-wrapped command in generate_skill() output "
+            "for the supervisor role."
+        )
+
+    def test_supervisor_steps_rendered_with_em_dash_italic_context(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Supervisor output must contain an em-dash italic context string.
+
+        Supervisor steps with a .context field must be rendered using the
+        em-dash italic pattern ( — _..._) in the generated SKILL.md header.
+        """
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        output = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert re.search(r"— _[^_]+_", output), (
+            "Expected at least one em-dash italic context pattern ( — _..._) in "
+            "generate_skill() output for the supervisor role."
+        )

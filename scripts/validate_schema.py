@@ -256,8 +256,10 @@ def build_index(root: ET.Element) -> tuple[SchemaIndex, list[ValidationError]]:
         if pid:
             idx.phase_substep_orders[pid] = substep_data
 
-    # Roles
-    for role in root.iter("role"):
+    # Roles (only under <roles> section — other <role> elements e.g. in
+    # <procedure-steps> use ref= not id=/name= and are validated separately)
+    roles_el = root.find("roles")
+    for role in (roles_el.findall("role") if roles_el is not None else []):
         desc = _elem_desc(role)
         _check_required(errors, desc, role, ["id", "name"])
         rid = role.get("id")

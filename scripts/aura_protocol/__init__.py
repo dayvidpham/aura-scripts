@@ -15,6 +15,8 @@ Enums:
     ContentLevel  — full-provenance, summary-with-ids
     ReviewAxis    — A, B, C
     SubstepType   — 13 values: classify, research, explore, elicit, urd, propose, review, uat, ratify, handoff, plan, slice, landing
+    StepSlug      — nested namespace: StepSlug.Supervisor.* and StepSlug.Worker.* str enums for ProcedureStep.id
+    SkillRef      — SUPERVISOR, WORKER str enum for ProcedureStep.command skill invocations
 
 Frozen Dataclasses:
     Transition          — single valid phase transition
@@ -102,6 +104,8 @@ from aura_protocol.context_injection import (
     RoleContext,
     get_phase_context,
     get_role_context,
+    render_role_context_as_text,
+    render_role_context_as_xml,
 )
 from aura_protocol.gen_schema import (
     generate_schema,
@@ -165,6 +169,8 @@ from aura_protocol.types import (
     RoleId,
     RoleSpec,
     SeverityLevel,
+    SkillRef,
+    StepSlug,
     SubstepSpec,
     SubstepType,
     TitleConvention,
@@ -187,6 +193,8 @@ __all__ = [
     "ContentLevel",
     "ReviewAxis",
     "SubstepType",
+    "StepSlug",
+    "SkillRef",
     # Frozen dataclasses
     "Transition",
     "PhaseSpec",
@@ -250,4 +258,6 @@ __all__ = [
     "PhaseContext",
     "get_role_context",
     "get_phase_context",
+    "render_role_context_as_text",
+    "render_role_context_as_xml",
 ]

@@ -193,6 +193,8 @@ def _parse_procedure_steps(
     """Extract startup-sequence steps from substeps in Phase 8 (supervisor role).
 
     Phase 8's substep s8 has a <startup-sequence> that defines supervisor steps.
+    Each <step> has 'order' and 'id' as XML attributes; instruction/command/context/
+    next-state are child elements (only present when non-None).
     Worker role steps derive from TDD layer descriptions in Phase 9 (<tdd-layers>).
     Other roles get empty tuples.
     """
@@ -226,13 +228,52 @@ def _parse_procedure_steps(
                         f"Order must be an integer. "
                         f"Fix: correct the 'order' attribute."
                     )
-                text = step_el.text.strip() if step_el.text else ""
-                sup_steps.append(ProcedureStep(order=order, description=text))
+                step_id = _require(
+                    step_el.get("id"), "id", "<startup-sequence/step>", path
+                )
+                # instruction child element (required)
+                instr_el = step_el.find("instruction")
+                if instr_el is None or not instr_el.text:
+                    raise SchemaParseError(
+                        f"Missing required <instruction> child element on <step id='{step_id}'> "
+                        f"in startup-sequence in {path}. "
+                        f"Instruction is required for all procedure steps. "
+                        f"Fix: add <instruction>...</instruction> as a child element of the <step>."
+                    )
+                instruction = instr_el.text.strip()
+                # optional child elements
+                cmd_el = step_el.find("command")
+                command = cmd_el.text.strip() if cmd_el is not None and cmd_el.text else None
+                ctx_el = step_el.find("context")
+                context = ctx_el.text.strip() if ctx_el is not None and ctx_el.text else None
+                # next-state is optional — attribute may be absent; None if not present
+                ns_val = step_el.get("next-state")
+                next_state: PhaseId | None = None
+                if ns_val:
+                    try:
+                        next_state = PhaseId(ns_val)
+                    except ValueError:
+                        raise SchemaParseError(
+                            f"Unknown next-state '{ns_val}' in startup step "
+                            f"order='{order}' in {path}. "
+                            f"Valid phases: {[p.value for p in PhaseId]}. "
+                            f"Fix: correct the 'next-state' attribute on <step>."
+                        )
+                sup_steps.append(ProcedureStep(
+                    id=step_id,
+                    order=order,
+                    instruction=instruction,
+                    command=command,
+                    context=context,
+                    next_state=next_state,
+                ))
             sup_steps.sort(key=lambda s: s.order)
             steps[RoleId.SUPERVISOR] = tuple(sup_steps)
         break
 
     # Worker: TDD layer descriptions from phase p9 <tdd-layers>
+    # Worker steps use a simplified format (description attribute, no id in XML).
+    # We synthesize ids from the layer number.
     for phase in phases_el.findall("phase"):
         if phase.get("id") != "p9":
             continue
@@ -240,6 +281,7 @@ def _parse_procedure_steps(
         if tdd_layers is None:
             break
         worker_steps: list[ProcedureStep] = []
+        _worker_ids = ["S-worker-types", "S-worker-tests", "S-worker-impl"]
         for layer in tdd_layers.findall("layer"):
             num_str = layer.get("number", "")
             desc = layer.get("description", "")
@@ -247,7 +289,8 @@ def _parse_procedure_steps(
                 num = int(num_str)
             except ValueError:
                 continue
-            worker_steps.append(ProcedureStep(order=num, description=desc))
+            step_id = _worker_ids[num - 1] if 1 <= num <= len(_worker_ids) else f"S-worker-step{num}"
+            worker_steps.append(ProcedureStep(id=step_id, order=num, instruction=desc))
         worker_steps.sort(key=lambda s: s.order)
         steps[RoleId.WORKER] = tuple(worker_steps)
         break

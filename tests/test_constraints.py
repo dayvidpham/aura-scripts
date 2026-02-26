@@ -35,7 +35,10 @@ Coverage:
     - check_followup_lifecycle: C-followup-lifecycle
     - check_followup_leaf_adoption: C-followup-leaf-adoption
     - check_worker_gates: C-worker-gates
-    - check_supervisor_explore_team: C-supervisor-explore-team
+    - check_supervisor_cartographers: C-supervisor-cartographers
+    - check_integration_points: C-integration-points
+    - check_slice_review_before_close: C-slice-review-before-close
+    - check_max_review_cycles: C-max-review-cycles
     - check_vertical_slices: C-vertical-slices
     - _SAME_ACTOR: module-level constant
     - Edge cases: no violations returns empty list
@@ -1495,39 +1498,127 @@ class TestCheckWorkerGates:
         assert any(v.context.get("gate") == "tests" for v in violations)
 
 
-# ─── C-supervisor-explore-team ────────────────────────────────────────────────
+# ─── C-supervisor-cartographers ───────────────────────────────────────────────
 
 
-class TestCheckSupervisorExploreTeam:
-    """C-supervisor-explore-team: supervisor must have explore team at p8."""
+class TestCheckSupervisorCartographers:
+    """C-supervisor-cartographers: supervisor must have Cartographers at p8."""
 
     def test_p8_with_explore_team_returns_empty(self) -> None:
         checker = _make_checker()
-        violations = checker.check_supervisor_explore_team(
+        violations = checker.check_supervisor_cartographers(
             PhaseId.P8_IMPL_PLAN, has_explore_team=True
         )
         assert violations == []
 
     def test_p8_without_explore_team_returns_violation(self) -> None:
         checker = _make_checker()
-        violations = checker.check_supervisor_explore_team(
+        violations = checker.check_supervisor_cartographers(
             PhaseId.P8_IMPL_PLAN, has_explore_team=False
         )
         assert len(violations) == 1
-        assert violations[0].constraint_id == "C-supervisor-explore-team"
+        assert violations[0].constraint_id == "C-supervisor-cartographers"
 
     def test_non_p8_phase_returns_empty_regardless_of_explore_team(self) -> None:
         checker = _make_checker()
         for phase in (
             PhaseId.P1_REQUEST, PhaseId.P9_SLICE, PhaseId.P10_CODE_REVIEW
         ):
-            violations = checker.check_supervisor_explore_team(phase, has_explore_team=False)
+            violations = checker.check_supervisor_cartographers(phase, has_explore_team=False)
             assert violations == [], f"Unexpected violation at {phase}"
 
     def test_violation_context_contains_phase(self) -> None:
         checker = _make_checker()
-        violations = checker.check_supervisor_explore_team(PhaseId.P8_IMPL_PLAN, False)
+        violations = checker.check_supervisor_cartographers(PhaseId.P8_IMPL_PLAN, False)
         assert violations[0].context.get("phase") == "p8"
+
+
+# ─── C-integration-points ─────────────────────────────────────────────────────
+
+
+class TestCheckIntegrationPoints:
+    """C-integration-points: cross-slice dependencies must be documented in IMPL_PLAN."""
+
+    def test_with_integration_points_returns_empty(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_integration_points(has_integration_points=True)
+        assert violations == []
+
+    def test_without_integration_points_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_integration_points(has_integration_points=False)
+        assert len(violations) == 1
+        assert violations[0].constraint_id == "C-integration-points"
+
+    def test_violation_context_contains_flag(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_integration_points(has_integration_points=False)
+        assert violations[0].context.get("has_integration_points") == "False"
+
+
+# ─── C-slice-review-before-close ──────────────────────────────────────────────
+
+
+class TestCheckSliceReviewBeforeClose:
+    """C-slice-review-before-close: slices must be reviewed before closure."""
+
+    def test_supervisor_closes_after_review_returns_empty(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_slice_review_before_close(
+            slice_closed_by_worker=False, review_completed=True
+        )
+        assert violations == []
+
+    def test_worker_closes_slice_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_slice_review_before_close(
+            slice_closed_by_worker=True, review_completed=True
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-slice-review-before-close" in ids
+
+    def test_supervisor_closes_without_review_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_slice_review_before_close(
+            slice_closed_by_worker=False, review_completed=False
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-slice-review-before-close" in ids
+
+    def test_violation_context_contains_flags(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_slice_review_before_close(
+            slice_closed_by_worker=True, review_completed=False
+        )
+        ctx = violations[0].context
+        assert "slice_closed_by_worker" in ctx
+        assert "review_completed" in ctx
+
+
+# ─── C-max-review-cycles ──────────────────────────────────────────────────────
+
+
+class TestCheckMaxReviewCycles:
+    """C-max-review-cycles: worker-reviewer cycles capped at 3."""
+
+    def test_within_limit_returns_empty(self) -> None:
+        checker = _make_checker()
+        for count in (1, 2, 3):
+            violations = checker.check_max_review_cycles(review_cycle_count=count)
+            assert violations == [], f"Unexpected violation at cycle count {count}"
+
+    def test_exceeds_limit_returns_violation(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_max_review_cycles(review_cycle_count=4)
+        assert len(violations) == 1
+        assert violations[0].constraint_id == "C-max-review-cycles"
+
+    def test_violation_context_contains_counts(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_max_review_cycles(review_cycle_count=5)
+        ctx = violations[0].context
+        assert ctx.get("review_cycle_count") == "5"
+        assert ctx.get("max_cycles") == "3"
 
 
 # ─── C-vertical-slices ────────────────────────────────────────────────────────
@@ -1842,14 +1933,36 @@ class TestCheckStructural:
         ids = {v.constraint_id for v in violations}
         assert "C-supervisor-no-impl" in ids
 
-    def test_supervisor_explore_team_violation_at_p8(self) -> None:
+    def test_supervisor_cartographers_violation_at_p8(self) -> None:
         checker = _make_checker()
         violations = checker.check_structural(
             phase=PhaseId.P8_IMPL_PLAN,
             has_explore_team=False,
         )
         ids = {v.constraint_id for v in violations}
-        assert "C-supervisor-explore-team" in ids
+        assert "C-supervisor-cartographers" in ids
+
+    def test_integration_points_via_structural(self) -> None:
+        """C-integration-points surfaces through check_structural()."""
+        checker = _make_checker()
+        violations = checker.check_structural(has_integration_points=False)
+        ids = {v.constraint_id for v in violations}
+        assert "C-integration-points" in ids
+
+    def test_slice_review_before_close_via_structural(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(
+            slice_closed_by_worker=True,
+            review_completed=False,
+        )
+        ids = {v.constraint_id for v in violations}
+        assert "C-slice-review-before-close" in ids
+
+    def test_max_review_cycles_via_structural(self) -> None:
+        checker = _make_checker()
+        violations = checker.check_structural(review_cycle_count=4)
+        ids = {v.constraint_id for v in violations}
+        assert "C-max-review-cycles" in ids
 
     def test_ure_verbatim_missing_question_returns_violation(self) -> None:
         checker = _make_checker()

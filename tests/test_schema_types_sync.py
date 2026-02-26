@@ -32,6 +32,7 @@ from aura_protocol import (
     PhaseId,
     RoleId,
     SeverityLevel,
+    SkillRef,
     Transition,
     VoteType,
 )
@@ -618,10 +619,18 @@ class TestProcedureStepsMatchSchema:
         assert len(steps) > 0, "PROCEDURE_STEPS[worker] must be non-empty (UAT-6)"
 
     def test_supervisor_steps_from_schema(self, schema_root: ET.Element) -> None:
-        """Supervisor steps match startup-sequence from schema.xml phase p8."""
+        """Supervisor PROCEDURE_STEPS match startup-sequence in schema.xml phase p8.
+
+        For each step, asserts:
+        - step.id matches the 'id' XML attribute on the <step> element
+        - step.instruction matches the <instruction> child element text
+
+        Steps carry 'order' and 'id' as XML attributes; instruction/command/context/
+        next-state are child elements (only present when non-None).
+        """
         steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
-        # Phase 8 substep s8 has a startup-sequence in schema.xml
-        startup_steps: list[str] = []
+        # Collect the raw <step> XML elements from phase p8 startup-sequence
+        xml_steps: list[ET.Element] = []
         phases_el = schema_root.find("phases")
         if phases_el is not None:
             for phase in phases_el.findall("phase"):
@@ -633,19 +642,43 @@ class TestProcedureStepsMatchSchema:
                 for substep in substeps_el.findall("substep"):
                     startup_seq = substep.find("startup-sequence")
                     if startup_seq is not None:
-                        for step in startup_seq.findall("step"):
-                            if step.text:
-                                startup_steps.append(step.text.strip())
+                        xml_steps.extend(startup_seq.findall("step"))
                 break
-        assert len(steps) == len(startup_steps), (
+        assert len(steps) == len(xml_steps), (
             f"Supervisor procedure step count mismatch: "
-            f"Python has {len(steps)}, schema has {len(startup_steps)} startup steps"
+            f"Python has {len(steps)}, schema has {len(xml_steps)} startup steps"
         )
-        for i, (step, expected_text) in enumerate(zip(steps, startup_steps)):
-            assert step.description == expected_text, (
-                f"Supervisor step {i + 1} description mismatch: "
-                f"Python={step.description!r}, schema={expected_text!r}"
+        for i, (step, xml_step) in enumerate(zip(steps, xml_steps)):
+            # id must match XML attribute
+            assert step.id == xml_step.get("id"), (
+                f"Supervisor step {i + 1} id mismatch: "
+                f"Python={step.id!r}, schema={xml_step.get('id')!r}"
             )
+            # instruction must match <instruction> child element text
+            instr_el = xml_step.find("instruction")
+            expected_text = instr_el.text.strip() if instr_el is not None and instr_el.text else ""
+            assert step.instruction == expected_text, (
+                f"Supervisor step {i + 1} instruction mismatch: "
+                f"Python={step.instruction!r}, schema={expected_text!r}"
+            )
+
+    def test_procedure_step_command_and_context_values(self) -> None:
+        """At least one supervisor step has a known command value and at least one
+        has a non-None context value.
+
+        AC-B1-1: Given PROCEDURE_STEPS[RoleId.SUPERVISOR], when values are
+        inspected directly, then at least one step has .command == SkillRef.SUPERVISOR
+        and at least one step has non-None .context string.
+        """
+        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        assert any(s.command == SkillRef.SUPERVISOR for s in steps), (
+            "Expected at least one supervisor step with "
+            f".command == {SkillRef.SUPERVISOR!r} in PROCEDURE_STEPS"
+        )
+        assert any(s.context is not None for s in steps), (
+            "Expected at least one supervisor step with non-None .context "
+            "in PROCEDURE_STEPS"
+        )
 
     def test_procedure_steps_ordered(self) -> None:
         """Procedure steps are in ascending order for all populated roles."""

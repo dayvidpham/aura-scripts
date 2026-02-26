@@ -294,9 +294,16 @@ class RuntimeConstraintChecker:
         # check_supervisor_no_impl
         role: str | None = None,
         action_type: str | None = None,
-        # check_supervisor_explore_team
+        # check_integration_points
+        has_integration_points: bool | None = None,
+        # check_supervisor_cartographers
         phase: PhaseId | None = None,
         has_explore_team: bool | None = None,
+        # check_slice_review_before_close
+        slice_closed_by_worker: bool | None = None,
+        review_completed: bool | None = None,
+        # check_max_review_cycles
+        review_cycle_count: int | None = None,
         # check_followup_leaf_adoption
         leaf_task_id: str | None = None,
         followup_slice_id: str | None = None,
@@ -323,7 +330,10 @@ class RuntimeConstraintChecker:
         - C-followup-timing (has_important_or_minor, followup_created)
         - C-frontmatter-refs (task_description, required_ref_keys)
         - C-supervisor-no-impl (role, action_type)
-        - C-supervisor-explore-team (phase, has_explore_team)
+        - C-integration-points (has_integration_points)
+        - C-supervisor-cartographers (phase, has_explore_team)
+        - C-slice-review-before-close (slice_closed_by_worker, review_completed)
+        - C-max-review-cycles (review_cycle_count)
         - C-followup-leaf-adoption (leaf_task_id, severity_group_id, followup_slice_id)
         - C-worker-gates (has_todos, tests_pass, typecheck_pass)
         - C-vertical-slices (production_code_path, owner_ids)
@@ -363,8 +373,19 @@ class RuntimeConstraintChecker:
         if role is not None and action_type is not None:
             violations.extend(self.check_supervisor_no_impl(role, action_type))
 
+        if has_integration_points is not None:
+            violations.extend(self.check_integration_points(has_integration_points))
+
         if phase is not None and has_explore_team is not None:
-            violations.extend(self.check_supervisor_explore_team(phase, has_explore_team))
+            violations.extend(self.check_supervisor_cartographers(phase, has_explore_team))
+
+        if slice_closed_by_worker is not None and review_completed is not None:
+            violations.extend(
+                self.check_slice_review_before_close(slice_closed_by_worker, review_completed)
+            )
+
+        if review_cycle_count is not None:
+            violations.extend(self.check_max_review_cycles(review_cycle_count))
 
         if leaf_task_id is not None and severity_group_id is not None and followup_slice_id is not None:
             violations.extend(
@@ -1212,15 +1233,15 @@ class RuntimeConstraintChecker:
 
         return violations
 
-    def check_supervisor_explore_team(
+    def check_supervisor_cartographers(
         self,
         phase: PhaseId,
         has_explore_team: bool,
     ) -> list[ConstraintViolation]:
-        """C-supervisor-explore-team: supervisor must use standing explore team for p8 exploration.
+        """C-supervisor-cartographers: supervisor must use Cartographers for p8 exploration and p10 review.
 
-        At Phase 8 (IMPL_PLAN), supervisor must create a standing explore team
-        via TeamCreate and delegate all deep codebase exploration to explore agents.
+        At Phase 8 (IMPL_PLAN), supervisor must create exactly 3 Cartographers via TeamCreate.
+        Cartographers are dual-role (explore → review) and must persist for the full Ride the Wave cycle.
 
         Returns violation if at p8 and has_explore_team is False.
         """
@@ -1232,16 +1253,124 @@ class RuntimeConstraintChecker:
 
         return [
             ConstraintViolation(
-                constraint_id="C-supervisor-explore-team",
+                constraint_id="C-supervisor-cartographers",
                 message=(
-                    "Phase p8 (IMPL_PLAN): supervisor must create a standing explore team "
-                    "via TeamCreate before performing any codebase exploration. "
-                    "Minimum 1 scoped explore agent. "
-                    "Supervisor must NOT explore the codebase directly."
+                    "Phase p8 (IMPL_PLAN): supervisor must create exactly 3 Cartographers "
+                    "via TeamCreate with /aura:explore before any codebase exploration. "
+                    "Cartographers are dual-role (explore in p8, review in p10) and must NOT be "
+                    "shut down between phases. Supervisor must NOT explore the codebase directly."
                 ),
                 context={
                     "phase": phase.value,
                     "has_explore_team": str(has_explore_team),
+                },
+            )
+        ]
+
+    def check_integration_points(
+        self,
+        has_integration_points: bool,
+    ) -> list[ConstraintViolation]:
+        """C-integration-points: cross-slice dependencies must be documented in IMPL_PLAN.
+
+        When multiple vertical slices share types, interfaces, or data flows, the supervisor
+        must document Layer Integration Points in the IMPL_PLAN with owner, consumers,
+        shared contract, and merge timing.
+
+        Returns violation if has_integration_points is False.
+        """
+        if has_integration_points:
+            return []
+
+        return [
+            ConstraintViolation(
+                constraint_id="C-integration-points",
+                message=(
+                    "IMPL_PLAN is missing Layer Integration Points. "
+                    "Cross-slice dependencies must be explicitly documented: "
+                    "owning slice, consuming slices, shared contract, merge timing. "
+                    "Workers cannot discover contracts on their own."
+                ),
+                context={"has_integration_points": str(has_integration_points)},
+            )
+        ]
+
+    def check_slice_review_before_close(
+        self,
+        slice_closed_by_worker: bool,
+        review_completed: bool,
+    ) -> list[ConstraintViolation]:
+        """C-slice-review-before-close: slices must be reviewed before closure.
+
+        Workers must notify via bd comments add (not bd close).
+        Only the supervisor closes slices, after Cartographer review passes.
+
+        Returns violation if slice_closed_by_worker is True, or if slice is closed
+        without review_completed.
+        """
+        violations: list[ConstraintViolation] = []
+
+        if slice_closed_by_worker:
+            violations.append(
+                ConstraintViolation(
+                    constraint_id="C-slice-review-before-close",
+                    message=(
+                        "Worker must NOT close their own slice. "
+                        "Workers notify supervisor via bd comments add; "
+                        "only the supervisor closes slices after Cartographer review passes."
+                    ),
+                    context={
+                        "slice_closed_by_worker": str(slice_closed_by_worker),
+                        "review_completed": str(review_completed),
+                    },
+                )
+            )
+
+        if not slice_closed_by_worker and not review_completed:
+            violations.append(
+                ConstraintViolation(
+                    constraint_id="C-slice-review-before-close",
+                    message=(
+                        "Slice cannot be closed before Cartographer review is completed. "
+                        "At least one review cycle must pass before supervisor closes the slice."
+                    ),
+                    context={
+                        "slice_closed_by_worker": str(slice_closed_by_worker),
+                        "review_completed": str(review_completed),
+                    },
+                )
+            )
+
+        return violations
+
+    def check_max_review_cycles(
+        self,
+        review_cycle_count: int,
+    ) -> list[ConstraintViolation]:
+        """C-max-review-cycles: worker-Cartographer review-fix cycles capped at 3.
+
+        After cycle 3, remaining IMPORTANT findings move to FOLLOWUP epic.
+        Phase 11 (UAT) proceeds regardless of remaining IMPORTANTs after cycle 3.
+
+        Returns violation if review_cycle_count exceeds 3.
+        """
+        _MAX_CYCLES = 3
+
+        if review_cycle_count <= _MAX_CYCLES:
+            return []
+
+        return [
+            ConstraintViolation(
+                constraint_id="C-max-review-cycles",
+                message=(
+                    f"Review-fix cycles exceeded maximum of {_MAX_CYCLES} "
+                    f"(current: {review_cycle_count}). "
+                    "Remaining IMPORTANT findings must move to FOLLOWUP epic. "
+                    "Proceed to Phase 11 (UAT) without blocking on non-BLOCKER findings."
+                ),
+                context={
+                    "review_cycle_count": str(review_cycle_count),
+                    "max_cycles": str(_MAX_CYCLES),
                 },
             )
         ]

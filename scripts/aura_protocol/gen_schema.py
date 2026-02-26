@@ -5,7 +5,8 @@ that matches the existing structure and passes validate_schema.py with 0 errors.
 
 New in this generator (UAT-2, UAT-3):
 - role-ref and phase-ref attributes on <constraint> elements, derived from
-  context_injection._ROLE_CONSTRAINTS and _PHASE_CONSTRAINTS (single source).
+  context_injection._ROLE_CONSTRAINTS and _PHASE_CONSTRAINTS (single source,
+  inverted into _CONSTRAINT_TO_ROLE_REF and _CONSTRAINT_TO_PHASE_REF).
 - Unified diff shown to stdout before writing (UAT-2).
 - SUBSTEP_DATA, _PHASE_TRANSITIONS, _PHASE_TASK_TITLES derived from types.py (DRY).
 
@@ -22,6 +23,7 @@ from __future__ import annotations
 
 import difflib
 import io
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -54,9 +56,9 @@ from aura_protocol.types import (
 # role→constraints (1:many). These dicts are built by inverting context_injection's
 # mappings at import time so the two modules stay in sync automatically.
 #
-# role-ref: ALL matching roles, comma-separated (e.g. "reviewer,supervisor,epoch").
+# _CONSTRAINT_TO_ROLE_REF: ALL matching roles per constraint, comma-separated.
 # Constraints in _GENERAL_CONSTRAINTS (all roles) → None (omit role-ref from XML).
-# phase-ref: ALL matching phases, comma-separated (e.g. "p4,p10").
+# _CONSTRAINT_TO_PHASE_REF: ALL matching phases per constraint, comma-separated.
 # Constraints present in ALL phases (general) → None (omit phase-ref from XML).
 
 _ROLE_PRIORITY: tuple[RoleId, ...] = (
@@ -108,10 +110,10 @@ def _build_constraint_phase_refs() -> dict[str, str | None]:
 
 
 # Constraint → comma-separated role string(s) (or None for global) — for XML role-ref attribute.
-_ROLE_CONSTRAINTS: dict[str, str | None] = _build_constraint_role_refs()
+_CONSTRAINT_TO_ROLE_REF: dict[str, str | None] = _build_constraint_role_refs()
 
 # Constraint → comma-separated phase string(s) (or None for global) — for XML phase-ref attribute.
-_PHASE_CONSTRAINTS: dict[str, str | None] = _build_constraint_phase_refs()
+_CONSTRAINT_TO_PHASE_REF: dict[str, str | None] = _build_constraint_phase_refs()
 
 
 # ─── Phase substep, task-title, and transition data ───────────────────────────
@@ -555,11 +557,20 @@ def _build_phases(root: ET.Element) -> None:
                     startup_el = ET.SubElement(substep_el, "startup-sequence")
                     sup_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
                     for step in sup_steps:
-                        step_attrs: dict[str, str] = {"order": str(step.order)}
+                        step_el = ET.SubElement(startup_el, "step",
+                                                order=str(step.order),
+                                                id=step.id)
+                        instr_el = ET.SubElement(step_el, "instruction")
+                        instr_el.text = step.instruction
+                        if step.command is not None:
+                            cmd_el = ET.SubElement(step_el, "command")
+                            cmd_el.text = step.command
+                        if step.context is not None:
+                            ctx_el = ET.SubElement(step_el, "context")
+                            ctx_el.text = step.context
+                        # next-state is optional — only emitted when next_state is not None
                         if step.next_state is not None:
-                            step_attrs["next-state"] = step.next_state.value
-                        step_el = ET.SubElement(startup_el, "step", **step_attrs)
-                        step_el.text = step.description
+                            step_el.set("next-state", step.next_state.value)
 
         # Task-title(s) for this phase
         if pid in _PHASE_TASK_TITLES:
@@ -585,7 +596,7 @@ def _build_phases(root: ET.Element) -> None:
                 ET.SubElement(tdd_el, "layer",
                               number=str(step.order),
                               name=layer_names[step.order - 1],
-                              description=step.description)
+                              description=step.instruction)
         elif pid == "p10":
             sev_tree = ET.SubElement(phase_el, "severity-tree",
                                      enabled="true", creation="eager")
@@ -880,7 +891,7 @@ def _build_constraints(root: ET.Element) -> None:
     """Append <constraints> section to root, derived from CONSTRAINT_SPECS.
 
     Adds role-ref and phase-ref attributes on each constraint element
-    derived from _ROLE_CONSTRAINTS and _PHASE_CONSTRAINTS static dicts (UAT-3).
+    derived from _CONSTRAINT_TO_ROLE_REF and _CONSTRAINT_TO_PHASE_REF static dicts (UAT-3).
     """
     constraints_el = ET.SubElement(root, "constraints")
 
@@ -915,10 +926,10 @@ def _build_constraints(root: ET.Element) -> None:
             "should-not": spec.should_not,
         }
         # UAT-3: add role-ref and phase-ref when present
-        role_ref = _ROLE_CONSTRAINTS.get(cid)
+        role_ref = _CONSTRAINT_TO_ROLE_REF.get(cid)
         if role_ref is not None:
             c_attrs["role-ref"] = role_ref
-        phase_ref = _PHASE_CONSTRAINTS.get(cid)
+        phase_ref = _CONSTRAINT_TO_PHASE_REF.get(cid)
         if phase_ref is not None:
             c_attrs["phase-ref"] = phase_ref
 
@@ -1337,6 +1348,45 @@ def _build_followup_lifecycle(root: ET.Element) -> None:
         ET.SubElement(handoff_chain_el, "transition", **attrs)
 
 
+def _build_procedure_steps(root: ET.Element) -> None:
+    """Append <procedure-steps> section to root, derived from PROCEDURE_STEPS.
+
+    Emits one <role ref="..."> per role that has non-empty steps. Each step
+    becomes a <step> element with 'order' and 'id' as XML attributes, and
+    instruction/command/context/next-state as child elements (only emitted
+    when non-None).
+
+    All attribute and text values are XML-escaped by ElementTree automatically.
+    """
+    # Role ordering for deterministic output
+    role_order = [RoleId.EPOCH, RoleId.ARCHITECT, RoleId.REVIEWER,
+                  RoleId.SUPERVISOR, RoleId.WORKER]
+
+    proc_el = ET.SubElement(root, "procedure-steps")
+
+    for role_id in role_order:
+        steps = PROCEDURE_STEPS.get(role_id, ())
+        if not steps:
+            continue
+
+        role_el = ET.SubElement(proc_el, "role", ref=role_id.value)
+        for step in steps:
+            step_el = ET.SubElement(role_el, "step",
+                                    order=str(step.order),
+                                    id=step.id)
+            instr_el = ET.SubElement(step_el, "instruction")
+            instr_el.text = step.instruction
+            if step.command is not None:
+                cmd_el = ET.SubElement(step_el, "command")
+                cmd_el.text = step.command
+            if step.context is not None:
+                ctx_el = ET.SubElement(step_el, "context")
+                ctx_el.text = step.context
+            # next-state is optional — only emitted when next_state is not None
+            if step.next_state is not None:
+                step_el.set("next-state", step.next_state.value)
+
+
 # ─── Section comment helper ────────────────────────────────────────────────────
 
 
@@ -1393,6 +1443,10 @@ def generate_schema(output: Path, diff: bool = True) -> str:
         OSError: If the output path's parent directory does not exist or is
             not writable. The error message includes the output path and the
             OS error details.
+
+    Side effects:
+        When diff=True and the output already exists with identical content,
+        prints "No changes --- schema.xml is up to date." to stdout (no write).
     """
     # Build the XML tree
     root = ET.Element("aura-protocol", version="2.0")
@@ -1493,6 +1547,13 @@ def generate_schema(output: Path, diff: bool = True) -> str:
     ))
     _build_followup_lifecycle(root)
 
+    root.append(_section_comment(
+        "PROCEDURE STEPS\n\n"
+        "     Per-role ordered steps (startup sequence for supervisor,\n"
+        "     TDD layers for worker). Only roles with non-empty steps are listed."
+    ))
+    _build_procedure_steps(root)
+
     # Serialize
     content = _serialize_tree(root)
 
@@ -1514,7 +1575,7 @@ def generate_schema(output: Path, diff: bool = True) -> str:
                 print(line)
             print(f"--- End diff ({len(diff_lines)} lines) ---\n")
         else:
-            print(f"No changes to {output}")
+            print(f"No changes — {output.name} is up to date.")
 
     # Write if changed or new
     if not output.exists() or output.read_text(encoding="UTF-8") != content:
@@ -1534,8 +1595,6 @@ def main() -> int:
     Default output: skills/protocol/schema.xml (relative to script's parent dir).
     Returns: 0 on success, 1 on error.
     """
-    import sys
-
     if len(sys.argv) > 1:
         output = Path(sys.argv[1])
     else:
@@ -1543,8 +1602,10 @@ def main() -> int:
         output = script_dir.parent.parent / "skills" / "protocol" / "schema.xml"
 
     try:
+        old_content = output.read_text(encoding="UTF-8") if output.exists() else None
         content = generate_schema(output, diff=True)
-        print(f"Generated {output} ({len(content)} bytes)")
+        if old_content != content:
+            print(f"Generated {output} ({len(content)} bytes)")
         return 0
     except OSError as e:
         print(f"Error writing {output}: {e}", file=sys.stderr)
@@ -1552,5 +1613,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import sys
     sys.exit(main())

@@ -32,6 +32,7 @@ Design:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from xml.sax.saxutils import escape as xml_escape
 
 from aura_protocol.types import (
     COMMAND_SPECS,
@@ -123,7 +124,10 @@ _GENERAL_CONSTRAINTS: frozenset[str] = frozenset({
 #   C-followup-timing         → SUPERVISOR (given: "code review completion" — supervisor orchestrates followup)
 #   C-vertical-slices         → SUPERVISOR (given: "implementation decomposition" when: "assigning work")
 #   C-supervisor-no-impl      → SUPERVISOR (given: "supervisor role")
-#   C-supervisor-explore-team → SUPERVISOR (given: "supervisor needs codebase exploration")
+#   C-supervisor-cartographers → SUPERVISOR (given: "supervisor needs codebase exploration and code review")
+#   C-integration-points      → SUPERVISOR (given: "multiple vertical slices share types" when: "decomposing IMPL_PLAN")
+#   C-slice-review-before-close → SUPERVISOR (given: "workers complete their implementation slices")
+#   C-max-review-cycles       → SUPERVISOR (given: "worker-Cartographer review-fix cycles are ongoing")
 #   C-slice-leaf-tasks        → SUPERVISOR (given: "vertical slice created" — supervisor creates slices)
 #   C-handoff-skill-invocation→ ARCHITECT + SUPERVISOR (both are sources of handoffs h1 and h2/h3)
 #   C-dep-direction           → ALL (see _GENERAL_CONSTRAINTS)
@@ -143,6 +147,14 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
         "C-review-consensus",
         # Epoch creates handoffs as master orchestrator
         "C-handoff-skill-invocation",
+        # Epoch delegates p8/p10 exploration+review to 3 Cartographers (Ride the Wave)
+        "C-supervisor-cartographers",
+        # Epoch ensures supervisor documents integration points between slices
+        "C-integration-points",
+        # Epoch enforces: slices reviewed before closure; supervisor closes, not workers
+        "C-slice-review-before-close",
+        # Epoch enforces: max 3 worker-reviewer cycles; remaining IMPORTANT → FOLLOWUP
+        "C-max-review-cycles",
     }),
     RoleId.ARCHITECT: frozenset(_GENERAL_CONSTRAINTS | {
         # Architect creates proposals → must follow naming convention
@@ -173,8 +185,14 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
         "C-review-consensus",
         # Supervisor must not implement code directly
         "C-supervisor-no-impl",
-        # Supervisor must use explore team for p8 codebase exploration
-        "C-supervisor-explore-team",
+        # Supervisor must use Cartographers for p8/p10 exploration and review
+        "C-supervisor-cartographers",
+        # Supervisor must document integration points between slices
+        "C-integration-points",
+        # Slices must be reviewed before closure
+        "C-slice-review-before-close",
+        # Worker-reviewer cycles capped at 3
+        "C-max-review-cycles",
         # Supervisor assigns vertical slices to workers
         "C-vertical-slices",
         # Supervisor creates slices and must add leaf tasks
@@ -214,7 +232,10 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
 #   C-followup-timing         → P10_CODE_REVIEW (given: "code review completion")
 #   C-vertical-slices         → P8_IMPL_PLAN, P9_SLICE (given: "implementation decomposition")
 #   C-supervisor-no-impl      → P8_IMPL_PLAN, P9_SLICE (given: "implementation phase")
-#   C-supervisor-explore-team → P8_IMPL_PLAN (given: "starting Phase 8 (IMPL_PLAN)")
+#   C-supervisor-cartographers → P8_IMPL_PLAN, P9_SLICE, P10_CODE_REVIEW (dual-role: explore then review)
+#   C-integration-points      → P8_IMPL_PLAN (given: "decomposing IMPL_PLAN in Phase 8")
+#   C-slice-review-before-close → P9_SLICE, P10_CODE_REVIEW (given: "slice implementation is done")
+#   C-max-review-cycles       → P10_CODE_REVIEW (given: "counting review-fix iterations")
 #   C-slice-leaf-tasks        → P8_IMPL_PLAN, P9_SLICE (vertical slices created in p8, tracked in p9)
 #   C-handoff-skill-invocation→ P7_HANDOFF (given: "new phase (especially p7 to p8 handoff)")
 #   C-dep-direction           → ALL phases
@@ -263,8 +284,10 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         "C-vertical-slices",
         # Supervisor must not implement directly
         "C-supervisor-no-impl",
-        # Supervisor must use explore team for codebase exploration in p8
-        "C-supervisor-explore-team",
+        # Supervisor must use Cartographers for p8 exploration
+        "C-supervisor-cartographers",
+        # Supervisor must document integration points in p8
+        "C-integration-points",
         # Each slice must have leaf tasks
         "C-slice-leaf-tasks",
     }),
@@ -279,6 +302,10 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         "C-supervisor-no-impl",
         # Slice tasks still need leaf tasks tracked
         "C-slice-leaf-tasks",
+        # Cartographers persist from p8 into p9/p10 — no shutdown between phases
+        "C-supervisor-cartographers",
+        # Slices must be reviewed before closure; workers notify, supervisor closes
+        "C-slice-review-before-close",
     }),
     PhaseId.P10_CODE_REVIEW: frozenset(_GENERAL_CONSTRAINTS | {
         # Code review → consensus required (all 3 reviewers ACCEPT)
@@ -297,6 +324,12 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         "C-followup-lifecycle",
         # Follow-up leaf adoption
         "C-followup-leaf-adoption",
+        # Cartographers switch to reviewer role in p10
+        "C-supervisor-cartographers",
+        # Slices reviewed before closure — supervisor closes after review passes
+        "C-slice-review-before-close",
+        # Review-fix cycles capped at 3; remaining IMPORTANTs move to FOLLOWUP
+        "C-max-review-cycles",
     }),
     PhaseId.P11_IMPL_UAT: frozenset(_GENERAL_CONSTRAINTS | {
         # Implementation UAT → verbatim capture
@@ -436,3 +469,82 @@ def get_phase_context(phase: PhaseId) -> PhaseContext:
         labels=labels,
         transitions=transitions,
     )
+
+
+# ─── Role Context Rendering ─────────────────────────────────────────────────
+
+
+def render_role_context_as_text(role: RoleId) -> str:
+    """Render role constraints as numbered, titled plain-text for prompt injection.
+
+    Format per constraint:
+        N. constraint: C-id
+           given:      <given text>
+           when:       <when text>
+           then:       <then text>
+           should not: <should_not text>
+
+    Returns a ready-to-embed string with a header line and all constraints
+    numbered and vertically aligned.
+    """
+    ctx = get_role_context(role)
+    constraints = sorted(ctx.constraints, key=lambda c: c.id)
+    n = len(constraints)
+
+    lines: list[str] = [f"## Role Constraints: {role.value} ({n} constraints)"]
+    lines.append("")
+
+    # Determine number width for right-aligning numbers
+    num_width = len(str(n))
+
+    for i, c in enumerate(constraints, start=1):
+        num_str = str(i).rjust(num_width)
+        # Constraint header line
+        lines.append(f"{num_str}. constraint: {c.id}")
+        # GWT+S fields — labels left-aligned at fixed indent
+        indent = " " * (num_width + 2)  # align under the 'c' in 'constraint'
+        lines.append(f"{indent}given:      {c.given}")
+        lines.append(f"{indent}when:       {c.when}")
+        lines.append(f"{indent}then:       {c.then}")
+        lines.append(f"{indent}should not: {c.should_not}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def render_role_context_as_xml(role: RoleId) -> str:
+    """Render role constraints as XML for structured prompt injection.
+
+    Format:
+        <role-constraints role="{role}" count="{N}">
+          <constraint id="C-id" n="{N}">
+            <given>{given}</given>
+            <when>{when}</when>
+            <then>{then}</then>
+            <should-not>{should_not}</should-not>
+          </constraint>
+          ...
+        </role-constraints>
+    """
+    ctx = get_role_context(role)
+    constraints = sorted(ctx.constraints, key=lambda c: c.id)
+    n = len(constraints)
+
+    _QUOT = {'"': "&quot;"}
+    role_escaped = xml_escape(role.value, entities=_QUOT)
+    lines: list[str] = [
+        f'<role-constraints role="{role_escaped}" count="{n}">'
+    ]
+
+    for i, c in enumerate(constraints, start=1):
+        id_escaped = xml_escape(c.id, entities=_QUOT)
+        lines.append(f'  <constraint id="{id_escaped}" n="{i}">')
+        lines.append(f"    <given>{xml_escape(c.given)}</given>")
+        lines.append(f"    <when>{xml_escape(c.when)}</when>")
+        lines.append(f"    <then>{xml_escape(c.then)}</then>")
+        lines.append(f"    <should-not>{xml_escape(c.should_not)}</should-not>")
+        lines.append("  </constraint>")
+
+    lines.append("</role-constraints>")
+
+    return "\n".join(lines)
