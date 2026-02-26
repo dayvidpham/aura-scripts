@@ -61,7 +61,13 @@ from aura_protocol.workflow import (
     EpochResult,
     EpochWorkflow,
     PhaseAdvanceSignal,
+    PhaseResult,
+    ReviewInput,
+    ReviewPhaseWorkflow,
     ReviewVoteSignal,
+    SliceInput,
+    SliceResult,
+    SliceWorkflow,
     check_constraints,
     record_transition,
 )
@@ -1240,3 +1246,254 @@ class TestP9SliceFailFastPattern:
         assert len(done) == 3
         assert all(t.exception() is None for t in done)
         assert len(results) == 3
+
+
+# ─── SliceWorkflow Type Tests ──────────────────────────────────────────────────
+
+
+class TestSliceWorkflowTypes:
+    """SliceInput, SliceResult, and SliceWorkflow structural invariants.
+
+    Tests importability, frozen-dataclass contracts, and @workflow.defn
+    decoration without running a full Temporal server.
+    """
+
+    def test_slice_input_is_frozen_dataclass(self) -> None:
+        """SliceInput must be a frozen dataclass with epoch_id, slice_id, phase_spec."""
+        inp = SliceInput(epoch_id="ep-1", slice_id="slice-1", phase_spec="p9")
+        assert inp.epoch_id == "ep-1"
+        assert inp.slice_id == "slice-1"
+        assert inp.phase_spec == "p9"
+        with pytest.raises((AttributeError, TypeError)):
+            inp.slice_id = "changed"  # type: ignore[misc]
+
+    def test_slice_result_success_path(self) -> None:
+        """SliceResult success path: success=True, error=None."""
+        result = SliceResult(slice_id="slice-1", success=True)
+        assert result.slice_id == "slice-1"
+        assert result.success is True
+        assert result.error is None
+
+    def test_slice_result_failure_path(self) -> None:
+        """SliceResult failure path: success=False, error contains message."""
+        result = SliceResult(slice_id="slice-2", success=False, error="BLOCKER found")
+        assert result.success is False
+        assert result.error == "BLOCKER found"
+
+    def test_slice_result_is_frozen_dataclass(self) -> None:
+        """SliceResult must be immutable (frozen dataclass)."""
+        result = SliceResult(slice_id="s", success=True)
+        with pytest.raises((AttributeError, TypeError)):
+            result.success = False  # type: ignore[misc]
+
+    def test_slice_workflow_has_workflow_defn(self) -> None:
+        """SliceWorkflow must be decorated with @workflow.defn."""
+        assert hasattr(SliceWorkflow, "__temporal_workflow_definition")
+
+    def test_slice_workflow_run_is_decorated(self) -> None:
+        """SliceWorkflow.run must be decorated with @workflow.run."""
+        assert hasattr(SliceWorkflow.run, "__temporal_workflow_run")
+
+
+# ─── ReviewPhaseWorkflow Type Tests ───────────────────────────────────────────
+
+
+class TestReviewPhaseWorkflowTypes:
+    """ReviewInput, PhaseResult, and ReviewPhaseWorkflow structural invariants.
+
+    Tests importability, frozen-dataclass contracts, and @workflow.defn +
+    @workflow.signal decoration without running a full Temporal server.
+    """
+
+    def test_review_input_is_frozen_dataclass(self) -> None:
+        """ReviewInput must be a frozen dataclass with epoch_id and phase_id."""
+        inp = ReviewInput(epoch_id="ep-1", phase_id="p10")
+        assert inp.epoch_id == "ep-1"
+        assert inp.phase_id == "p10"
+        with pytest.raises((AttributeError, TypeError)):
+            inp.phase_id = "changed"  # type: ignore[misc]
+
+    def test_phase_result_is_frozen_dataclass(self) -> None:
+        """PhaseResult must be a frozen dataclass with phase_id, success, vote_result."""
+        result = PhaseResult(
+            phase_id="p10",
+            success=True,
+            vote_result={"correctness": "ACCEPT", "test_quality": "ACCEPT", "elegance": "REVISE"},
+        )
+        assert result.phase_id == "p10"
+        assert result.success is True
+        assert result.vote_result["correctness"] == "ACCEPT"
+        with pytest.raises((AttributeError, TypeError)):
+            result.success = False  # type: ignore[misc]
+
+    def test_phase_result_default_vote_result_is_empty_dict(self) -> None:
+        """PhaseResult.vote_result defaults to empty dict."""
+        result = PhaseResult(phase_id="p10", success=True)
+        assert result.vote_result == {}
+
+    def test_review_phase_workflow_has_workflow_defn(self) -> None:
+        """ReviewPhaseWorkflow must be decorated with @workflow.defn."""
+        assert hasattr(ReviewPhaseWorkflow, "__temporal_workflow_definition")
+
+    def test_review_phase_workflow_run_is_decorated(self) -> None:
+        """ReviewPhaseWorkflow.run must be decorated with @workflow.run."""
+        assert hasattr(ReviewPhaseWorkflow.run, "__temporal_workflow_run")
+
+    def test_review_phase_workflow_submit_vote_is_signal(self) -> None:
+        """ReviewPhaseWorkflow.submit_vote must be decorated with @workflow.signal."""
+        assert hasattr(
+            ReviewPhaseWorkflow.submit_vote,
+            "__temporal_signal_definition",
+        )
+
+
+# ─── ReviewPhaseWorkflow Signal Logic Tests ────────────────────────────────────
+
+
+class TestReviewPhaseWorkflowSignalLogic:
+    """Unit tests for ReviewPhaseWorkflow vote accumulation logic.
+
+    Tests the internal _votes dict and wait condition by directly calling the
+    signal handler and inspecting state — no Temporal server required.
+    """
+
+    def test_submit_vote_accumulates_votes(self) -> None:
+        """submit_vote stores each axis vote in _votes."""
+        wf = ReviewPhaseWorkflow()
+        assert wf._votes == {}
+
+        # Simulate signal calls synchronously (signal is async but the mutation
+        # is synchronous — drive the coroutine to completion with run_until_complete
+        # using a fresh event loop to avoid interference with pytest-asyncio).
+        import asyncio as _asyncio
+        loop = _asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                wf.submit_vote(
+                    ReviewVoteSignal(
+                        axis=ReviewAxis.CORRECTNESS,
+                        vote=VoteType.ACCEPT,
+                        reviewer_id="reviewer-a",
+                    )
+                )
+            )
+            loop.run_until_complete(
+                wf.submit_vote(
+                    ReviewVoteSignal(
+                        axis=ReviewAxis.TEST_QUALITY,
+                        vote=VoteType.REVISE,
+                        reviewer_id="reviewer-b",
+                    )
+                )
+            )
+        finally:
+            loop.close()
+
+        assert wf._votes[ReviewAxis.CORRECTNESS.value] == VoteType.ACCEPT.value
+        assert wf._votes[ReviewAxis.TEST_QUALITY.value] == VoteType.REVISE.value
+
+    def test_submit_vote_overwrites_duplicate_axis(self) -> None:
+        """A second vote for the same axis overwrites the first."""
+        wf = ReviewPhaseWorkflow()
+        import asyncio as _asyncio
+        loop = _asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                wf.submit_vote(
+                    ReviewVoteSignal(
+                        axis=ReviewAxis.ELEGANCE,
+                        vote=VoteType.ACCEPT,
+                        reviewer_id="reviewer-c-first",
+                    )
+                )
+            )
+            loop.run_until_complete(
+                wf.submit_vote(
+                    ReviewVoteSignal(
+                        axis=ReviewAxis.ELEGANCE,
+                        vote=VoteType.REVISE,
+                        reviewer_id="reviewer-c-second",
+                    )
+                )
+            )
+        finally:
+            loop.close()
+
+        # Second vote wins.
+        assert wf._votes[ReviewAxis.ELEGANCE.value] == VoteType.REVISE.value
+
+    def test_vote_completeness_check(self) -> None:
+        """All 3 ReviewAxis values must be present for the wait condition to be satisfied."""
+        wf = ReviewPhaseWorkflow()
+        all_axes = {axis.value for axis in ReviewAxis}
+        assert len(all_axes) == 3, "ReviewAxis must have exactly 3 members"
+
+        import asyncio as _asyncio
+        loop = _asyncio.new_event_loop()
+        try:
+            # Not complete yet — only 2 votes.
+            loop.run_until_complete(
+                wf.submit_vote(
+                    ReviewVoteSignal(
+                        axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="r1"
+                    )
+                )
+            )
+            loop.run_until_complete(
+                wf.submit_vote(
+                    ReviewVoteSignal(
+                        axis=ReviewAxis.TEST_QUALITY, vote=VoteType.ACCEPT, reviewer_id="r2"
+                    )
+                )
+            )
+        finally:
+            loop.close()
+
+        assert set(wf._votes.keys()) != all_axes, "Should not be complete with only 2 axes"
+
+        loop2 = _asyncio.new_event_loop()
+        try:
+            loop2.run_until_complete(
+                wf.submit_vote(
+                    ReviewVoteSignal(
+                        axis=ReviewAxis.ELEGANCE, vote=VoteType.REVISE, reviewer_id="r3"
+                    )
+                )
+            )
+        finally:
+            loop2.close()
+
+        assert set(wf._votes.keys()) >= all_axes, "Should be complete with all 3 axes"
+
+
+# ─── Worker Registration Tests ─────────────────────────────────────────────────
+
+
+class TestWorkerRegistration:
+    """Verify that SliceWorkflow and ReviewPhaseWorkflow are importable and registrable.
+
+    Does NOT start a Temporal worker (no server required). Only checks that the
+    classes exist, are importable, and have the required @workflow.defn marker.
+    """
+
+    def test_slice_workflow_importable(self) -> None:
+        """SliceWorkflow is importable from aura_protocol.workflow."""
+        assert SliceWorkflow is not None
+
+    def test_review_phase_workflow_importable(self) -> None:
+        """ReviewPhaseWorkflow is importable from aura_protocol.workflow."""
+        assert ReviewPhaseWorkflow is not None
+
+    def test_slice_and_review_workflows_are_workflow_defn(self) -> None:
+        """Both child workflows must be annotated with @workflow.defn."""
+        for cls in [SliceWorkflow, ReviewPhaseWorkflow]:
+            assert hasattr(cls, "__temporal_workflow_definition"), (
+                f"{cls.__name__} must have @workflow.defn decorator"
+            )
+
+    def test_all_new_types_importable(self) -> None:
+        """SliceInput, SliceResult, ReviewInput, PhaseResult all importable."""
+        assert SliceInput is not None
+        assert SliceResult is not None
+        assert ReviewInput is not None
+        assert PhaseResult is not None

@@ -16,6 +16,11 @@ Activities registered:
     record_audit_event    — persist AuditEvent to configured AuditTrail
     query_audit_events    — query AuditEvents by epoch_id + optional phase
 
+Workflows registered:
+    EpochWorkflow         — top-level epoch lifecycle workflow (12 phases)
+    SliceWorkflow         — child workflow for a single P9_SLICE (runs concurrently)
+    ReviewPhaseWorkflow   — child workflow for P10_CODE_REVIEW (vote-driven)
+
 Usage:
     bin/worker.py                                       # defaults + env vars
     bin/worker.py --namespace dev --task-queue aura     # explicit args
@@ -38,6 +43,8 @@ from aura_protocol.audit_activities import (
 )
 from aura_protocol.workflow import (
     EpochWorkflow,
+    ReviewPhaseWorkflow,
+    SliceWorkflow,
     check_constraints,
     record_transition,
 )
@@ -111,7 +118,7 @@ async def run_worker(namespace: str, task_queue: str, server_address: str) -> No
     async with Worker(
         client,
         task_queue=task_queue,
-        workflows=[EpochWorkflow],
+        workflows=[EpochWorkflow, SliceWorkflow, ReviewPhaseWorkflow],
         activities=[
             check_constraints,
             record_transition,

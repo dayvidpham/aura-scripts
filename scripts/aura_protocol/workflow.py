@@ -16,6 +16,10 @@ Key types (all frozen dataclasses):
     EpochResult         — workflow run() return value
     PhaseAdvanceSignal  — advance_phase signal payload
     ReviewVoteSignal    — submit_vote signal payload
+    SliceInput          — SliceWorkflow run() input
+    SliceResult         — SliceWorkflow run() return value
+    ReviewInput         — ReviewPhaseWorkflow run() input
+    PhaseResult         — ReviewPhaseWorkflow run() return value
 
 Search attribute keys:
     SA_EPOCH_ID — text key for epoch ID forensic lookup
@@ -27,10 +31,15 @@ Search attribute keys:
 Activities:
     check_constraints(state, to_phase) -> list[ConstraintViolation]
     record_transition(record: TransitionRecord) -> None
+
+Child Workflows:
+    SliceWorkflow       — single P9_SLICE; runs concurrently with other slices
+    ReviewPhaseWorkflow — P10_CODE_REVIEW; receives ReviewAxis votes via signals
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -125,6 +134,63 @@ class ReviewVoteSignal:
     axis: ReviewAxis
     vote: VoteType
     reviewer_id: str
+
+
+# ─── Child Workflow I/O Types (frozen dataclasses) ────────────────────────────
+
+
+@dataclass(frozen=True)
+class SliceInput:
+    """Input for SliceWorkflow.run().
+
+    epoch_id: the parent epoch this slice belongs to
+    slice_id: unique identifier for this slice within the epoch (e.g. "slice-1")
+    phase_spec: serializable specification of the phase to execute
+    """
+
+    epoch_id: str
+    slice_id: str
+    phase_spec: str  # R12: SerializablePhaseSpec integration is future work
+
+
+@dataclass(frozen=True)
+class SliceResult:
+    """Return value of SliceWorkflow.run().
+
+    slice_id: the slice that completed or failed
+    success: True if the slice completed without error
+    error: error message if success is False, None otherwise
+    """
+
+    slice_id: str
+    success: bool
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class ReviewInput:
+    """Input for ReviewPhaseWorkflow.run().
+
+    epoch_id: the parent epoch this review belongs to
+    phase_id: which review phase this is (e.g. "p4" or "p10")
+    """
+
+    epoch_id: str
+    phase_id: str
+
+
+@dataclass(frozen=True)
+class PhaseResult:
+    """Return value of ReviewPhaseWorkflow.run().
+
+    phase_id: the review phase that completed
+    success: True if the review reached consensus (all axes voted)
+    vote_result: mapping of ReviewAxis -> VoteType for the final votes
+    """
+
+    phase_id: str
+    success: bool
+    vote_result: dict[str, str] = field(default_factory=dict)
 
 
 # ─── Activities ───────────────────────────────────────────────────────────────
@@ -382,3 +448,182 @@ class EpochWorkflow:
         if self._sm is None:
             return []
         return self._sm.available_transitions
+
+    # ── P9 Slice Execution ────────────────────────────────────────────────────
+
+    async def _run_p9_slices(self, slice_inputs: list[SliceInput]) -> list[SliceResult]:
+        """Run P9_SLICE: start N child SliceWorkflows, fail-fast on first exception.
+
+        Starts all SliceWorkflow children concurrently, then waits for them
+        using asyncio.wait(FIRST_EXCEPTION). On the first failure, cancels all
+        pending handles and propagates the exception.
+
+        Args:
+            slice_inputs: List of SliceInput, one per worker slice.
+
+        Returns:
+            List of SliceResult from all completed slices (happy path only).
+
+        Raises:
+            Exception: The first exception raised by any failing slice.
+        """
+        # Start all child SliceWorkflows concurrently.
+        handles = []
+        for si in slice_inputs:
+            handle = await workflow.start_child_workflow(
+                SliceWorkflow.run,
+                si,
+                id=f"{si.epoch_id}-slice-{si.slice_id}",
+            )
+            handles.append(handle)
+
+        if not handles:
+            return []
+
+        # Collect result futures from handles. ChildWorkflowHandle IS an
+        # asyncio.Task in the Temporal Python SDK, so await it to get the result.
+        # Use asyncio.wait(FIRST_EXCEPTION) for fail-fast semantics.
+        # IMPORTANT: asyncio.gather is PROHIBITED; asyncio.wait is the approved pattern.
+        done, pending = await asyncio.wait(
+            handles,
+            return_when=asyncio.FIRST_EXCEPTION,
+        )
+
+        # Cancel remaining pending handles on failure.
+        # Awaiting each cancelled handle individually (not asyncio.gather)
+        # ensures no parallel fan-out from the supervisor — each cancellation
+        # is explicitly drained in sequence.
+        if pending:
+            for p in pending:
+                p.cancel()
+            for p in pending:
+                try:
+                    await p
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+        # Collect results or re-raise first exception.
+        results = []
+        for task in done:
+            exc = task.exception() if not task.cancelled() else None
+            if exc is not None:
+                raise exc
+            results.append(task.result())
+
+        return results
+
+    # ── P10 Review Phase Execution ────────────────────────────────────────────
+
+    async def _run_p10_review(self, review_input: ReviewInput) -> PhaseResult:
+        """Run P10_CODE_REVIEW: start ReviewPhaseWorkflow child and wait for completion.
+
+        Starts a single ReviewPhaseWorkflow child for the given review phase.
+        The child waits for all 3 ReviewAxis members to vote before returning.
+
+        Args:
+            review_input: ReviewInput specifying the epoch and phase.
+
+        Returns:
+            PhaseResult containing the vote results from all reviewers.
+        """
+        handle = await workflow.start_child_workflow(
+            ReviewPhaseWorkflow.run,
+            review_input,
+            id=f"{review_input.epoch_id}-review-{review_input.phase_id}",
+        )
+        return await handle
+
+
+# ─── Child Workflows ───────────────────────────────────────────────────────────
+
+
+@workflow.defn
+class SliceWorkflow:
+    """Child workflow for a single P9_SLICE implementation slice.
+
+    Runs concurrently with other SliceWorkflow instances within the same epoch.
+    EpochWorkflow._run_p9_slices() uses asyncio.wait(FIRST_EXCEPTION) to
+    fail-fast: if any slice raises, remaining slices are cancelled.
+
+    R12 stub: actual slice execution (running the worker agent, checking output,
+    parsing results) is future work. This stub returns success immediately so
+    that the EpochWorkflow topology and fail-fast wiring can be tested end-to-end
+    before slice execution semantics are defined.
+    """
+
+    @workflow.run
+    async def run(self, input: SliceInput) -> SliceResult:
+        """Execute a single implementation slice.
+
+        Args:
+            input: SliceInput with epoch_id, slice_id, and phase_spec.
+
+        Returns:
+            SliceResult indicating success or failure.
+
+        R12 stub: returns SliceResult(success=True) immediately. Future
+        implementation will execute the slice via activities (spawn worker,
+        collect results, validate output) and return failure on any error.
+        """
+        # R12 stub: slice execution via activities is future work.
+        # When implemented: execute_activity(run_slice_agent, input, ...) etc.
+        return SliceResult(slice_id=input.slice_id, success=True)
+
+
+@workflow.defn
+class ReviewPhaseWorkflow:
+    """Child workflow for P10_CODE_REVIEW (or P4_REVIEW) phase.
+
+    Receives ReviewVoteSignal signals from reviewer agents via submit_vote().
+    Waits using workflow.wait_condition() until all 3 ReviewAxis members have
+    cast their vote, then returns a PhaseResult with the full vote mapping.
+
+    Signal routing:
+        EpochWorkflow sends ReviewVoteSignal to this child via handle.signal().
+        The try/except ApplicationError around signal() calls provides race
+        protection: if the child completes before a signal arrives, the signal
+        is dropped rather than causing an error in the parent.
+    """
+
+    def __init__(self) -> None:
+        # Votes keyed by ReviewAxis value (str) for JSON-serialization safety.
+        # Using ReviewAxis.value (str) rather than ReviewAxis enum directly
+        # ensures deterministic Temporal serialization round-trips.
+        self._votes: dict[str, str] = {}
+
+    @workflow.signal
+    async def submit_vote(self, signal: ReviewVoteSignal) -> None:
+        """Signal: receive a vote from a reviewer agent.
+
+        Records the vote for the given ReviewAxis. Idempotent: if the same axis
+        votes again, the later vote overwrites the earlier one.
+
+        Args:
+            signal: ReviewVoteSignal with axis, vote, and reviewer_id.
+        """
+        self._votes[signal.axis.value] = signal.vote.value
+
+    @workflow.run
+    async def run(self, input: ReviewInput) -> PhaseResult:
+        """Wait for all 3 ReviewAxis members to vote, then return results.
+
+        Blocks via workflow.wait_condition() until all 3 axes (CORRECTNESS,
+        TEST_QUALITY, ELEGANCE) have submitted votes. Returns a PhaseResult
+        with the final vote mapping.
+
+        Args:
+            input: ReviewInput with epoch_id and phase_id.
+
+        Returns:
+            PhaseResult with success=True and the complete vote mapping.
+        """
+        # Wait until all 3 ReviewAxis members have voted.
+        all_axes = {axis.value for axis in ReviewAxis}
+        await workflow.wait_condition(
+            lambda: set(self._votes.keys()) >= all_axes
+        )
+        return PhaseResult(
+            phase_id=input.phase_id,
+            success=True,
+            vote_result=dict(self._votes),
+        )
