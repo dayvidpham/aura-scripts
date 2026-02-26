@@ -285,7 +285,7 @@ class TestProcedureStepsSection:
     def test_optional_child_elements_present_when_set(
         self, generated_xml_root: ET.Element
     ) -> None:
-        """Steps with command/context/next-state in Python emit those as child elements."""
+        """Steps with command/context in Python emit those as child elements; next-state as attribute."""
         proc_el = generated_xml_root.find("procedure-steps")
         assert proc_el is not None
 
@@ -338,18 +338,18 @@ class TestProcedureStepsSection:
                 assert ctx_el is None, (
                     f"Step {py_step.order} should not have <context> child element"
                 )
-            # next-state: child element when set, absent when None
-            ns_el = xml_step.find("next-state")
+            # next-state: XML attribute when set, absent when None
+            ns_attr = xml_step.get("next-state")
             if py_step.next_state is not None:
-                assert ns_el is not None and ns_el.text is not None, (
-                    f"Step {py_step.order} missing <next-state> child element"
+                assert ns_attr is not None, (
+                    f"Step {py_step.order} missing next-state attribute"
                 )
-                assert ns_el.text.strip() == py_step.next_state.value, (
+                assert ns_attr == py_step.next_state.value, (
                     f"Step {py_step.order} next-state mismatch"
                 )
             else:
-                assert ns_el is None, (
-                    f"Step {py_step.order} should not have <next-state> child element"
+                assert ns_attr is None, (
+                    f"Step {py_step.order} should not have next-state attribute"
                 )
 
 

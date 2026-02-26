@@ -239,17 +239,17 @@ def _parse_procedure_steps(
                 command = cmd_el.text.strip() if cmd_el is not None and cmd_el.text else None
                 ctx_el = step_el.find("context")
                 context = ctx_el.text.strip() if ctx_el is not None and ctx_el.text else None
-                ns_el = step_el.find("next-state")
+                ns_val = step_el.get("next-state")
                 next_state: PhaseId | None = None
-                if ns_el is not None and ns_el.text:
+                if ns_val:
                     try:
-                        next_state = PhaseId(ns_el.text.strip())
+                        next_state = PhaseId(ns_val)
                     except ValueError:
                         raise SchemaParseError(
-                            f"Unknown next-state '{ns_el.text.strip()}' in startup step "
+                            f"Unknown next-state '{ns_val}' in startup step "
                             f"order='{order}' in {path}. "
                             f"Valid phases: {[p.value for p in PhaseId]}. "
-                            f"Fix: correct the <next-state> child element."
+                            f"Fix: correct the 'next-state' attribute on <step>."
                         )
                 sup_steps.append(ProcedureStep(
                     id=step_id,

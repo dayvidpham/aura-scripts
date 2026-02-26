@@ -567,8 +567,7 @@ def _build_phases(root: ET.Element) -> None:
                             ctx_el = ET.SubElement(step_el, "context")
                             ctx_el.text = step.context
                         if step.next_state is not None:
-                            ns_el = ET.SubElement(step_el, "next-state")
-                            ns_el.text = step.next_state.value
+                            step_el.set("next-state", step.next_state.value)
 
         # Task-title(s) for this phase
         if pid in _PHASE_TASK_TITLES:
@@ -1381,8 +1380,7 @@ def _build_procedure_steps(root: ET.Element) -> None:
                 ctx_el = ET.SubElement(step_el, "context")
                 ctx_el.text = step.context
             if step.next_state is not None:
-                ns_el = ET.SubElement(step_el, "next-state")
-                ns_el.text = step.next_state.value
+                step_el.set("next-state", step.next_state.value)
 
 
 # ─── Section comment helper ────────────────────────────────────────────────────
