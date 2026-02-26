@@ -91,8 +91,9 @@ async def record_audit_event(event: AuditEvent) -> None:
 async def query_audit_events(
     epoch_id: str,
     phase: PhaseId | None = None,
+    role: RoleId | None = None,
 ) -> list[AuditEvent]:
-    """Query recorded audit events for an epoch, with optional phase filter.
+    """Query recorded audit events for an epoch, with optional phase and role filters.
 
     Activity: non-deterministic I/O boundary (reads from external store).
 
@@ -100,6 +101,10 @@ async def query_audit_events(
         epoch_id: The epoch to query events for (required — Temporal activities
                   cannot use keyword-only args directly; this is positional).
         phase:    Optional phase filter — only return events from this phase.
+        role:     Optional role filter — only return events from this role
+                  (e.g. RoleId.SUPERVISOR, RoleId.WORKER). Without this filter,
+                  queries that scope to a specific agent role silently return
+                  unfiltered results, which is a silent correctness failure.
 
     Returns:
         List of matching AuditEvent instances in chronological order.
@@ -113,7 +118,7 @@ async def query_audit_events(
             _UNINITIALIZED_MSG,
             non_retryable=True,
         )
-    return await _AUDIT_TRAIL.query_events(epoch_id=epoch_id, phase=phase)
+    return await _AUDIT_TRAIL.query_events(epoch_id=epoch_id, phase=phase, role=role)
 
 
 # ─── InMemoryAuditTrail ───────────────────────────────────────────────────────

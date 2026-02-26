@@ -505,6 +505,30 @@ class TestVoteRecording:
         sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
         assert sm.has_consensus() is True
 
+    def test_review_votes_keys_are_review_axis_members(self) -> None:
+        """review_votes dict keys must be ReviewAxis members, not raw strings."""
+        sm = _make_sm()
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.REVISE)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        for key in sm.state.review_votes:
+            assert isinstance(key, ReviewAxis), (
+                f"Expected ReviewAxis key, got {type(key).__name__!r}: {key!r}"
+            )
+
+    def test_review_votes_all_three_axes_are_review_axis(self) -> None:
+        """All 3 axes stored as ReviewAxis.CORRECTNESS/TEST_QUALITY/ELEGANCE keys."""
+        sm = _make_sm()
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        assert ReviewAxis.CORRECTNESS in sm.state.review_votes
+        assert ReviewAxis.TEST_QUALITY in sm.state.review_votes
+        assert ReviewAxis.ELEGANCE in sm.state.review_votes
+        assert sm.state.review_votes[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
+        assert sm.state.review_votes[ReviewAxis.TEST_QUALITY] == VoteType.ACCEPT
+        assert sm.state.review_votes[ReviewAxis.ELEGANCE] == VoteType.ACCEPT
+
 
 # ─── State Property ───────────────────────────────────────────────────────────
 

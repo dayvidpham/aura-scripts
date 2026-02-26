@@ -45,7 +45,7 @@ class EpochState:
     epoch_id: str
     current_phase: PhaseId
     completed_phases: set[PhaseId] = field(default_factory=set)
-    review_votes: dict[str, VoteType] = field(default_factory=dict)
+    review_votes: dict[ReviewAxis, VoteType] = field(default_factory=dict)
     blocker_count: int = 0
     current_role: RoleId = RoleId.EPOCH
     severity_groups: dict[SeverityLevel, set[str]] = field(default_factory=dict)
@@ -92,7 +92,7 @@ class TransitionError(Exception):
 # ─── State Machine ────────────────────────────────────────────────────────────
 
 # The 3 canonical review axes used for consensus gating.
-_REVIEW_AXES: frozenset[str] = frozenset(ReviewAxis)
+_REVIEW_AXES: frozenset[ReviewAxis] = frozenset(ReviewAxis)
 
 # Transitions that require consensus (all 3 axes ACCEPT) to proceed.
 # Derived from schema.xml: p4→p5 condition "all 3 reviewers vote ACCEPT".
@@ -340,20 +340,28 @@ class EpochStateMachine:
 
         return violations
 
-    def record_vote(self, axis: str, vote: VoteType) -> None:
+    def record_vote(self, axis: ReviewAxis, vote: VoteType) -> None:
         """Record a reviewer vote for the given axis.
 
-        axis must be one of ReviewAxis values: "correctness", "test_quality", "elegance".
+        axis must be a ReviewAxis member: ReviewAxis.CORRECTNESS, ReviewAxis.TEST_QUALITY,
+        or ReviewAxis.ELEGANCE. Since ReviewAxis is a StrEnum, callers passing raw strings
+        ("correctness", "test_quality", "elegance") continue to work at runtime, but using
+        ReviewAxis members ensures type-checked correctness.
+
         Recording a vote for the same axis overwrites the previous vote.
 
         Raises:
-            ValueError: If axis is not a valid ReviewAxis value.
+            ValueError: If axis is not a valid ReviewAxis value — must be one of
+                ReviewAxis.CORRECTNESS, ReviewAxis.TEST_QUALITY, or ReviewAxis.ELEGANCE.
+                Fix: use a ReviewAxis member or a valid string value
+                ("correctness", "test_quality", "elegance").
         """
         if axis not in _REVIEW_AXES:
             raise ValueError(
-                f"Invalid review axis {axis!r}. Must be one of {sorted(_REVIEW_AXES)}."
+                f"Invalid review axis {axis!r}. Must be one of {sorted(_REVIEW_AXES)}. "
+                f"Use ReviewAxis.CORRECTNESS, ReviewAxis.TEST_QUALITY, or ReviewAxis.ELEGANCE."
             )
-        self._state.review_votes[axis] = vote
+        self._state.review_votes[ReviewAxis(axis)] = vote
 
     def has_consensus(self) -> bool:
         """Return True if all 3 review axes (CORRECTNESS, TEST_QUALITY, ELEGANCE) have ACCEPT votes.
