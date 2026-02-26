@@ -88,8 +88,12 @@ Protocol Interfaces (runtime_checkable, from interfaces.py):
     SecurityGate
     AuditTrail
 
+Null Stub Implementations (from interfaces.py):
+    NullTranscriptRecorder — no-op TranscriptRecorder (R12 stub)
+    NullSecurityGate       — always-permit SecurityGate (R12 stub)
+
 A2A Content Types (frozen dataclasses, from interfaces.py):
-    TextPart, FilePart, DataPart, Part (union), ToolCall
+    FileWithUri, TextPart, FilePart, DataPart, Part (union), ToolCall
 
 Model Identifier (from interfaces.py):
     ModelId — models.dev {provider}/{model} composite ID
@@ -123,7 +127,10 @@ from aura_protocol.interfaces import (
     ConstraintValidatorInterface,
     DataPart,
     FilePart,
+    FileWithUri,
     ModelId,
+    NullSecurityGate,
+    NullTranscriptRecorder,
     Part,
     SecurityGate,
     TextPart,
@@ -232,7 +239,11 @@ __all__ = [
     "TranscriptRecorder",
     "SecurityGate",
     "AuditTrail",
+    # Null stub implementations
+    "NullTranscriptRecorder",
+    "NullSecurityGate",
     # A2A content types
+    "FileWithUri",
     "TextPart",
     "FilePart",
     "DataPart",

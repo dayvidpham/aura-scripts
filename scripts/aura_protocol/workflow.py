@@ -45,7 +45,7 @@ from aura_protocol.state_machine import (
     TransitionError,
     TransitionRecord,
 )
-from aura_protocol.types import PhaseId, Transition, VoteType, PHASE_DOMAIN
+from aura_protocol.types import PhaseId, ReviewAxis, Transition, VoteType, PHASE_DOMAIN
 
 # ─── Search Attribute Keys ────────────────────────────────────────────────────
 # These keys are registered in the Temporal namespace and used for forensic
@@ -114,12 +114,15 @@ class PhaseAdvanceSignal:
 class ReviewVoteSignal:
     """Signal payload for EpochWorkflow.submit_vote().
 
-    axis: review axis letter — must be "A", "B", or "C"
+    axis: review axis — must be ReviewAxis.A, ReviewAxis.B, or ReviewAxis.C.
+         Since ReviewAxis is a StrEnum, callers passing raw strings ("A", "B",
+         "C") continue to work at runtime; use ReviewAxis members for type
+         correctness.
     vote: ACCEPT or REVISE
     reviewer_id: unique identifier for the reviewer agent
     """
 
-    axis: str
+    axis: ReviewAxis
     vote: VoteType
     reviewer_id: str
 
