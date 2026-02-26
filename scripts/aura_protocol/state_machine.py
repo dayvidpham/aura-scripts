@@ -112,7 +112,7 @@ _BLOCKER_GATED: frozenset[tuple[PhaseId, PhaseId]] = frozenset(
 # Transitions whose availability is determined by vote state (any REVISE present).
 # When at p4 with any REVISE vote, only p3 is available (overrides forward p5 transition).
 # When at p10 with any REVISE vote, only p9 is available (overrides forward p11 transition).
-_REVISE_DRIVES_BACK: frozenset[PhaseId] = frozenset(
+_REVISE_DRIVES_BACK_PHASES: frozenset[PhaseId] = frozenset(
     {PhaseId.P4_REVIEW, PhaseId.P10_CODE_REVIEW}
 )
 
@@ -176,7 +176,7 @@ class EpochStateMachine:
         # Rule 1: At a review phase with any REVISE vote — only the backward
         # (revision loop) transition is available. The revision loop targets are
         # the transitions whose to_phase is NOT the forward consensus gate target.
-        if current in _REVISE_DRIVES_BACK and self._has_any_revise():
+        if current in _REVISE_DRIVES_BACK_PHASES and self._has_any_revise():
             # p4's revision loop goes to p3; p10's revision loop goes to p9.
             # These are the non-consensus-gated transitions in those phases.
             return [
