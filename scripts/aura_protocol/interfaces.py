@@ -138,14 +138,16 @@ class AuditTrail(Protocol):
     async def query_events(
         self,
         *,
+        epoch_id: str | None = None,
         phase: PhaseId | None = None,
         role: RoleId | None = None,
     ) -> list[AuditEvent]:
         """Query recorded audit events with optional filters.
 
         Args:
-            phase: Optional phase filter — only return events from this phase.
-            role:  Optional role filter — only return events from this role.
+            epoch_id: Optional epoch filter — only return events for this epoch.
+            phase:    Optional phase filter — only return events from this phase.
+            role:     Optional role filter — only return events from this role.
 
         Returns:
             Matching audit events in chronological order.
