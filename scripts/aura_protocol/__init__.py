@@ -177,6 +177,10 @@ from aura_protocol.types import (
     ToolPermissionRequest,
     Transition,
     VoteType,
+    PhaseInput,
+    PhaseResult,
+    SerializablePhaseSpec,
+    SerializableTransition,
 )
 
 __all__ = [
@@ -198,6 +202,11 @@ __all__ = [
     # Frozen dataclasses
     "Transition",
     "PhaseSpec",
+    # Cross-workflow boundary types (Temporal-serializable)
+    "SerializableTransition",
+    "SerializablePhaseSpec",
+    "PhaseInput",
+    "PhaseResult",
     "ConstraintSpec",
     "HandoffSpec",
     "SubstepSpec",
