@@ -2,53 +2,33 @@
 """
 aura-release — Automated version bump, changelog, and git tag.
 
-Updates version across all manifest files, generates a changelog from
+Discovers version files automatically in any git repository, then
+updates versions across all manifest files, generates a changelog from
 git history, creates a commit, and tags the release.
 
 Usage:
     aura-release <major|minor|patch> [--dry-run] [--sync] [--no-changelog]
                                      [--no-commit] [--no-tag]
     aura-release --check
+    aura-release registry <init|add|list|remove>
 """
 
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import subprocess
 import sys
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 
 # ── Constants ────────────────────────────────────────────────────────
-
-def _discover_repo_root() -> Path:
-    """Find the git repository root from the current working directory."""
-    r = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    )
-    if r.returncode != 0:
-        print("Error: not inside a git repository.", file=sys.stderr)
-        sys.exit(2)
-    return Path(r.stdout.strip())
-
-
-REPO_ROOT = _discover_repo_root()
-
-VERSION_FILES = {
-    "pyproject": REPO_ROOT / "pyproject.toml",
-    "plugin": REPO_ROOT / ".claude-plugin" / "plugin.json",
-    "marketplace": REPO_ROOT / ".claude-plugin" / "marketplace.json",
-}
-
-CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
 
 # Conventional commit prefix → Keep a Changelog section
 COMMIT_SECTIONS = {
@@ -66,6 +46,27 @@ _PYPROJECT_VERSION_RE = re.compile(
     r"(\[project\]\s*\n(?:(?!\[).*\n)*?version\s*=\s*\")(\d+\.\d+\.\d+)(\")",
     re.MULTILINE,
 )
+
+# Directories to skip when scanning one level deep
+_SKIP_DIRS = {"node_modules", ".venv", "__pycache__"}
+
+_CHANGELOG_FILENAME = "CHANGELOG.md"
+
+
+# ── Repo root ────────────────────────────────────────────────────────
+
+
+@functools.lru_cache(maxsize=1)
+def repo_root() -> Path:
+    """Resolve the git repo root from CWD."""
+    r = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    return Path(r.stdout.strip())
 
 
 # ── Data types ───────────────────────────────────────────────────────
@@ -96,13 +97,315 @@ class SemVer(NamedTuple):
         return f"{self.major}.{self.minor}.{self.patch}"
 
 
+# ── Version file types ───────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class VersionFile(ABC):
+    """A file that contains a semver version string."""
+
+    name: str
+    path: Path
+
+    @abstractmethod
+    def read(self) -> str:
+        """Read the version string from the file."""
+
+    @abstractmethod
+    def write(self, version: str, *, dry_run: bool = False) -> None:
+        """Write a new version string to the file."""
+
+
+@dataclass(frozen=True)
+class PyprojectVersionFile(VersionFile):
+    """pyproject.toml with version in [project] section."""
+
+    def read(self) -> str:
+        text = self.path.read_text(encoding="utf-8")
+        m = _PYPROJECT_VERSION_RE.search(text)
+        if not m:
+            raise RuntimeError(f"No version in [project] section of {self.name}")
+        return m.group(2)
+
+    def write(self, version: str, *, dry_run: bool = False) -> None:
+        text = self.path.read_text(encoding="utf-8")
+        if not _PYPROJECT_VERSION_RE.search(text):
+            raise RuntimeError(f"No version in [project] section of {self.name}")
+        updated = _PYPROJECT_VERSION_RE.sub(rf"\g<1>{version}\3", text, count=1)
+        if not dry_run:
+            self.path.write_text(updated, encoding="utf-8")
+
+
+@dataclass(frozen=True)
+class JsonVersionFile(VersionFile):
+    """JSON file with a top-level "version" key (plugin.json, package.json)."""
+
+    def read(self) -> str:
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        return data["version"]
+
+    def write(self, version: str, *, dry_run: bool = False) -> None:
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data["version"] = version
+        if not dry_run:
+            self.path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+@dataclass(frozen=True)
+class MarketplaceVersionFile(VersionFile):
+    """marketplace.json with metadata.version and plugins[*].version."""
+
+    def read(self) -> str:
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        return data["metadata"]["version"]
+
+    def write(self, version: str, *, dry_run: bool = False) -> None:
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data["metadata"]["version"] = version
+        if not dry_run:
+            self.path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+# ── Version file discovery ───────────────────────────────────────────
+
+
+def _has_json_version(path: Path) -> bool:
+    """Check if a JSON file has a top-level 'version' key."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return isinstance(data, dict) and "version" in data
+    except (json.JSONDecodeError, OSError):
+        return False
+
+
+def _has_pyproject_version(path: Path) -> bool:
+    """Check if a pyproject.toml has a version in [project] section."""
+    try:
+        text = path.read_text(encoding="utf-8")
+        return bool(_PYPROJECT_VERSION_RE.search(text))
+    except OSError:
+        return False
+
+
+def _has_marketplace_version(path: Path) -> bool:
+    """Check if a marketplace.json has metadata.version."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return (
+            isinstance(data, dict)
+            and "metadata" in data
+            and "version" in data["metadata"]
+        )
+    except (json.JSONDecodeError, OSError):
+        return False
+
+
+def _subdirs(root: Path) -> list[Path]:
+    """Sorted child directories, skipping hidden and known junk dirs."""
+    try:
+        return sorted(
+            d
+            for d in root.iterdir()
+            if d.is_dir() and d.name not in _SKIP_DIRS and not d.name.startswith(".")
+        )
+    except OSError:
+        return []
+
+
+@dataclass(frozen=True)
+class _ScanSpec:
+    """Discovery spec for a single versioned file pattern.
+
+    filename:  Relative path from repo root (may include subdirs, e.g.
+               '.claude-plugin/plugin.json').
+    cls:       VersionFile subclass to instantiate when the file is found.
+    validator: Predicate — returns True only if the file actually contains
+               a parseable version string.
+    subdirs:   True  → scan root AND each immediate child directory.
+               False → fixed path only (no subdir scan).
+
+    To add support for a new plugin system (OpenCode, etc.), append a new
+    _ScanSpec entry to _SCAN_SPECS — no changes to discover_version_files()
+    are needed.
+    """
+
+    filename: str
+    cls: type[VersionFile]
+    validator: Callable[[Path], bool]
+    subdirs: bool
+
+
+# Ordered list of versioned file patterns to auto-discover.
+# Scan order determines which file becomes canonical for --sync
+# (first pyproject.toml found wins).
+_SCAN_SPECS: tuple[_ScanSpec, ...] = (
+    _ScanSpec("pyproject.toml", PyprojectVersionFile, _has_pyproject_version, True),
+    _ScanSpec("package.json", JsonVersionFile, _has_json_version, True),
+    _ScanSpec(".claude-plugin/plugin.json", JsonVersionFile, _has_json_version, False),
+    _ScanSpec(
+        ".claude-plugin/marketplace.json",
+        MarketplaceVersionFile,
+        _has_marketplace_version,
+        False,
+    ),
+)
+
+
+def discover_version_files(root: Path) -> list[VersionFile]:
+    """Auto-discover all version-bearing files under root, driven by _SCAN_SPECS.
+
+    For each spec with subdirs=True, root is checked first, then sorted
+    immediate child directories (hidden dirs and _SKIP_DIRS are excluded).
+    """
+    found: list[VersionFile] = []
+
+    for spec in _SCAN_SPECS:
+        p = root / spec.filename
+        if p.is_file() and spec.validator(p):
+            found.append(spec.cls(name=spec.filename, path=p))
+
+        if spec.subdirs:
+            for child in _subdirs(root):
+                p = child / spec.filename
+                if p.is_file() and spec.validator(p):
+                    found.append(
+                        spec.cls(name=f"{child.name}/{spec.filename}", path=p)
+                    )
+
+    return found
+
+
+# ── Plugin registry ──────────────────────────────────────────────────
+
+
+def _registry_path() -> Path:
+    """Return the user-global plugin registry path. Lazy: testable via monkeypatch."""
+    return Path.home() / ".local" / "config" / "aura" / "plugins" / "claude-plugin-registry.json"
+
+
+@dataclass(frozen=True)
+class PluginEntry:
+    name: str
+    path: Path        # absolute local path to plugin repo
+    remote: str | None
+
+
+@dataclass(frozen=True)
+class MarketplaceEntry:
+    path: Path                        # absolute path to marketplace.json
+    plugins: tuple[PluginEntry, ...]
+
+
+@dataclass(frozen=True)
+class PluginRegistry:
+    marketplaces: tuple[MarketplaceEntry, ...]
+
+    @classmethod
+    def load(cls, registry_path: Path | None = None) -> "PluginRegistry | None":
+        path = registry_path or _registry_path()
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            print(f"Error: registry at {path} is malformed: {e}", file=sys.stderr)
+            sys.exit(2)
+        if "marketplaces" not in data:
+            print(f"Error: registry at {path} missing 'marketplaces' key", file=sys.stderr)
+            sys.exit(2)
+        marketplaces = []
+        for m in data["marketplaces"]:
+            mp_path = Path(m.get("path", "")).expanduser().resolve()
+            if not mp_path.exists():
+                print(f"Warning: marketplace not found: {mp_path}", file=sys.stderr)
+                continue
+            plugins = []
+            for p in m.get("plugins", []):
+                if "name" not in p or "path" not in p:
+                    print(f"Warning: skipping malformed plugin entry: {p}", file=sys.stderr)
+                    continue
+                plugins.append(PluginEntry(
+                    name=p["name"],
+                    path=Path(p["path"]).expanduser().resolve(),
+                    remote=p.get("remote"),
+                ))
+            marketplaces.append(MarketplaceEntry(
+                path=mp_path,
+                plugins=tuple(plugins),
+            ))
+        return cls(marketplaces=tuple(marketplaces))
+
+    def save(self, registry_path: Path | None = None, *, dry_run: bool = False) -> None:
+        path = registry_path or _registry_path()
+        data = {
+            "marketplaces": [
+                {
+                    "path": str(m.path),
+                    "plugins": [
+                        {"name": p.name, "path": str(p.path), "remote": p.remote}
+                        for p in m.plugins
+                    ],
+                }
+                for m in self.marketplaces
+            ]
+        }
+        if not dry_run:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    def find_plugin(
+        self, name: str | None, cwd: Path
+    ) -> "tuple[PluginEntry, MarketplaceEntry] | None":
+        resolved_cwd = cwd.resolve()
+        for marketplace in self.marketplaces:
+            for plugin in marketplace.plugins:
+                if name:
+                    if plugin.name == name:
+                        return plugin, marketplace
+                else:
+                    if plugin.path.resolve() == resolved_cwd:
+                        return plugin, marketplace
+        return None
+
+    def with_plugin_added(
+        self, name: str, path: Path, remote: str | None, marketplace_path: Path
+    ) -> "PluginRegistry":
+        """Return new registry with plugin added to the given marketplace."""
+        entry = PluginEntry(name=name, path=path, remote=remote)
+        new_marketplaces = []
+        found = False
+        for m in self.marketplaces:
+            if m.path == marketplace_path:
+                new_marketplaces.append(MarketplaceEntry(
+                    path=m.path,
+                    plugins=m.plugins + (entry,),
+                ))
+                found = True
+            else:
+                new_marketplaces.append(m)
+        if not found:
+            new_marketplaces.append(MarketplaceEntry(
+                path=marketplace_path,
+                plugins=(entry,),
+            ))
+        return PluginRegistry(marketplaces=tuple(new_marketplaces))
+
+    def with_plugin_removed(self, name: str) -> "PluginRegistry":
+        """Return new registry with all entries matching name removed."""
+        new_marketplaces = []
+        for m in self.marketplaces:
+            remaining = tuple(p for p in m.plugins if p.name != name)
+            new_marketplaces.append(MarketplaceEntry(path=m.path, plugins=remaining))
+        return PluginRegistry(marketplaces=tuple(new_marketplaces))
+
+
 # ── Git helpers ──────────────────────────────────────────────────────
 
 
 def git(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
-        cwd=REPO_ROOT,
+        cwd=repo_root(),
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -155,75 +458,12 @@ def all_commits() -> list[str]:
     return [line for line in r.stdout.strip().splitlines() if line]
 
 
-# ── Version read/write ───────────────────────────────────────────────
+# ── Version read/write (via discovered files) ────────────────────────
 
 
-def read_pyproject_version() -> str:
-    text = VERSION_FILES["pyproject"].read_text(encoding="utf-8")
-    m = _PYPROJECT_VERSION_RE.search(text)
-    if not m:
-        raise RuntimeError("Could not find version in [project] section of pyproject.toml")
-    return m.group(2)
-
-
-def write_pyproject_version(old: str, new: str, *, dry_run: bool = False) -> None:
-    path = VERSION_FILES["pyproject"]
-    text = path.read_text(encoding="utf-8")
-    if not _PYPROJECT_VERSION_RE.search(text):
-        raise RuntimeError("Could not find version in [project] section of pyproject.toml")
-    updated = _PYPROJECT_VERSION_RE.sub(rf"\g<1>{new}\3", text, count=1)
-    if not dry_run:
-        path.write_text(updated, encoding="utf-8")
-
-
-def read_plugin_version() -> str:
-    data = json.loads(VERSION_FILES["plugin"].read_text(encoding="utf-8"))
-    return data["version"]
-
-
-def write_plugin_version(new: str, *, dry_run: bool = False) -> None:
-    path = VERSION_FILES["plugin"]
-    data = json.loads(path.read_text(encoding="utf-8"))
-    data["version"] = new
-    if not dry_run:
-        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
-
-def read_marketplace_version() -> str:
-    data = json.loads(VERSION_FILES["marketplace"].read_text(encoding="utf-8"))
-    return data["metadata"]["version"]
-
-
-def read_marketplace_aura_plugin_version() -> str:
-    data = json.loads(VERSION_FILES["marketplace"].read_text(encoding="utf-8"))
-    for plugin in data["plugins"]:
-        if plugin["name"] == "aura":
-            return plugin["version"]
-    raise RuntimeError("No plugin named 'aura' in marketplace.json")
-
-
-def write_marketplace_version(new: str, *, dry_run: bool = False) -> None:
-    path = VERSION_FILES["marketplace"]
-    data = json.loads(path.read_text(encoding="utf-8"))
-    data["metadata"]["version"] = new
-    for plugin in data["plugins"]:
-        if plugin["name"] == "aura":
-            plugin["version"] = new
-            break
-    else:
-        raise RuntimeError("No plugin named 'aura' in marketplace.json")
-    if not dry_run:
-        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
-
-def read_all_versions() -> dict[str, str]:
-    """Read version from each source. Returns {source_name: version}."""
-    return {
-        "pyproject.toml": read_pyproject_version(),
-        "plugin.json": read_plugin_version(),
-        "marketplace.json (metadata)": read_marketplace_version(),
-        "marketplace.json (aura plugin)": read_marketplace_aura_plugin_version(),
-    }
+def read_all_versions(files: list[VersionFile]) -> dict[str, str]:
+    """Read version from each discovered file. Returns {name: version}."""
+    return {vf.name: vf.read() for vf in files}
 
 
 def versions_consistent(versions: dict[str, str]) -> bool:
@@ -268,9 +508,10 @@ def generate_changelog_entry(version: str, subjects: list[str]) -> str:
 
 def update_changelog(entry: str, *, dry_run: bool = False) -> None:
     """Prepend a changelog entry to CHANGELOG.md (create if missing)."""
+    changelog_path = repo_root() / _CHANGELOG_FILENAME
     header = "# Changelog\n\n"
-    if CHANGELOG_PATH.exists():
-        existing = CHANGELOG_PATH.read_text(encoding="utf-8")
+    if changelog_path.exists():
+        existing = changelog_path.read_text(encoding="utf-8")
         if existing.startswith("# Changelog"):
             # Insert after the header line
             rest = existing[existing.index("\n") + 1 :].lstrip("\n")
@@ -281,7 +522,7 @@ def update_changelog(entry: str, *, dry_run: bool = False) -> None:
         content = header + entry
 
     if not dry_run:
-        CHANGELOG_PATH.write_text(content, encoding="utf-8")
+        changelog_path.write_text(content, encoding="utf-8")
 
 
 # ── Rollback ─────────────────────────────────────────────────────────
@@ -289,7 +530,8 @@ def update_changelog(entry: str, *, dry_run: bool = False) -> None:
 
 def rollback(files: list[Path]) -> None:
     """Restore files to their last committed state."""
-    paths = [str(f.relative_to(REPO_ROOT)) for f in files if f.exists()]
+    root = repo_root()
+    paths = [str(f.relative_to(root)) for f in files if f.exists()]
     if paths:
         git("checkout", "--", *paths, check=False)
     print("Rolled back file changes.", file=sys.stderr)
@@ -297,23 +539,56 @@ def rollback(files: list[Path]) -> None:
 
 # ── Main workflow ────────────────────────────────────────────────────
 
+_NO_FILES_MSG = """\
+aura-release looks for:
+  - pyproject.toml (with [project] version)
+  - package.json (with top-level version)
+  - .claude-plugin/plugin.json
+  - .claude-plugin/marketplace.json"""
 
-def cmd_check() -> int:
-    """Validate version consistency across all manifest files."""
-    versions = read_all_versions()
+
+def cmd_check(args: argparse.Namespace | None = None) -> int:
+    """Validate version consistency across all discovered manifest files."""
+    root = repo_root()
+    files = discover_version_files(root)
+
+    if not files:
+        print(f"Error: no version files found in {root}", file=sys.stderr)
+        print("", file=sys.stderr)
+        print(_NO_FILES_MSG, file=sys.stderr)
+        return 2
+
+    versions = read_all_versions(files)
     consistent = versions_consistent(versions)
+    canonical = next(iter(versions.values()))
 
-    print("Version consistency check:")
-    for source, ver in versions.items():
-        canonical = versions["pyproject.toml"]
+    print(f"Repository: {root}")
+    print(f"Version files ({len(files)}):")
+    for name, ver in versions.items():
         marker = " " if consistent else ("*" if ver != canonical else " ")
-        print(f"  {marker} {source}: {ver}")
+        print(f"  {marker} {name}: {ver}")
 
     if consistent:
-        print(f"\nAll files at {list(versions.values())[0]}")
-        return 0
+        print(f"\nAll files at {canonical}")
     else:
         print("\nDrift detected! Use --sync to align before bumping.")
+
+    # ── Registry info ──────────────────────────────────────────────
+    plugin_name = getattr(args, "plugin", None) if args is not None else None
+    registry = PluginRegistry.load()
+    if registry is not None:
+        match = registry.find_plugin(plugin_name, root)
+        if match is not None:
+            plugin_entry, marketplace_entry = match
+            print(f"Registry: plugin={plugin_entry.name} marketplace={marketplace_entry.path}")
+        else:
+            print(f"Registry: no match in {_registry_path()}")
+    else:
+        print(f"Registry: no file at {_registry_path()}")
+
+    if consistent:
+        return 0
+    else:
         return 1
 
 
@@ -325,8 +600,18 @@ def cmd_release(args: argparse.Namespace) -> int:
     do_changelog: bool = not args.no_changelog
     do_commit: bool = not args.no_commit
     do_tag: bool = not args.no_tag
+    # --plugin is optional; None means auto-detect from cwd
 
     prefix = "[dry-run] " if dry_run else ""
+    root = repo_root()
+
+    # ── Discover files ─────────────────────────────────────────────
+    files = discover_version_files(root)
+    if not files:
+        print(f"Error: no version files found in {root}", file=sys.stderr)
+        print("", file=sys.stderr)
+        print(_NO_FILES_MSG, file=sys.stderr)
+        return 2
 
     # ── Pre-flight ────────────────────────────────────────────────
     if is_detached_head():
@@ -345,24 +630,27 @@ def cmd_release(args: argparse.Namespace) -> int:
         print("  or git commit  # commit your work first", file=sys.stderr)
         return 2
 
-    versions = read_all_versions()
+    versions = read_all_versions(files)
+    canonical_name = next(iter(versions))
+
     if not versions_consistent(versions):
         if do_sync:
-            canonical = versions["pyproject.toml"]
-            print(f"{prefix}Syncing all files to pyproject.toml version: {canonical}")
-            write_plugin_version(canonical, dry_run=dry_run)
-            write_marketplace_version(canonical, dry_run=dry_run)
+            canonical = versions[canonical_name]
+            print(f"{prefix}Syncing all files to {canonical_name} version: {canonical}")
+            for vf in files:
+                if vf.name != canonical_name:
+                    vf.write(canonical, dry_run=dry_run)
             if not do_commit and not dry_run:
                 print("Warning: --sync with --no-commit leaves synced files uncommitted.", file=sys.stderr)
             current_str = canonical
         else:
             print("Error: version drift detected:", file=sys.stderr)
-            for source, ver in versions.items():
-                print(f"  {source}: {ver}", file=sys.stderr)
+            for name, ver in versions.items():
+                print(f"  {name}: {ver}", file=sys.stderr)
             print(f"\nTry: aura-release {bump_kind} --sync", file=sys.stderr)
             return 2
     else:
-        current_str = versions["pyproject.toml"]
+        current_str = versions[canonical_name]
 
     current = SemVer.parse(current_str)
     new = current.bump(bump_kind)
@@ -372,23 +660,14 @@ def cmd_release(args: argparse.Namespace) -> int:
     print(f"{prefix}Bumping: {current_str} -> {new_str} ({bump_kind})")
 
     # ── Define rollback set ───────────────────────────────────────
-    rollback_files = [
-        VERSION_FILES["pyproject"],
-        VERSION_FILES["plugin"],
-        VERSION_FILES["marketplace"],
-        CHANGELOG_PATH,
-    ]
+    changelog_path = root / _CHANGELOG_FILENAME
+    rollback_paths = [vf.path for vf in files] + [changelog_path]
 
     try:
         # ── Update version files ──────────────────────────────────
-        print(f"{prefix}Updating pyproject.toml")
-        write_pyproject_version(current_str, new_str, dry_run=dry_run)
-
-        print(f"{prefix}Updating plugin.json")
-        write_plugin_version(new_str, dry_run=dry_run)
-
-        print(f"{prefix}Updating marketplace.json")
-        write_marketplace_version(new_str, dry_run=dry_run)
+        for vf in files:
+            print(f"{prefix}Updating {vf.name}")
+            vf.write(new_str, dry_run=dry_run)
 
         # ── Changelog ─────────────────────────────────────────────
         if do_changelog:
@@ -412,13 +691,9 @@ def cmd_release(args: argparse.Namespace) -> int:
 
         # ── Git commit ────────────────────────────────────────────
         if do_commit and not dry_run:
-            stage_files = [
-                str(VERSION_FILES["pyproject"].relative_to(REPO_ROOT)),
-                str(VERSION_FILES["plugin"].relative_to(REPO_ROOT)),
-                str(VERSION_FILES["marketplace"].relative_to(REPO_ROOT)),
-            ]
-            if do_changelog and CHANGELOG_PATH.exists():
-                stage_files.append(str(CHANGELOG_PATH.relative_to(REPO_ROOT)))
+            stage_files = [str(vf.path.relative_to(root)) for vf in files]
+            if do_changelog and changelog_path.exists():
+                stage_files.append(str(changelog_path.relative_to(root)))
 
             git("add", *stage_files)
             git("commit", "-m", f"chore: release {tag_name}")
@@ -436,8 +711,36 @@ def cmd_release(args: argparse.Namespace) -> int:
     except Exception as exc:
         print(f"Error during release: {exc}", file=sys.stderr)
         if not dry_run:
-            rollback(rollback_files)
+            rollback(rollback_paths)
         return 2
+
+    # ── Registry write — AFTER git commit/tag ─────────────────────
+    registry = PluginRegistry.load()
+    if registry is not None:
+        plugin_name = getattr(args, "plugin", None)
+        match = registry.find_plugin(plugin_name, root)
+        if match is None:
+            print(
+                "Error: plugin registry found but no match for current directory",
+                file=sys.stderr,
+            )
+            print(
+                "Use --plugin <name> to specify explicitly or run registry add",
+                file=sys.stderr,
+            )
+            return 1
+        plugin_entry, marketplace_entry = match
+        resolved_mp = marketplace_entry.path.resolve()
+        discovered_paths = {vf.path.resolve() for vf in files}
+        if resolved_mp not in discovered_paths:  # double-bump guard
+            if dry_run:
+                print(
+                    f"[dry-run] Would update marketplace {resolved_mp}:"
+                    f" metadata.version -> {new_str}"
+                )
+            else:
+                mp_vf = MarketplaceVersionFile(name=str(resolved_mp), path=resolved_mp)
+                mp_vf.write(new_str)
 
     # ── Summary ───────────────────────────────────────────────────
     print(f"\n{'[dry-run] ' if dry_run else ''}Release {tag_name} complete!")
@@ -446,13 +749,212 @@ def cmd_release(args: argparse.Namespace) -> int:
     return 0
 
 
+# ── Registry CLI ─────────────────────────────────────────────────────
+
+
+def cmd_registry_init(args: list[str]) -> int:
+    """Create an empty plugin registry file.
+
+    Errors with exit code 1 if the registry file already exists.
+    """
+    parser = argparse.ArgumentParser(
+        prog="aura-release registry init",
+        description="Create an empty plugin registry at ~/.local/config/aura/plugins/claude-plugin-registry.json",
+    )
+    parser.parse_args(args)
+
+    reg_path = _registry_path()
+    if reg_path.exists():
+        print(f"Error: registry already exists at {reg_path}", file=sys.stderr)
+        return 1
+
+    reg_path.parent.mkdir(parents=True, exist_ok=True)
+    reg_path.write_text(json.dumps({"marketplaces": []}, indent=2) + "\n", encoding="utf-8")
+    print(f"Initialized empty registry at {reg_path}")
+    return 0
+
+
+def cmd_registry_add(args: list[str]) -> int:
+    """Add a plugin entry to the registry.
+
+    Stores the plugin path as an absolute path resolved at add time.
+    On duplicate name, prints the old entry and prompts for confirmation
+    unless --yes is passed.
+    """
+    parser = argparse.ArgumentParser(
+        prog="aura-release registry add",
+        description="Add a plugin to the registry.",
+    )
+    parser.add_argument("name", help="Plugin name")
+    parser.add_argument("--path", default=None, help="Local path to the plugin repo (default: current directory)")
+    parser.add_argument("--remote", default=None, help="Remote URL (default: auto-detected from git remote get-url origin)")
+    parser.add_argument("--marketplace", required=True, help="Path to the marketplace.json file (required)")
+    parser.add_argument("--yes", action="store_true", help="Skip confirmation prompt when overwriting an existing entry")
+    parsed = parser.parse_args(args)
+
+    reg_path = _registry_path()
+    if reg_path.exists():
+        registry = PluginRegistry.load(reg_path)
+        if registry is None:
+            registry = PluginRegistry(marketplaces=())
+    else:
+        registry = PluginRegistry(marketplaces=())
+
+    # Resolve path as absolute at add time (UAT delta)
+    abs_path = Path(parsed.path or ".").resolve()
+    marketplace_path = Path(parsed.marketplace).resolve()
+
+    # Delta 1: auto-detect remote from git origin when --remote not provided
+    remote = parsed.remote
+    if not remote:
+        try:
+            result = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                capture_output=True, text=True, check=True,
+                cwd=str(abs_path)
+            )
+            remote = result.stdout.strip()
+            print(f"Detected remote: {remote}")
+        except subprocess.CalledProcessError:
+            remote = None  # no origin, leave as None
+
+    # Check for duplicate by name across all marketplaces
+    existing = registry.find_plugin(parsed.name, abs_path)
+    if existing is not None:
+        old_entry, old_marketplace = existing
+        old_remote_str = f"remote: {old_entry.remote}" if old_entry.remote is not None else "remote: None"
+        print(f"Existing entry: {old_marketplace.path} → {old_entry.name} ({old_entry.path}) [{old_remote_str}]")
+        if not parsed.yes:
+            print("Update? [y/N] ", end="", flush=True)
+            answer = input("").strip().lower()
+            if answer not in ("y", "yes"):
+                print("Aborted.")
+                return 0
+        # Remove the old entry, then re-add with new values
+        registry = registry.with_plugin_removed(parsed.name)
+
+        registry = registry.with_plugin_added(
+            name=parsed.name,
+            path=abs_path,
+            remote=remote,
+            marketplace_path=marketplace_path,
+        )
+        registry.save(reg_path)
+        # Delta 2: diff-style output showing old → new after an update
+        new_remote_str = f"remote: {remote}" if remote is not None else "remote: None"
+        print(f"Updated to:     {marketplace_path} → {parsed.name} ({abs_path}) [{new_remote_str}]")
+        return 0
+
+    registry = registry.with_plugin_added(
+        name=parsed.name,
+        path=abs_path,
+        remote=remote,
+        marketplace_path=marketplace_path,
+    )
+    registry.save(reg_path)
+    print(f"Added {parsed.name} to registry.")
+    return 0
+
+
+def cmd_registry_list(args: list[str]) -> int:
+    """List all plugin entries in the registry."""
+    parser = argparse.ArgumentParser(
+        prog="aura-release registry list",
+        description="List plugins in the registry.",
+    )
+    parser.parse_args(args)
+
+    reg_path = _registry_path()
+    registry = PluginRegistry.load(reg_path)
+    if registry is None:
+        print("Registry not found. Run: aura-release registry init", file=sys.stderr)
+        return 1
+
+    for marketplace in registry.marketplaces:
+        for plugin in marketplace.plugins:
+            print(f"{marketplace.path} → {plugin.name} ({plugin.path})")
+    return 0
+
+
+def cmd_registry_remove(args: list[str]) -> int:
+    """Remove all plugin entries matching the given name."""
+    parser = argparse.ArgumentParser(
+        prog="aura-release registry remove",
+        description="Remove a plugin from the registry by name.",
+    )
+    parser.add_argument("name", help="Plugin name to remove")
+    parsed = parser.parse_args(args)
+
+    reg_path = _registry_path()
+    registry = PluginRegistry.load(reg_path)
+    if registry is None:
+        print("Registry not found. Run: aura-release registry init", file=sys.stderr)
+        return 1
+
+    registry = registry.with_plugin_removed(parsed.name)
+    registry.save(reg_path)
+    return 0
+
+
+_REGISTRY_SUBCOMMANDS = {
+    "init": cmd_registry_init,
+    "add": cmd_registry_add,
+    "list": cmd_registry_list,
+    "remove": cmd_registry_remove,
+}
+
+
+def cmd_registry(args: list[str]) -> int:
+    """Dispatch registry subcommands: init, add, list, remove."""
+    if not args:
+        print("Usage: aura-release registry <init|add|list|remove>", file=sys.stderr)
+        return 2
+
+    subcmd = args[0]
+    if subcmd not in _REGISTRY_SUBCOMMANDS:
+        print(f"Error: unknown registry subcommand {subcmd!r}", file=sys.stderr)
+        print("Usage: aura-release registry <init|add|list|remove>", file=sys.stderr)
+        return 2
+
+    return _REGISTRY_SUBCOMMANDS[subcmd](args[1:])
+
+
 # ── CLI ──────────────────────────────────────────────────────────────
 
 
 def main() -> int:
+    # Registry subcommand dispatch (backward-compatible: checked before argparse)
+    if len(sys.argv) > 1 and sys.argv[1] == "registry":
+        if len(sys.argv) == 2 or sys.argv[2] in ("-h", "--help"):
+            print("Usage: aura-release registry <init|add|list|remove>")
+            print("Registry file: ~/.local/config/aura/plugins/claude-plugin-registry.json")
+            print("")
+            print("Subcommands:")
+            print("  init                  Create empty registry file")
+            print("  add <name> ...        Register a plugin (--path defaults to CWD, --remote defaults to git origin)")
+            print("  list                  List all registered plugins")
+            print("  remove <name>         Remove a plugin by name")
+            return 0
+        return cmd_registry(sys.argv[2:])
+
+    # Helpful redirect for bare registry subcommands (e.g. "aura-release add" → "aura-release registry add")
+    _REGISTRY_SUBCMDS = {"init", "add", "list", "remove"}
+    if len(sys.argv) > 1 and sys.argv[1] in _REGISTRY_SUBCMDS:
+        subcmd = sys.argv[1]
+        print(f"Error: '{subcmd}' is a registry subcommand.", file=sys.stderr)
+        print(f"Did you mean:  aura-release registry {subcmd}", file=sys.stderr)
+        return 2
+
     parser = argparse.ArgumentParser(
         prog="aura-release",
         description="Bump version, generate changelog, commit and tag a release.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Registry commands:\n"
+            "  aura-release registry <init|add|list|remove>\n"
+            "  Registry file: ~/.local/config/aura/plugins/claude-plugin-registry.json\n"
+            "  Run 'aura-release registry --help' for details."
+        ),
     )
 
     parser.add_argument(
@@ -463,10 +965,16 @@ def main() -> int:
     )
     parser.add_argument("--check", action="store_true", help="Check version consistency and exit")
     parser.add_argument("--dry-run", action="store_true", help="Show what would happen without making changes")
-    parser.add_argument("--sync", action="store_true", help="Sync all files to pyproject.toml version before bumping")
+    parser.add_argument("--sync", action="store_true", help="Sync all files to first discovered pyproject.toml version before bumping")
     parser.add_argument("--no-changelog", action="store_true", help="Skip changelog generation")
     parser.add_argument("--no-commit", action="store_true", help="Skip git commit")
     parser.add_argument("--no-tag", action="store_true", help="Skip git tag")
+    parser.add_argument(
+        "--plugin",
+        metavar="NAME",
+        default=None,
+        help="Plugin name for registry lookup; auto-detected from cwd if omitted",
+    )
 
     args = parser.parse_args()
 
@@ -475,7 +983,7 @@ def main() -> int:
             parser.error("--check cannot be used with a bump argument")
         if args.sync:
             parser.error("--check and --sync are mutually exclusive")
-        return cmd_check()
+        return cmd_check(args)
 
     if not args.bump:
         print("Error: bump type required.\n", file=sys.stderr)
@@ -486,6 +994,13 @@ def main() -> int:
         print("  aura-release patch --dry-run      # preview changes without writing", file=sys.stderr)
         print("  aura-release patch --sync         # fix version drift, then bump", file=sys.stderr)
         print("  aura-release --check              # check version consistency", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Registry:", file=sys.stderr)
+        print("  aura-release registry init        # create registry file", file=sys.stderr)
+        print("  aura-release registry add <name>  # register a plugin", file=sys.stderr)
+        print("  aura-release registry list        # list registered plugins", file=sys.stderr)
+        print("  aura-release registry remove <n>  # remove a plugin", file=sys.stderr)
+        print("  aura-release registry --help      # full registry help", file=sys.stderr)
         sys.exit(2)
 
     return cmd_release(args)
