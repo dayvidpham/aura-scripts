@@ -618,7 +618,11 @@ class TestProcedureStepsMatchSchema:
         assert len(steps) > 0, "PROCEDURE_STEPS[worker] must be non-empty (UAT-6)"
 
     def test_supervisor_steps_from_schema(self, schema_root: ET.Element) -> None:
-        """Supervisor steps match startup-sequence from schema.xml phase p8."""
+        """Supervisor steps match startup-sequence from schema.xml phase p8.
+
+        Steps use child elements for instruction/command/context/next-state,
+        and 'order'/'id' as XML attributes.
+        """
         steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
         # Phase 8 substep s8 has a startup-sequence in schema.xml
         startup_steps: list[str] = []
@@ -633,9 +637,10 @@ class TestProcedureStepsMatchSchema:
                 for substep in substeps_el.findall("substep"):
                     startup_seq = substep.find("startup-sequence")
                     if startup_seq is not None:
-                        for step in startup_seq.findall("step"):
-                            if step.text:
-                                startup_steps.append(step.text.strip())
+                        for step_el in startup_seq.findall("step"):
+                            instr_el = step_el.find("instruction")
+                            if instr_el is not None and instr_el.text:
+                                startup_steps.append(instr_el.text.strip())
                 break
         assert len(steps) == len(startup_steps), (
             f"Supervisor procedure step count mismatch: "

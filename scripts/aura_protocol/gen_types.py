@@ -210,6 +210,7 @@ def _gen_dataclass_stubs() -> str:
             @dataclass(frozen=True)
             class ProcedureStep:
                 \"\"\"Single step in a role procedure.\"\"\"
+                id: str
                 order: int
                 instruction: str
                 command: str | None = None
@@ -326,7 +327,7 @@ def _gen_procedure_steps_dict(spec: "SchemaSpec") -> str:
         steps = spec.procedure_steps[role_id]
         lines.append(f"    RoleId.{role_id.name}: (")
         for step in steps:
-            parts = [f"order={step.order}", f"instruction={_repr_str(step.instruction)}"]
+            parts = [f"id={_repr_str(step.id)}", f"order={step.order}", f"instruction={_repr_str(step.instruction)}"]
             if step.command is not None:
                 parts.append(f"command={_repr_str(step.command)}")
             if step.context is not None:

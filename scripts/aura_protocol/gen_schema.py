@@ -555,11 +555,20 @@ def _build_phases(root: ET.Element) -> None:
                     startup_el = ET.SubElement(substep_el, "startup-sequence")
                     sup_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
                     for step in sup_steps:
-                        step_attrs: dict[str, str] = {"order": str(step.order)}
+                        step_el = ET.SubElement(startup_el, "step",
+                                                order=str(step.order),
+                                                id=step.id)
+                        instr_el = ET.SubElement(step_el, "instruction")
+                        instr_el.text = step.instruction
+                        if step.command is not None:
+                            cmd_el = ET.SubElement(step_el, "command")
+                            cmd_el.text = step.command
+                        if step.context is not None:
+                            ctx_el = ET.SubElement(step_el, "context")
+                            ctx_el.text = step.context
                         if step.next_state is not None:
-                            step_attrs["next-state"] = step.next_state.value
-                        step_el = ET.SubElement(startup_el, "step", **step_attrs)
-                        step_el.text = step.instruction
+                            ns_el = ET.SubElement(step_el, "next-state")
+                            ns_el.text = step.next_state.value
 
         # Task-title(s) for this phase
         if pid in _PHASE_TASK_TITLES:
@@ -1341,10 +1350,11 @@ def _build_procedure_steps(root: ET.Element) -> None:
     """Append <procedure-steps> section to root, derived from PROCEDURE_STEPS.
 
     Emits one <role ref="..."> per role that has non-empty steps. Each step
-    becomes a <step> element with order+instruction attributes, plus optional
-    command, context, and next-state attributes when non-None.
+    becomes a <step> element with 'order' and 'id' as XML attributes, and
+    instruction/command/context/next-state as child elements (only emitted
+    when non-None).
 
-    All attribute values are XML-escaped by ElementTree automatically.
+    All attribute and text values are XML-escaped by ElementTree automatically.
     """
     # Role ordering for deterministic output
     role_order = [RoleId.EPOCH, RoleId.ARCHITECT, RoleId.REVIEWER,
@@ -1359,17 +1369,20 @@ def _build_procedure_steps(root: ET.Element) -> None:
 
         role_el = ET.SubElement(proc_el, "role", ref=role_id.value)
         for step in steps:
-            step_attrs: dict[str, str] = {
-                "order": str(step.order),
-                "instruction": step.instruction,
-            }
+            step_el = ET.SubElement(role_el, "step",
+                                    order=str(step.order),
+                                    id=step.id)
+            instr_el = ET.SubElement(step_el, "instruction")
+            instr_el.text = step.instruction
             if step.command is not None:
-                step_attrs["command"] = step.command
+                cmd_el = ET.SubElement(step_el, "command")
+                cmd_el.text = step.command
             if step.context is not None:
-                step_attrs["context"] = step.context
+                ctx_el = ET.SubElement(step_el, "context")
+                ctx_el.text = step.context
             if step.next_state is not None:
-                step_attrs["next-state"] = step.next_state.value
-            ET.SubElement(role_el, "step", **step_attrs)
+                ns_el = ET.SubElement(step_el, "next-state")
+                ns_el.text = step.next_state.value
 
 
 # ─── Section comment helper ────────────────────────────────────────────────────

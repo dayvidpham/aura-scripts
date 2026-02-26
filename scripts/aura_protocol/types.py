@@ -305,6 +305,7 @@ class ProcedureStep:
     """A single step in a role's startup or operational procedure.
 
     Fields:
+        id:          Unique step identifier, e.g. 'S-supervisor-call-skill'.
         order:       Step number (1-based).
         instruction: Human-readable description of what to do.
         command:     Optional exact shell/bd command to run (e.g. 'bd dep add ...').
@@ -312,6 +313,7 @@ class ProcedureStep:
         next_state:  Phase this step transitions to, if any.
     """
 
+    id: str
     order: int
     instruction: str
     command: str | None = None
@@ -1603,31 +1605,44 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
     RoleId.REVIEWER: (),
     RoleId.SUPERVISOR: (
         ProcedureStep(
+            id="S-supervisor-call-skill",
             order=1,
             instruction="Call Skill(/aura:supervisor) to load role instructions",
             command="Skill(/aura:supervisor)",
         ),
         ProcedureStep(
+            id="S-supervisor-read-plan",
             order=2,
             instruction="Read RATIFIED_PLAN and URD via bd show",
             command="bd show <ratified-plan-id> && bd show <urd-id>",
         ),
         ProcedureStep(
+            id="S-supervisor-cartographers",
             order=3,
             instruction="Create standing explore team via TeamCreate before any codebase exploration",
             context="TeamCreate with /aura:explore role; minimum 3 agents",
         ),
         ProcedureStep(
+            id="S-supervisor-decompose-slices",
             order=4,
             instruction="Decompose into vertical slices",
+            context=(
+                "Vertical slices give one worker end-to-end ownership of a feature path "
+                "(types → tests → impl → wiring) with clear file boundaries"
+            ),
             next_state=PhaseId.P8_IMPL_PLAN,
         ),
         ProcedureStep(
+            id="S-supervisor-create-leaf-tasks",
             order=5,
             instruction="Create leaf tasks (L1/L2/L3) for every slice",
-            command="bd create --labels L1,L2,L3 <task-id>",
+            command=(
+                'bd create --labels aura:p9-impl:s9-slice --title '
+                '"SLICE-{K}-L{1,2,3}: <description>" ...'
+            ),
         ),
         ProcedureStep(
+            id="S-supervisor-spawn-workers",
             order=6,
             instruction="Spawn workers for leaf tasks",
             command="aura-swarm start --epic <epic-id>",
@@ -1635,12 +1650,18 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
         ),
     ),
     RoleId.WORKER: (
-        ProcedureStep(order=1, instruction="Types, interfaces, schemas (no deps)"),
         ProcedureStep(
+            id="S-worker-types",
+            order=1,
+            instruction="Types, interfaces, schemas (no deps)",
+        ),
+        ProcedureStep(
+            id="S-worker-tests",
             order=2,
             instruction="Tests importing production code (will fail initially)",
         ),
         ProcedureStep(
+            id="S-worker-impl",
             order=3,
             instruction="Make tests pass. Wire with real dependencies. No TODOs.",
             next_state=PhaseId.P9_SLICE,

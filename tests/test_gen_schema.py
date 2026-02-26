@@ -236,13 +236,17 @@ class TestProcedureStepsSection:
             f"Supervisor step count mismatch: "
             f"XML={len(steps)}, Python={len(PROCEDURE_STEPS[RoleId.SUPERVISOR])}"
         )
-        # Verify first step has instruction attribute
+        # Verify first step has id and order attributes, and <instruction> child element
         first_step = steps[0]
-        assert first_step.get("instruction") is not None, (
-            "First supervisor step missing 'instruction' attribute"
+        assert first_step.get("id") is not None, (
+            "First supervisor step missing 'id' attribute"
         )
         assert first_step.get("order") == "1", (
             f"First supervisor step order should be '1', got {first_step.get('order')!r}"
+        )
+        instr_el = first_step.find("instruction")
+        assert instr_el is not None and instr_el.text, (
+            "First supervisor step missing <instruction> child element"
         )
 
     def test_worker_role_in_procedure_steps(
@@ -278,10 +282,10 @@ class TestProcedureStepsSection:
                     f"but appears in <procedure-steps> XML"
                 )
 
-    def test_optional_attributes_present_when_set(
+    def test_optional_child_elements_present_when_set(
         self, generated_xml_root: ET.Element
     ) -> None:
-        """Steps with command/context/next-state in Python emit those XML attributes."""
+        """Steps with command/context/next-state in Python emit those as child elements."""
         proc_el = generated_xml_root.find("procedure-steps")
         assert proc_el is not None
 
@@ -295,29 +299,57 @@ class TestProcedureStepsSection:
         xml_steps = sup_role.findall("step")
         python_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
         for xml_step, py_step in zip(xml_steps, python_steps):
+            # id and order are XML attributes
+            assert xml_step.get("id") == py_step.id, (
+                f"Step {py_step.order} id mismatch: "
+                f"XML={xml_step.get('id')!r}, Python={py_step.id!r}"
+            )
+            # instruction is always a child element
+            instr_el = xml_step.find("instruction")
+            assert instr_el is not None and instr_el.text is not None, (
+                f"Step {py_step.order} missing <instruction> child element"
+            )
+            assert instr_el.text.strip() == py_step.instruction, (
+                f"Step {py_step.order} instruction mismatch"
+            )
+            # command: child element when set, absent when None
+            cmd_el = xml_step.find("command")
             if py_step.command is not None:
-                assert xml_step.get("command") == py_step.command, (
+                assert cmd_el is not None and cmd_el.text is not None, (
+                    f"Step {py_step.order} missing <command> child element"
+                )
+                assert cmd_el.text.strip() == py_step.command, (
                     f"Step {py_step.order} command mismatch"
                 )
             else:
-                assert xml_step.get("command") is None, (
-                    f"Step {py_step.order} should not have command attribute"
+                assert cmd_el is None, (
+                    f"Step {py_step.order} should not have <command> child element"
                 )
+            # context: child element when set, absent when None
+            ctx_el = xml_step.find("context")
             if py_step.context is not None:
-                assert xml_step.get("context") == py_step.context, (
+                assert ctx_el is not None and ctx_el.text is not None, (
+                    f"Step {py_step.order} missing <context> child element"
+                )
+                assert ctx_el.text.strip() == py_step.context, (
                     f"Step {py_step.order} context mismatch"
                 )
             else:
-                assert xml_step.get("context") is None, (
-                    f"Step {py_step.order} should not have context attribute"
+                assert ctx_el is None, (
+                    f"Step {py_step.order} should not have <context> child element"
                 )
+            # next-state: child element when set, absent when None
+            ns_el = xml_step.find("next-state")
             if py_step.next_state is not None:
-                assert xml_step.get("next-state") == py_step.next_state.value, (
+                assert ns_el is not None and ns_el.text is not None, (
+                    f"Step {py_step.order} missing <next-state> child element"
+                )
+                assert ns_el.text.strip() == py_step.next_state.value, (
                     f"Step {py_step.order} next-state mismatch"
                 )
             else:
-                assert xml_step.get("next-state") is None, (
-                    f"Step {py_step.order} should not have next-state attribute"
+                assert ns_el is None, (
+                    f"Step {py_step.order} should not have <next-state> child element"
                 )
 
 
@@ -785,6 +817,10 @@ class TestRoundTripConsistency:
             f"parsed={len(parsed_steps)}, python={len(python_steps)}"
         )
         for i, (py_step, parsed_step) in enumerate(zip(python_steps, parsed_steps)):
+            assert parsed_step.id == py_step.id, (
+                f"Supervisor step[{i}] id mismatch: "
+                f"parsed={parsed_step.id!r}, python={py_step.id!r}"
+            )
             assert parsed_step.instruction == py_step.instruction, (
                 f"Supervisor step[{i}] instruction mismatch: "
                 f"parsed={parsed_step.instruction!r}, python={py_step.instruction!r}"
@@ -803,6 +839,10 @@ class TestRoundTripConsistency:
             f"parsed={len(parsed_steps)}, python={len(python_steps)}"
         )
         for i, (py_step, parsed_step) in enumerate(zip(python_steps, parsed_steps)):
+            assert parsed_step.id == py_step.id, (
+                f"Worker step[{i}] id mismatch: "
+                f"parsed={parsed_step.id!r}, python={py_step.id!r}"
+            )
             assert parsed_step.instruction == py_step.instruction, (
                 f"Worker step[{i}] instruction mismatch: "
                 f"parsed={parsed_step.instruction!r}, python={py_step.instruction!r}"

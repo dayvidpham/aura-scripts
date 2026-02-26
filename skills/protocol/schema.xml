@@ -253,12 +253,32 @@
         <substep id="s8" type="plan" execution="sequential" order="1" label-ref="L-p8s8">
           <description>Identify production code paths. Create SLICE-N tasks with leaf tasks. Assign workers.</description>
           <startup-sequence>
-            <step order="1">Call Skill(/aura:supervisor) to load role instructions</step>
-            <step order="2">Read RATIFIED_PLAN and URD via bd show</step>
-            <step order="3">Create standing explore team via TeamCreate before any codebase exploration</step>
-            <step order="4" next-state="p8">Decompose into vertical slices</step>
-            <step order="5">Create leaf tasks (L1/L2/L3) for every slice</step>
-            <step order="6" next-state="p9">Spawn workers for leaf tasks</step>
+            <step order="1" id="S-supervisor-call-skill">
+              <instruction>Call Skill(/aura:supervisor) to load role instructions</instruction>
+              <command>Skill(/aura:supervisor)</command>
+            </step>
+            <step order="2" id="S-supervisor-read-plan">
+              <instruction>Read RATIFIED_PLAN and URD via bd show</instruction>
+              <command>bd show &lt;ratified-plan-id&gt; &amp;&amp; bd show &lt;urd-id&gt;</command>
+            </step>
+            <step order="3" id="S-supervisor-cartographers">
+              <instruction>Create standing explore team via TeamCreate before any codebase exploration</instruction>
+              <context>TeamCreate with /aura:explore role; minimum 3 agents</context>
+            </step>
+            <step order="4" id="S-supervisor-decompose-slices">
+              <instruction>Decompose into vertical slices</instruction>
+              <context>Vertical slices give one worker end-to-end ownership of a feature path (types → tests → impl → wiring) with clear file boundaries</context>
+              <next-state>p8</next-state>
+            </step>
+            <step order="5" id="S-supervisor-create-leaf-tasks">
+              <instruction>Create leaf tasks (L1/L2/L3) for every slice</instruction>
+              <command>bd create --labels aura:p9-impl:s9-slice --title "SLICE-{K}-L{1,2,3}: &lt;description&gt;" ...</command>
+            </step>
+            <step order="6" id="S-supervisor-spawn-workers">
+              <instruction>Spawn workers for leaf tasks</instruction>
+              <command>aura-swarm start --epic &lt;epic-id&gt;</command>
+              <next-state>p9</next-state>
+            </step>
           </startup-sequence>
         </substep>
       </substeps>
@@ -1083,17 +1103,44 @@
      ═══════════════════════════════════════════════════════════════════════ -->
   <procedure-steps>
     <role ref="supervisor">
-      <step order="1" instruction="Call Skill(/aura:supervisor) to load role instructions" command="Skill(/aura:supervisor)" />
-      <step order="2" instruction="Read RATIFIED_PLAN and URD via bd show" command="bd show &lt;ratified-plan-id&gt; &amp;&amp; bd show &lt;urd-id&gt;" />
-      <step order="3" instruction="Create standing explore team via TeamCreate before any codebase exploration" context="TeamCreate with /aura:explore role; minimum 3 agents" />
-      <step order="4" instruction="Decompose into vertical slices" next-state="p8" />
-      <step order="5" instruction="Create leaf tasks (L1/L2/L3) for every slice" command="bd create --labels L1,L2,L3 &lt;task-id&gt;" />
-      <step order="6" instruction="Spawn workers for leaf tasks" command="aura-swarm start --epic &lt;epic-id&gt;" next-state="p9" />
+      <step order="1" id="S-supervisor-call-skill">
+        <instruction>Call Skill(/aura:supervisor) to load role instructions</instruction>
+        <command>Skill(/aura:supervisor)</command>
+      </step>
+      <step order="2" id="S-supervisor-read-plan">
+        <instruction>Read RATIFIED_PLAN and URD via bd show</instruction>
+        <command>bd show &lt;ratified-plan-id&gt; &amp;&amp; bd show &lt;urd-id&gt;</command>
+      </step>
+      <step order="3" id="S-supervisor-cartographers">
+        <instruction>Create standing explore team via TeamCreate before any codebase exploration</instruction>
+        <context>TeamCreate with /aura:explore role; minimum 3 agents</context>
+      </step>
+      <step order="4" id="S-supervisor-decompose-slices">
+        <instruction>Decompose into vertical slices</instruction>
+        <context>Vertical slices give one worker end-to-end ownership of a feature path (types → tests → impl → wiring) with clear file boundaries</context>
+        <next-state>p8</next-state>
+      </step>
+      <step order="5" id="S-supervisor-create-leaf-tasks">
+        <instruction>Create leaf tasks (L1/L2/L3) for every slice</instruction>
+        <command>bd create --labels aura:p9-impl:s9-slice --title "SLICE-{K}-L{1,2,3}: &lt;description&gt;" ...</command>
+      </step>
+      <step order="6" id="S-supervisor-spawn-workers">
+        <instruction>Spawn workers for leaf tasks</instruction>
+        <command>aura-swarm start --epic &lt;epic-id&gt;</command>
+        <next-state>p9</next-state>
+      </step>
     </role>
     <role ref="worker">
-      <step order="1" instruction="Types, interfaces, schemas (no deps)" />
-      <step order="2" instruction="Tests importing production code (will fail initially)" />
-      <step order="3" instruction="Make tests pass. Wire with real dependencies. No TODOs." next-state="p9" />
+      <step order="1" id="S-worker-types">
+        <instruction>Types, interfaces, schemas (no deps)</instruction>
+      </step>
+      <step order="2" id="S-worker-tests">
+        <instruction>Tests importing production code (will fail initially)</instruction>
+      </step>
+      <step order="3" id="S-worker-impl">
+        <instruction>Make tests pass. Wire with real dependencies. No TODOs.</instruction>
+        <next-state>p9</next-state>
+      </step>
     </role>
   </procedure-steps>
 </aura-protocol>
