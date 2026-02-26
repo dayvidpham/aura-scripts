@@ -809,7 +809,13 @@ class TestRoundTripConsistency:
         )
 
     def test_roundtrip_procedure_steps_supervisor(self, parsed_spec) -> None:
-        """Round-trip: supervisor procedure steps match PROCEDURE_STEPS field-by-field."""
+        """Round-trip (AC-B3-1): supervisor procedure steps match PROCEDURE_STEPS —
+        all 6 fields asserted field-by-field.
+
+        Supervisor steps are parsed from <startup-sequence> in schema.xml phase p8;
+        the parser round-trips id, order, instruction, command, context, and
+        next_state for each step.
+        """
         python_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
         parsed_steps = parsed_spec.procedure_steps.get(RoleId.SUPERVISOR, ())
         assert len(parsed_steps) == len(python_steps), (
@@ -821,17 +827,35 @@ class TestRoundTripConsistency:
                 f"Supervisor step[{i}] id mismatch: "
                 f"parsed={parsed_step.id!r}, python={py_step.id!r}"
             )
-            assert parsed_step.instruction == py_step.instruction, (
-                f"Supervisor step[{i}] instruction mismatch: "
-                f"parsed={parsed_step.instruction!r}, python={py_step.instruction!r}"
-            )
             assert parsed_step.order == py_step.order, (
                 f"Supervisor step[{i}] order mismatch: "
                 f"parsed={parsed_step.order!r}, python={py_step.order!r}"
             )
+            assert parsed_step.instruction == py_step.instruction, (
+                f"Supervisor step[{i}] instruction mismatch: "
+                f"parsed={parsed_step.instruction!r}, python={py_step.instruction!r}"
+            )
+            assert parsed_step.command == py_step.command, (
+                f"Supervisor step[{i}] command mismatch: "
+                f"parsed={parsed_step.command!r}, python={py_step.command!r}"
+            )
+            assert parsed_step.context == py_step.context, (
+                f"Supervisor step[{i}] context mismatch: "
+                f"parsed={parsed_step.context!r}, python={py_step.context!r}"
+            )
+            assert parsed_step.next_state == py_step.next_state, (
+                f"Supervisor step[{i}] next_state mismatch: "
+                f"parsed={parsed_step.next_state!r}, python={py_step.next_state!r}"
+            )
 
     def test_roundtrip_procedure_steps_worker(self, parsed_spec) -> None:
-        """Round-trip: worker procedure steps match PROCEDURE_STEPS field-by-field."""
+        """Round-trip (AC-B3-2): worker procedure steps match PROCEDURE_STEPS —
+        id/order/instruction match; command/context/next_state are each explicitly None.
+
+        Worker steps are parsed from <tdd-layers> in schema.xml phase p9.  The parser
+        intentionally does not set command, context, or next_state for worker steps
+        (those fields are not present in <tdd-layers>), so each must be None.
+        """
         python_steps = PROCEDURE_STEPS[RoleId.WORKER]
         parsed_steps = parsed_spec.procedure_steps.get(RoleId.WORKER, ())
         assert len(parsed_steps) == len(python_steps), (
@@ -843,13 +867,30 @@ class TestRoundTripConsistency:
                 f"Worker step[{i}] id mismatch: "
                 f"parsed={parsed_step.id!r}, python={py_step.id!r}"
             )
+            assert parsed_step.order == py_step.order, (
+                f"Worker step[{i}] order mismatch: "
+                f"parsed={parsed_step.order!r}, python={py_step.order!r}"
+            )
             assert parsed_step.instruction == py_step.instruction, (
                 f"Worker step[{i}] instruction mismatch: "
                 f"parsed={parsed_step.instruction!r}, python={py_step.instruction!r}"
             )
-            assert parsed_step.order == py_step.order, (
-                f"Worker step[{i}] order mismatch: "
-                f"parsed={parsed_step.order!r}, python={py_step.order!r}"
+            # Worker steps come from <tdd-layers>, not <startup-sequence>;
+            # the parser intentionally discards command/context/next_state.
+            assert parsed_step.command is None, (
+                f"Worker step[{i}] command must be None "
+                f"(worker steps have no command in <tdd-layers>), "
+                f"got {parsed_step.command!r}"
+            )
+            assert parsed_step.context is None, (
+                f"Worker step[{i}] context must be None "
+                f"(worker steps have no context in <tdd-layers>), "
+                f"got {parsed_step.context!r}"
+            )
+            assert parsed_step.next_state is None, (
+                f"Worker step[{i}] next_state must be None "
+                f"(worker steps have no next-state in <tdd-layers>), "
+                f"got {parsed_step.next_state!r}"
             )
 
 
