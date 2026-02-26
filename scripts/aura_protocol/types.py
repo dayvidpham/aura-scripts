@@ -206,6 +206,84 @@ class PhaseSpec:
 
 
 @dataclass(frozen=True)
+class SerializableTransition:
+    """A single phase transition that is fully JSON-serializable.
+
+    Mirrors Transition but uses only StrEnum/str fields (no frozenset/tuple)
+    for safe round-tripping through Temporal DataConverter.
+    """
+
+    to_phase: PhaseId
+    condition: str
+    action: str | None = None
+
+
+@dataclass(frozen=True)
+class SerializablePhaseSpec:
+    """JSON-serializable frozen snapshot of a PhaseSpec.
+
+    Replaces frozenset[RoleId] with list[RoleId] (sorted by .value) and
+    tuple[Transition, ...] with list[SerializableTransition] so that
+    Temporal's JSON DataConverter can encode/decode the type without error.
+    """
+
+    id: PhaseId
+    number: int
+    domain: Domain
+    name: str
+    owner_roles: list[RoleId]
+    transitions: list[SerializableTransition]
+
+    @staticmethod
+    def from_spec(spec: "PhaseSpec") -> "SerializablePhaseSpec":
+        """Convert a frozen PhaseSpec into a SerializablePhaseSpec.
+
+        owner_roles is sorted by .value for deterministic ordering.
+        """
+        return SerializablePhaseSpec(
+            id=spec.id,
+            number=spec.number,
+            domain=spec.domain,
+            name=spec.name,
+            owner_roles=sorted(spec.owner_roles, key=lambda r: r.value),
+            transitions=[
+                SerializableTransition(
+                    to_phase=t.to_phase,
+                    condition=t.condition,
+                    action=t.action,
+                )
+                for t in spec.transitions
+            ],
+        )
+
+
+@dataclass(frozen=True)
+class PhaseInput:
+    """Input payload passed to a phase child workflow.
+
+    Contains the epoch identity and a serializable snapshot of the phase spec.
+    All fields are Temporal DataConverter-safe (StrEnum, str, frozen dataclass).
+    """
+
+    epoch_id: str
+    phase_spec: SerializablePhaseSpec
+
+
+@dataclass(frozen=True)
+class PhaseResult:
+    """Result payload returned by a phase child workflow.
+
+    Contains the phase identity, success flag, number of open blockers, and
+    the optional vote result (only present for review phases).
+    """
+
+    phase_id: PhaseId
+    success: bool
+    blocker_count: int = 0
+    vote_result: VoteType | None = None
+
+
+@dataclass(frozen=True)
 class ConstraintSpec:
     """A single protocol constraint in Given/When/Then/Should-not format.
 
