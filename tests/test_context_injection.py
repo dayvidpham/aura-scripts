@@ -636,6 +636,54 @@ class TestGetRoleContextEpoch:
         assert "C-handoff-skill-invocation" in ids
 
 
+# ─── AC-A2-1: EPOCH Ride the Wave Constraint Inclusion Tests ──────────────────
+
+
+class TestEpochRideTheWaveConstraints:
+    """AC-A2-1: EPOCH role context includes all 4 Ride the Wave constraints by id.
+
+    Each test calls get_role_context(RoleId.EPOCH) and asserts a specific
+    Ride the Wave constraint appears in RoleContext.constraints checked by .id.
+    No indirect XML assertions or count comparisons are used.
+    """
+
+    def test_epoch_includes_c_supervisor_cartographers(self) -> None:
+        """EPOCH must include C-supervisor-cartographers (delegates exploration to Cartographers)."""
+        ctx = get_role_context(RoleId.EPOCH)
+        ids = {c.id for c in ctx.constraints}
+        assert "C-supervisor-cartographers" in ids, (
+            "EPOCH context must include C-supervisor-cartographers — "
+            "Epoch delegates p8/p10 exploration+review to 3 Cartographers (Ride the Wave)."
+        )
+
+    def test_epoch_includes_c_integration_points(self) -> None:
+        """EPOCH must include C-integration-points (ensures supervisor documents integration points)."""
+        ctx = get_role_context(RoleId.EPOCH)
+        ids = {c.id for c in ctx.constraints}
+        assert "C-integration-points" in ids, (
+            "EPOCH context must include C-integration-points — "
+            "Epoch ensures supervisor documents integration points between slices."
+        )
+
+    def test_epoch_includes_c_slice_review_before_close(self) -> None:
+        """EPOCH must include C-slice-review-before-close (slices reviewed before closure)."""
+        ctx = get_role_context(RoleId.EPOCH)
+        ids = {c.id for c in ctx.constraints}
+        assert "C-slice-review-before-close" in ids, (
+            "EPOCH context must include C-slice-review-before-close — "
+            "Epoch enforces that slices are reviewed before closure; supervisor closes, not workers."
+        )
+
+    def test_epoch_includes_c_max_review_cycles(self) -> None:
+        """EPOCH must include C-max-review-cycles (caps worker-reviewer cycles at 3)."""
+        ctx = get_role_context(RoleId.EPOCH)
+        ids = {c.id for c in ctx.constraints}
+        assert "C-max-review-cycles" in ids, (
+            "EPOCH context must include C-max-review-cycles — "
+            "Epoch enforces max 3 worker-reviewer cycles; remaining IMPORTANT → FOLLOWUP."
+        )
+
+
 # ─── Error Handling: _build_constraint_contexts ────────────────────────────────
 
 
