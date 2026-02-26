@@ -82,6 +82,12 @@ Runtime Constraint Checking (from constraints.py):
         check_state_constraints(state) — aggregates the 5 state-based checks
         check_transition_constraints(state, to_phase) — combines transition-specific checks
 
+Audit Activities (from audit_activities.py):
+    init_audit_trail(trail)  — inject AuditTrail implementation before worker start
+    record_audit_event(event) — @activity.defn: persist AuditEvent via injected trail
+    query_audit_events(epoch_id, phase) — @activity.defn: query AuditEvents by epoch + phase
+    InMemoryAuditTrail       — in-process AuditTrail for testing and local dev
+
 Protocol Interfaces (runtime_checkable, from interfaces.py):
     ConstraintValidatorInterface
     TranscriptRecorder
@@ -167,6 +173,8 @@ from aura_protocol.types import (
     LabelSpec,
     PermissionDecision,
     PhaseId,
+    PhaseInput,
+    PhaseResult,
     PhaseSpec,
     PhaseTransitionEvent,
     ProcedureStep,
@@ -175,6 +183,8 @@ from aura_protocol.types import (
     ReviewVoteEvent,
     RoleId,
     RoleSpec,
+    SerializablePhaseSpec,
+    SerializableTransition,
     SeverityLevel,
     SkillRef,
     StepSlug,
@@ -184,10 +194,6 @@ from aura_protocol.types import (
     ToolPermissionRequest,
     Transition,
     VoteType,
-    PhaseInput,
-    PhaseResult,
-    SerializablePhaseSpec,
-    SerializableTransition,
 )
 
 __all__ = [
@@ -209,7 +215,6 @@ __all__ = [
     # Frozen dataclasses
     "Transition",
     "PhaseSpec",
-    # Cross-workflow boundary types (Temporal-serializable)
     "SerializableTransition",
     "SerializablePhaseSpec",
     "PhaseInput",

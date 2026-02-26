@@ -59,6 +59,16 @@
             (builtins.readFile ./bin/aura-release)
         );
 
+        worker = pkgs.writeShellApplication {
+          name = "worker";
+          runtimeInputs = [
+            (pkgs.python3.withPackages (ps: [ ps.temporalio ]))
+          ];
+          text = ''
+            PYTHONPATH="${self}/scripts" exec python3 "${self}/bin/worker.py" "$@"
+          '';
+        };
+
         default = pkgs.symlinkJoin {
           name = "aura-plugins";
           paths = [
