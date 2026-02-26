@@ -41,7 +41,7 @@ from aura_protocol.types import (
 
 # Module-level import of singleton: evaluated once at collection time.
 # This is the same pattern used in test_patterns_combinatorial.py in agentfilter.
-from conftest import _PROTOCOL_FIXTURE
+from conftest import _PROTOCOL_FIXTURE, _advance_to
 from fixtures.fixture_loader import (
     AuditEventTestCase,
     ProtocolFixture,
@@ -253,8 +253,6 @@ class TestTransitionCombinatorial:
         # Advance to the source phase using the helper.
         # _advance_to drives the machine through happy-path gates, but stops
         # AT the source phase without casting votes at that phase.
-        from conftest import _advance_to
-
         source = PhaseId(tc.source_phase)
         target = PhaseId(tc.target_phase)
 
@@ -290,8 +288,6 @@ class TestTransitionCombinatorial:
     def test_invalid_transitions_raise(self, tc: TransitionTestCase) -> None:
         """Each invalid-transition case should raise TransitionError."""
         sm = EpochStateMachine("test-epoch")
-        from conftest import _advance_to
-
         source = PhaseId(tc.source_phase)
         target = PhaseId(tc.target_phase)
 
@@ -315,8 +311,6 @@ class TestForwardPathCombinatorial:
     def test_forward_path_transitions(self, tc: TransitionTestCase) -> None:
         """Each forward-path pair advances correctly when gates are met."""
         sm = EpochStateMachine("test-epoch")
-        from conftest import _advance_to
-
         # COMPLETE is the sentinel — cannot advance further from it.
         if tc.source_phase == "complete":
             pytest.skip("COMPLETE is terminal; no further transitions")
@@ -358,8 +352,6 @@ class TestVoteCombinatorial:
     def test_consensus_vote_combos_allow_forward_advance(self, tc: VoteTestCase) -> None:
         """Vote combinations with has_consensus=True allow advancing past the review phase."""
         sm = EpochStateMachine("test-epoch")
-        from conftest import _advance_to
-
         source = PhaseId(tc.phase)
         # Forward target for each review phase
         targets = {"p4": PhaseId.P5_UAT, "p10": PhaseId.P11_IMPL_UAT}
@@ -382,8 +374,6 @@ class TestVoteCombinatorial:
     def test_revise_vote_combos_make_backward_available(self, tc: VoteTestCase) -> None:
         """Vote combinations with has_revise=True make only the backward transition available."""
         sm = EpochStateMachine("test-epoch")
-        from conftest import _advance_to
-
         source = PhaseId(tc.phase)
         # Backward targets for each review phase
         back_targets = {"p4": PhaseId.P3_PROPOSE, "p10": PhaseId.P9_SLICE}
@@ -416,8 +406,6 @@ class TestVoteCombinatorial:
     def test_partial_vote_combos_block_forward(self, tc: VoteTestCase) -> None:
         """Vote combinations with partial/empty votes block forward advance."""
         sm = EpochStateMachine("test-epoch")
-        from conftest import _advance_to
-
         source = PhaseId(tc.phase)
         fwd_targets = {"p4": PhaseId.P5_UAT, "p10": PhaseId.P11_IMPL_UAT}
         fwd_target = fwd_targets[tc.phase]

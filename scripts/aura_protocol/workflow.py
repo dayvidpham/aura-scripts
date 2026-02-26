@@ -19,7 +19,7 @@ Key types (all frozen dataclasses):
     SliceInput          — SliceWorkflow run() input
     SliceResult         — SliceWorkflow run() return value
     ReviewInput         — ReviewPhaseWorkflow run() input
-    PhaseResult         — ReviewPhaseWorkflow run() return value
+    ReviewPhaseResult   — ReviewPhaseWorkflow run() return value
 
 Search attribute keys:
     SA_EPOCH_ID — text key for epoch ID forensic lookup
@@ -180,7 +180,7 @@ class ReviewInput:
 
 
 @dataclass(frozen=True)
-class PhaseResult:
+class ReviewPhaseResult:
     """Return value of ReviewPhaseWorkflow.run().
 
     phase_id: the review phase that completed
@@ -455,7 +455,8 @@ class EpochWorkflow:
         """Run P9_SLICE: start N child SliceWorkflows, fail-fast on first exception.
 
         Starts all SliceWorkflow children concurrently, then waits for them
-        using asyncio.wait(FIRST_EXCEPTION). On the first failure, cancels all
+        using workflow.wait(FIRST_EXCEPTION) — the deterministic Temporal
+        equivalent of asyncio.wait. On the first failure, cancels all
         pending handles and propagates the exception.
 
         Args:
@@ -482,9 +483,10 @@ class EpochWorkflow:
 
         # Collect result futures from handles. ChildWorkflowHandle IS an
         # asyncio.Task in the Temporal Python SDK, so await it to get the result.
-        # Use asyncio.wait(FIRST_EXCEPTION) for fail-fast semantics.
-        # IMPORTANT: asyncio.gather is PROHIBITED; asyncio.wait is the approved pattern.
-        done, pending = await asyncio.wait(
+        # Use workflow.wait(FIRST_EXCEPTION) for deterministic fail-fast semantics.
+        # IMPORTANT: asyncio.wait is NON-DETERMINISTIC in Temporal replay;
+        # workflow.wait is the approved deterministic replacement.
+        done, pending = await workflow.wait(
             handles,
             return_when=asyncio.FIRST_EXCEPTION,
         )
@@ -514,7 +516,7 @@ class EpochWorkflow:
 
     # ── P10 Review Phase Execution ────────────────────────────────────────────
 
-    async def _run_p10_review(self, review_input: ReviewInput) -> PhaseResult:
+    async def _run_p10_review(self, review_input: ReviewInput) -> ReviewPhaseResult:
         """Run P10_CODE_REVIEW: start ReviewPhaseWorkflow child and wait for completion.
 
         Starts a single ReviewPhaseWorkflow child for the given review phase.
@@ -542,7 +544,7 @@ class SliceWorkflow:
     """Child workflow for a single P9_SLICE implementation slice.
 
     Runs concurrently with other SliceWorkflow instances within the same epoch.
-    EpochWorkflow._run_p9_slices() uses asyncio.wait(FIRST_EXCEPTION) to
+    EpochWorkflow._run_p9_slices() uses workflow.wait(FIRST_EXCEPTION) to
     fail-fast: if any slice raises, remaining slices are cancelled.
 
     R12 stub: actual slice execution (running the worker agent, checking output,
@@ -604,25 +606,25 @@ class ReviewPhaseWorkflow:
         self._votes[signal.axis.value] = signal.vote.value
 
     @workflow.run
-    async def run(self, input: ReviewInput) -> PhaseResult:
+    async def run(self, input: ReviewInput) -> ReviewPhaseResult:
         """Wait for all 3 ReviewAxis members to vote, then return results.
 
         Blocks via workflow.wait_condition() until all 3 axes (CORRECTNESS,
-        TEST_QUALITY, ELEGANCE) have submitted votes. Returns a PhaseResult
+        TEST_QUALITY, ELEGANCE) have submitted votes. Returns a ReviewPhaseResult
         with the final vote mapping.
 
         Args:
             input: ReviewInput with epoch_id and phase_id.
 
         Returns:
-            PhaseResult with success=True and the complete vote mapping.
+            ReviewPhaseResult with success=True and the complete vote mapping.
         """
         # Wait until all 3 ReviewAxis members have voted.
         all_axes = {axis.value for axis in ReviewAxis}
         await workflow.wait_condition(
             lambda: set(self._votes.keys()) >= all_axes
         )
-        return PhaseResult(
+        return ReviewPhaseResult(
             phase_id=input.phase_id,
             success=True,
             vote_result=dict(self._votes),

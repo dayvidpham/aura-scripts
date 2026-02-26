@@ -82,11 +82,17 @@ Runtime Constraint Checking (from constraints.py):
         check_state_constraints(state) — aggregates the 5 state-based checks
         check_transition_constraints(state, to_phase) — combines transition-specific checks
 
-Audit Activities (from audit_activities.py):
-    init_audit_trail(trail)  — inject AuditTrail implementation before worker start
-    record_audit_event(event) — @activity.defn: persist AuditEvent via injected trail
-    query_audit_events(epoch_id, phase) — @activity.defn: query AuditEvents by epoch + phase
-    InMemoryAuditTrail       — in-process AuditTrail for testing and local dev
+Audit Activities (submodule — NOT re-exported here; import directly):
+    from aura_protocol.audit_activities import (
+        init_audit_trail,       — inject AuditTrail implementation before worker start
+        record_audit_event,     — @activity.defn: persist AuditEvent via injected trail
+        query_audit_events,     — @activity.defn: query AuditEvents by epoch_id + phase + role
+        InMemoryAuditTrail,     — in-process AuditTrail for testing and local dev
+    )
+    These are intentionally NOT imported into aura_protocol.__init__ because
+    audit_activities carries module-level singleton state (_AUDIT_TRAIL) that
+    must be injected via init_audit_trail() before use. Re-exporting these
+    symbols here would mislead callers into thinking they are stateless utilities.
 
 Protocol Interfaces (runtime_checkable, from interfaces.py):
     ConstraintValidatorInterface

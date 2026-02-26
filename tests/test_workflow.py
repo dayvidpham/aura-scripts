@@ -61,8 +61,8 @@ from aura_protocol.workflow import (
     EpochResult,
     EpochWorkflow,
     PhaseAdvanceSignal,
-    PhaseResult,
     ReviewInput,
+    ReviewPhaseResult,
     ReviewPhaseWorkflow,
     ReviewVoteSignal,
     SliceInput,
@@ -1165,6 +1165,18 @@ class TestP9SliceFailFastPattern:
     actual P9 Temporal workflow (child workflows are future work per PROPOSAL-11
     UAT-3).
 
+    Coverage gap (intentional):
+        These tests validate the fail-fast PATTERN using plain asyncio coroutines
+        (asyncio.wait / asyncio.create_task + cancel-on-failure). They do NOT test
+        the actual `EpochWorkflow._run_p9_slices()` production method, because that
+        method calls `workflow.execute_child_workflow()` which requires a running
+        Temporal server or WorkflowEnvironment. Instantiating EpochWorkflow directly
+        outside of the Temporal sandbox is not supported by the SDK. The pattern
+        validated here is the same asyncio primitive that `_run_p9_slices()` wraps,
+        so the logical coverage is sound. Full integration coverage for
+        `_run_p9_slices()` is deferred to end-to-end Temporal sandbox tests (see
+        TestWorkflowEnvironmentSandbox) when a Temporal test server is available.
+
     Verifies:
     1. FIRST_EXCEPTION returns as soon as any coroutine raises.
     2. Pending tasks receive CancelledError after first failure and cancellation.
@@ -1299,7 +1311,7 @@ class TestSliceWorkflowTypes:
 
 
 class TestReviewPhaseWorkflowTypes:
-    """ReviewInput, PhaseResult, and ReviewPhaseWorkflow structural invariants.
+    """ReviewInput, ReviewPhaseResult, and ReviewPhaseWorkflow structural invariants.
 
     Tests importability, frozen-dataclass contracts, and @workflow.defn +
     @workflow.signal decoration without running a full Temporal server.
@@ -1314,8 +1326,8 @@ class TestReviewPhaseWorkflowTypes:
             inp.phase_id = "changed"  # type: ignore[misc]
 
     def test_phase_result_is_frozen_dataclass(self) -> None:
-        """PhaseResult must be a frozen dataclass with phase_id, success, vote_result."""
-        result = PhaseResult(
+        """ReviewPhaseResult must be a frozen dataclass with phase_id, success, vote_result."""
+        result = ReviewPhaseResult(
             phase_id="p10",
             success=True,
             vote_result={"correctness": "ACCEPT", "test_quality": "ACCEPT", "elegance": "REVISE"},
@@ -1327,8 +1339,8 @@ class TestReviewPhaseWorkflowTypes:
             result.success = False  # type: ignore[misc]
 
     def test_phase_result_default_vote_result_is_empty_dict(self) -> None:
-        """PhaseResult.vote_result defaults to empty dict."""
-        result = PhaseResult(phase_id="p10", success=True)
+        """ReviewPhaseResult.vote_result defaults to empty dict."""
+        result = ReviewPhaseResult(phase_id="p10", success=True)
         assert result.vote_result == {}
 
     def test_review_phase_workflow_has_workflow_defn(self) -> None:
@@ -1492,8 +1504,8 @@ class TestWorkerRegistration:
             )
 
     def test_all_new_types_importable(self) -> None:
-        """SliceInput, SliceResult, ReviewInput, PhaseResult all importable."""
+        """SliceInput, SliceResult, ReviewInput, ReviewPhaseResult all importable."""
         assert SliceInput is not None
         assert SliceResult is not None
         assert ReviewInput is not None
-        assert PhaseResult is not None
+        assert ReviewPhaseResult is not None

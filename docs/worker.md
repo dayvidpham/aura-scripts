@@ -29,18 +29,31 @@ bin/worker.py
     │
     ├── parse_args()          CLI args + env var fallbacks
     ├── init_audit_trail()    Inject AuditTrail implementation (DI)
-    └── run_worker()          Connect to Temporal, register workflow + activities
+    └── run_worker()          Connect to Temporal, register workflows + activities
             │
             ├── EpochWorkflow          (scripts/aura_protocol/workflow.py)
             │       ├── Signals: advance_phase, submit_vote
             │       ├── Queries: current_state, available_transitions
-            │       └── Loop:  wait → drain votes → check constraints → advance → upsert attrs
+            │       ├── Loop:  wait → drain votes → check constraints → advance → upsert attrs
+            │       ├── _run_p9_slices()  → starts N SliceWorkflow children concurrently
+            │       └── _run_p10_review() → starts one ReviewPhaseWorkflow child
+            │
+            ├── SliceWorkflow          (scripts/aura_protocol/workflow.py)
+            │       └── run(SliceInput) → SliceResult
+            │           Child of EpochWorkflow for P9_SLICE; runs concurrently with
+            │           other slices; fail-fast via workflow.wait(FIRST_EXCEPTION).
+            │
+            ├── ReviewPhaseWorkflow    (scripts/aura_protocol/workflow.py)
+            │       ├── Signal: submit_vote(ReviewVoteSignal)
+            │       └── run(ReviewInput) → ReviewPhaseResult
+            │           Child of EpochWorkflow for P10_CODE_REVIEW; blocks until
+            │           all 3 ReviewAxis members (A, B, C) have cast votes.
             │
             └── Activities (module-level @activity.defn functions)
                     ├── check_constraints     (workflow.py)   — constraint checking
                     ├── record_transition     (workflow.py)   — transition audit stub
                     ├── record_audit_event    (audit_activities.py) — persist AuditEvent
-                    └── query_audit_events    (audit_activities.py) — query AuditEvents
+                    └── query_audit_events    (audit_activities.py) — query AuditEvents (epoch + phase + role)
 ```
 
 The key design invariant is the **Temporal determinism boundary**: all I/O,
@@ -148,15 +161,17 @@ functions** decorated with `@activity.defn`. This is required: Temporal's
 | `check_constraints` | `workflow.py` | Run `RuntimeConstraintChecker` against current state and proposed target phase. Returns `list[ConstraintViolation]`. |
 | `record_transition` | `workflow.py` | v1 stub: logs the transition. Extension point for v2 durable storage (Beads task comment, database). |
 | `record_audit_event` | `audit_activities.py` | Persist an `AuditEvent` via the injected `AuditTrail` implementation. |
-| `query_audit_events` | `audit_activities.py` | Query `AuditEvent` records by `epoch_id` with optional `phase` filter. |
+| `query_audit_events` | `audit_activities.py` | Query `AuditEvent` records by `epoch_id` with optional `phase` and `role` filters. The `role` filter scopes results to a specific agent role (e.g. `RoleId.SUPERVISOR`, `RoleId.WORKER`); without it, queries that intend to scope by role silently return unfiltered results. |
 
-All four activities are passed by reference in `run_worker()`:
+All four activities are passed by reference in `run_worker()`. All three
+workflows (including child workflows) must also be registered so the worker
+can execute them when the parent dispatches child workflow tasks:
 
 ```python
 async with Worker(
     client,
     task_queue=task_queue,
-    workflows=[EpochWorkflow],
+    workflows=[EpochWorkflow, SliceWorkflow, ReviewPhaseWorkflow],
     activities=[
         check_constraints,
         record_transition,
@@ -166,6 +181,45 @@ async with Worker(
 ):
     ...
 ```
+
+### Child Workflows
+
+`EpochWorkflow` spawns two types of child workflows for phases P9 and P10.
+Both child workflow classes **must be registered** in `run_worker()` alongside
+`EpochWorkflow` (see the Worker registration example above).
+
+#### SliceWorkflow (P9_SLICE)
+
+`SliceWorkflow` represents a single implementation slice running concurrently
+with other slices in the P9 implementation phase.
+
+- **Parent:** `EpochWorkflow._run_p9_slices()`
+- **Input:** `SliceInput(epoch_id, slice_id, phase_spec)`
+- **Output:** `SliceResult(slice_id, success, error)`
+- **Concurrency:** All slices start together; `workflow.wait(FIRST_EXCEPTION)`
+  provides fail-fast semantics — if any slice raises, remaining slices are
+  cancelled. `workflow.wait` is the deterministic Temporal replacement for
+  `asyncio.wait` and must be used in workflow code.
+- **Status:** R12 stub — `run()` returns `SliceResult(success=True)` immediately.
+  Future implementation will execute slice agents via activities.
+
+#### ReviewPhaseWorkflow (P10_CODE_REVIEW)
+
+`ReviewPhaseWorkflow` coordinates a review phase by collecting votes from
+reviewer agents across all three `ReviewAxis` members (A, B, C).
+
+- **Parent:** `EpochWorkflow._run_p10_review()`
+- **Input:** `ReviewInput(epoch_id, phase_id)`
+- **Output:** `ReviewPhaseResult(phase_id, success, vote_result)`
+- **Signal:** `submit_vote(ReviewVoteSignal)` — reviewer agents send votes via this signal
+- **Completion:** Blocks via `workflow.wait_condition()` until all 3 axes have
+  voted. Returns `ReviewPhaseResult` with `success=True` and the full
+  axis-to-vote mapping.
+
+**Note on `ReviewPhaseResult` vs `PhaseResult`:**
+`ReviewPhaseResult` (in `workflow.py`) is the return type of `ReviewPhaseWorkflow.run()`.
+`PhaseResult` (in `types.py`) is a separate type used for phase child workflow
+results in general protocol types. They are distinct — do not conflate them.
 
 ### Audit Trail DI Pattern
 
