@@ -9,16 +9,15 @@ Integration test: tests/test_schema_types_sync.py verifies Python types match sc
 
 from __future__ import annotations
 
-import enum as _enum
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
 
-class PhaseId(str, Enum):
+class PhaseId(StrEnum):
     """12-phase epoch lifecycle + COMPLETE sentinel.
 
     Values match schema.xml <phase id="..."> elements.
@@ -39,7 +38,7 @@ class PhaseId(str, Enum):
     COMPLETE = "complete"
 
 
-class Domain(str, Enum):
+class Domain(StrEnum):
     """Phase domain classification.
 
     Values match schema.xml <enum name="DomainType"> entries.
@@ -50,7 +49,7 @@ class Domain(str, Enum):
     IMPL = "impl"
 
 
-class RoleId(str, Enum):
+class RoleId(StrEnum):
     """Agent role identifiers.
 
     Values match schema.xml <role id="..."> elements.
@@ -63,7 +62,7 @@ class RoleId(str, Enum):
     WORKER = "worker"
 
 
-class VoteType(str, Enum):
+class VoteType(StrEnum):
     """Binary review vote.
 
     Values match schema.xml <enum name="VoteType"> entries.
@@ -73,7 +72,7 @@ class VoteType(str, Enum):
     REVISE = "REVISE"
 
 
-class SeverityLevel(str, Enum):
+class SeverityLevel(StrEnum):
     """Code review finding severity.
 
     Values match schema.xml <enum name="SeverityLevel"> entries.
@@ -84,7 +83,7 @@ class SeverityLevel(str, Enum):
     MINOR = "MINOR"
 
 
-class ExecutionMode(str, Enum):
+class ExecutionMode(StrEnum):
     """Substep execution mode within a phase.
 
     Values match schema.xml <enum name="ExecutionMode"> entries.
@@ -94,7 +93,7 @@ class ExecutionMode(str, Enum):
     PARALLEL = "parallel"
 
 
-class ContentLevel(str, Enum):
+class ContentLevel(StrEnum):
     """Handoff document content level.
 
     Values match schema.xml <enum name="ContentLevel"> entries.
@@ -104,7 +103,7 @@ class ContentLevel(str, Enum):
     SUMMARY_WITH_IDS = "summary-with-ids"
 
 
-class ReviewAxis(str, Enum):
+class ReviewAxis(StrEnum):
     """Review axis identifier letters used in review votes.
 
     Values match schema.xml <axis letter="..."> elements.
@@ -115,7 +114,7 @@ class ReviewAxis(str, Enum):
     C = "C"
 
 
-class SubstepType(str, Enum):
+class SubstepType(StrEnum):
     """Substep type classification within a phase.
 
     Values match schema.xml <substep type="..."> attributes.
@@ -142,17 +141,12 @@ class SubstepType(str, Enum):
 class StepSlug:
     """Typed namespace for ProcedureStep.id slug constants.
 
-    Nested str enums allow typed references in PROCEDURE_STEPS and tests
-    without losing string interoperability (str comparison works as expected).
-
-    __str__ is overridden on each inner class to return the value (not the
-    enum member name), so that str(StepSlug.Supervisor.CallSkill) gives
-    'S-supervisor-call-skill' rather than 'Supervisor.CallSkill'. This is
-    required for transparent use in XML attribute construction and anywhere
-    else that calls str() on the field.
+    Nested StrEnums allow typed references in PROCEDURE_STEPS and tests
+    while remaining transparently interoperable with str (comparison,
+    XML attribute assignment, etc. all work without conversion).
     """
 
-    class Supervisor(str, _enum.Enum):
+    class Supervisor(StrEnum):
         """Slug constants for supervisor procedure step IDs."""
 
         CallSkill = "S-supervisor-call-skill"
@@ -162,33 +156,22 @@ class StepSlug:
         CreateLeafTasks = "S-supervisor-create-leaf-tasks"
         SpawnWorkers = "S-supervisor-spawn-workers"
 
-        def __str__(self) -> str:
-            return self.value
-
-    class Worker(str, _enum.Enum):
+    class Worker(StrEnum):
         """Slug constants for worker procedure step IDs."""
 
         Types = "S-worker-types"
         Tests = "S-worker-tests"
         Impl = "S-worker-impl"
 
-        def __str__(self) -> str:
-            return self.value
 
-
-class SkillRef(str, _enum.Enum):
+class SkillRef(StrEnum):
     """Skill invocation strings for ProcedureStep.command.
 
     Values match the Skill(/aura:<role>) directive format.
-    __str__ returns the value so that str(SkillRef.SUPERVISOR) gives
-    'Skill(/aura:supervisor)' rather than 'SkillRef.SUPERVISOR'.
     """
 
     SUPERVISOR = "Skill(/aura:supervisor)"
     WORKER = "Skill(/aura:worker)"
-
-    def __str__(self) -> str:
-        return self.value
 
 
 # ─── Frozen Dataclasses ───────────────────────────────────────────────────────
