@@ -236,10 +236,12 @@ class FilePart:
 
     v3 alignment: migrated from the v1 flattened ``file_uri: str`` field to
     the A2A-spec-aligned ``file_with_uri: FileWithUri`` nested structure.
+
+    mime_type is on FileWithUri (the nested object), not directly on FilePart.
+    To set mime_type, pass it to FileWithUri: ``FilePart(file_with_uri=FileWithUri(uri=..., mime_type=...))``.
     """
 
     file_with_uri: FileWithUri
-    mime_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -269,6 +271,15 @@ class ToolCall:
     - ``tool_call_id`` added (JSON alias: toolCallId); None for v2-origin records
       where no MCP correlation ID was available.
 
+    JSON field mapping (Python → JSON wire format):
+        tool_name    → toolName
+        raw_input    → rawInput
+        raw_output   → rawOutput
+        tool_call_id → toolCallId
+
+    Use ``to_json_dict()`` to obtain a dict with camelCase keys suitable
+    for JSON serialization (e.g. when forwarding to an A2A endpoint).
+
     Note on hashability: Although this is a ``frozen=True`` dataclass (which
     normally enables hashing), the ``raw_input`` and ``raw_output`` fields
     are ``dict[str, Any]``. Python dicts are mutable and not hashable, so
@@ -282,6 +293,29 @@ class ToolCall:
     raw_input: dict[str, Any]
     raw_output: dict[str, Any] | None = None
     tool_call_id: str | None = None
+
+    def to_json_dict(self) -> dict[str, Any]:
+        """Return a dict with camelCase keys for JSON/A2A wire-format serialization.
+
+        Maps Python snake_case field names to camelCase JSON aliases:
+            tool_name    → toolName
+            raw_input    → rawInput
+            raw_output   → rawOutput
+            tool_call_id → toolCallId
+
+        Returns:
+            dict with camelCase keys. ``rawOutput`` and ``toolCallId`` are
+            omitted when their values are None (compact wire format).
+        """
+        result: dict[str, Any] = {
+            "toolName": self.tool_name,
+            "rawInput": self.raw_input,
+        }
+        if self.raw_output is not None:
+            result["rawOutput"] = self.raw_output
+        if self.tool_call_id is not None:
+            result["toolCallId"] = self.tool_call_id
+        return result
 
 
 # ─── Model Identifier ─────────────────────────────────────────────────────────

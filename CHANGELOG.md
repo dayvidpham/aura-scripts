@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.8.0] - 2026-02-26
+
+### Changed (UAT amendments)
+- fix(types): ReviewAxis enum values renamed from A/B/C to CORRECTNESS/TEST_QUALITY/ELEGANCE with wire-format values "correctness"/"test_quality"/"elegance" (UAT #7)
+- fix(types): SerializablePhaseSpec.from_spec() preserves frozenset iteration order for owner_roles instead of sorting alphabetically (UAT #1)
+- fix(interfaces): Remove FilePart.mime_type field — mime_type belongs on FileWithUri only (UAT #2)
+- fix(interfaces): ToolCall.to_json_dict() method added for camelCase JSON wire-format serialization (UAT #3)
+- fix(audit): InMemoryAuditTrail.query_events() role parameter typed RoleId | None (not object) (UAT #4)
+- refactor(tests): test_worker.py converted to DI-only — parse_args(argv=...) + os.environ dict ops, no unittest.mock (UAT #5)
+- refactor(tests): test_aura_types.py duplicate SLICE-1 contract tests removed (now in test_serializable_phase_spec.py) (UAT #6)
+
 ## [0.7.0] - 2026-02-26
 
 ### Added
@@ -13,7 +24,7 @@
 - test: test_audit_activities.py — init/record/query via ActivityEnvironment (SLICE-5)
 
 ### Changed
-- feat(types): ReviewAxis StrEnum values renamed to semantic names: CORRECTNESS, TEST_QUALITY, ELEGANCE (SLICE-2)
+- feat(types): ReviewAxis StrEnum values renamed to semantic names: CORRECTNESS, TEST_QUALITY, ELEGANCE (planned in SLICE-2; implemented in UAT amendment #7)
 - feat(interfaces): ToolCall fields renamed: tool_input→raw_input, tool_output→raw_output; new tool_call_id field (SLICE-2)
 - feat(interfaces): FilePart.file_uri→file_with_uri: FileWithUri (A2A spec alignment) (SLICE-2)
 - feat(interfaces): AuditTrail.query_events gains epoch_id parameter (SLICE-3)

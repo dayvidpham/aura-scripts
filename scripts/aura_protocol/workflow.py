@@ -114,10 +114,10 @@ class PhaseAdvanceSignal:
 class ReviewVoteSignal:
     """Signal payload for EpochWorkflow.submit_vote().
 
-    axis: review axis — must be ReviewAxis.A, ReviewAxis.B, or ReviewAxis.C.
-         Since ReviewAxis is a StrEnum, callers passing raw strings ("A", "B",
-         "C") continue to work at runtime; use ReviewAxis members for type
-         correctness.
+    axis: review axis — must be ReviewAxis.CORRECTNESS, ReviewAxis.TEST_QUALITY,
+         or ReviewAxis.ELEGANCE. Since ReviewAxis is a StrEnum, callers passing
+         raw strings ("correctness", "test_quality", "elegance") continue to work
+         at runtime; use ReviewAxis members for type correctness.
     vote: ACCEPT or REVISE
     reviewer_id: unique identifier for the reviewer agent
     """

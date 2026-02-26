@@ -50,7 +50,7 @@ from aura_protocol.state_machine import (
     TransitionError,
     TransitionRecord,
 )
-from aura_protocol.types import PhaseId, Transition, VoteType
+from aura_protocol.types import PhaseId, ReviewAxis, Transition, VoteType
 from aura_protocol.workflow import (
     SA_DOMAIN,
     SA_EPOCH_ID,
@@ -184,12 +184,12 @@ class TestSignalQueryTypes:
 
     def test_review_vote_signal_is_frozen_dataclass(self) -> None:
         """ReviewVoteSignal must be a frozen dataclass with axis, vote, reviewer_id."""
-        sig = ReviewVoteSignal(axis="A", vote=VoteType.ACCEPT, reviewer_id="reviewer-1")
-        assert sig.axis == "A"
+        sig = ReviewVoteSignal(axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="reviewer-1")
+        assert sig.axis == ReviewAxis.CORRECTNESS
         assert sig.vote == VoteType.ACCEPT
         assert sig.reviewer_id == "reviewer-1"
         with pytest.raises((AttributeError, TypeError)):
-            sig.axis = "B"  # type: ignore[misc]
+            sig.axis = ReviewAxis.TEST_QUALITY  # type: ignore[misc]
 
     def test_phase_advance_signal_uses_phase_id_enum(self) -> None:
         """PhaseAdvanceSignal.to_phase must be a PhaseId enum."""
@@ -203,7 +203,7 @@ class TestSignalQueryTypes:
 
     def test_review_vote_signal_uses_vote_type_enum(self) -> None:
         """ReviewVoteSignal.vote must be a VoteType enum."""
-        sig = ReviewVoteSignal(axis="B", vote=VoteType.REVISE, reviewer_id="reviewer-2")
+        sig = ReviewVoteSignal(axis=ReviewAxis.TEST_QUALITY, vote=VoteType.REVISE, reviewer_id="reviewer-2")
         assert sig.vote is VoteType.REVISE
         assert isinstance(sig.vote, VoteType)
 
@@ -288,9 +288,9 @@ class TestCheckConstraintsActivity:
         _advance_to(sm, PhaseId.P4_REVIEW)
         # Record all 3 ACCEPT votes (satisfied in _advance_to already, but let's be explicit).
         # _advance_to stops before advancing through the gate; re-record.
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
         env = ActivityEnvironment()
         violations = await env.run(check_constraints, sm.state, PhaseId.P5_UAT)
         # No consensus violations (only handoff-required violations for actor-change transitions).
@@ -482,9 +482,9 @@ class TestAC6AdvancePhaseSignalLogic:
 
         # Simulate 3 ReviewVoteSignals being received.
         vote_signals = [
-            ReviewVoteSignal(axis="A", vote=VoteType.ACCEPT, reviewer_id="reviewer-A"),
-            ReviewVoteSignal(axis="B", vote=VoteType.ACCEPT, reviewer_id="reviewer-B"),
-            ReviewVoteSignal(axis="C", vote=VoteType.ACCEPT, reviewer_id="reviewer-C"),
+            ReviewVoteSignal(axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="reviewer-correctness"),
+            ReviewVoteSignal(axis=ReviewAxis.TEST_QUALITY, vote=VoteType.ACCEPT, reviewer_id="reviewer-test_quality"),
+            ReviewVoteSignal(axis=ReviewAxis.ELEGANCE, vote=VoteType.ACCEPT, reviewer_id="reviewer-elegance"),
         ]
 
         # Apply votes (drain, as workflow.run() does).
@@ -510,7 +510,7 @@ class TestAC6AdvancePhaseSignalLogic:
         _advance_to(sm, PhaseId.P4_REVIEW)
 
         # One REVISE vote — consensus blocked.
-        sm.record_vote("A", VoteType.REVISE)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
 
         # Forward transition (P4→P5) no longer in available_transitions.
         available = sm.available_transitions
@@ -578,12 +578,12 @@ class TestAC7QueryCurrentState:
         """AC7: review votes appear in current_state().review_votes (no stale state)."""
         sm = _make_sm("ac7-epoch-6")
         _advance_to(sm, PhaseId.P4_REVIEW)
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.REVISE)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.REVISE)
 
         state = sm.state
-        assert state.review_votes.get("A") == VoteType.ACCEPT
-        assert state.review_votes.get("B") == VoteType.REVISE
+        assert state.review_votes.get(ReviewAxis.CORRECTNESS) == VoteType.ACCEPT
+        assert state.review_votes.get(ReviewAxis.TEST_QUALITY) == VoteType.REVISE
 
     def test_state_search_attr_values_match_current_phase(self) -> None:
         """AC7: The phase value used for SA_PHASE upsert matches current state.
@@ -1020,7 +1020,7 @@ class TestWorkflowEnvironmentSandbox:
                     )
 
                 # Submit vote signals.
-                for axis, vote in [("A", VoteType.ACCEPT), ("B", VoteType.REVISE)]:
+                for axis, vote in [(ReviewAxis.CORRECTNESS, VoteType.ACCEPT), (ReviewAxis.TEST_QUALITY, VoteType.REVISE)]:
                     await handle.signal(
                         EpochWorkflow.submit_vote,
                         ReviewVoteSignal(
@@ -1034,8 +1034,8 @@ class TestWorkflowEnvironmentSandbox:
                 await env.sleep(timedelta(seconds=1))
                 state = await handle.query(EpochWorkflow.current_state)
                 assert state.current_phase == PhaseId.P4_REVIEW
-                assert state.review_votes.get("A") == VoteType.ACCEPT
-                assert state.review_votes.get("B") == VoteType.REVISE
+                assert state.review_votes.get(ReviewAxis.CORRECTNESS) == VoteType.ACCEPT
+                assert state.review_votes.get(ReviewAxis.TEST_QUALITY) == VoteType.REVISE
 
                 await handle.terminate("test complete")
 

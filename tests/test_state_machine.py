@@ -32,7 +32,7 @@ from aura_protocol.state_machine import (
     TransitionError,
     TransitionRecord,
 )
-from aura_protocol.types import PhaseId, RoleId, SeverityLevel, VoteType
+from aura_protocol.types import PhaseId, ReviewAxis, RoleId, SeverityLevel, VoteType
 
 # Import shared helpers from conftest (module-level, not fixtures).
 from conftest import _advance_to, _make_state
@@ -150,8 +150,8 @@ class TestAC2ConsensusGate:
 
     def test_advance_p4_to_p5_with_2_of_3_accept_raises(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
         # C axis not voted
 
         with pytest.raises(TransitionError) as exc_info:
@@ -165,9 +165,9 @@ class TestAC2ConsensusGate:
 
     def test_advance_p4_to_p5_with_all_3_accept_succeeds(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         record = sm.advance(
             PhaseId.P5_UAT, triggered_by="reviewer", condition_met="all 3 vote ACCEPT"
@@ -178,7 +178,7 @@ class TestAC2ConsensusGate:
 
     def test_advance_p4_to_p5_with_1_of_3_accept_raises(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote("A", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
         # B and C not voted
 
         with pytest.raises(TransitionError):
@@ -186,17 +186,17 @@ class TestAC2ConsensusGate:
 
     def test_advance_p4_to_p5_with_revise_vote_raises(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.REVISE)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.REVISE)
 
         with pytest.raises(TransitionError):
             sm.advance(PhaseId.P5_UAT, triggered_by="test", condition_met="has revise")
 
     def test_validate_advance_returns_violations_for_missing_consensus(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
 
         violations = sm.validate_advance(PhaseId.P5_UAT)
         assert len(violations) == 1
@@ -204,9 +204,9 @@ class TestAC2ConsensusGate:
 
     def test_validate_advance_returns_empty_when_consensus_met(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         violations = sm.validate_advance(PhaseId.P5_UAT)
         assert violations == []
@@ -225,16 +225,16 @@ class TestAC3RevisionLoop:
 
     def test_at_p4_with_revise_only_p3_available(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote("A", VoteType.REVISE)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
 
         targets = {t.to_phase for t in sm.available_transitions}
         assert targets == {PhaseId.P3_PROPOSE}
 
     def test_at_p4_with_revise_on_any_axis_only_p3_available(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.REVISE)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.REVISE)
 
         targets = {t.to_phase for t in sm.available_transitions}
         assert targets == {PhaseId.P3_PROPOSE}
@@ -250,9 +250,9 @@ class TestAC3RevisionLoop:
 
     def test_at_p4_with_all_accept_p5_available(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         targets = {t.to_phase for t in sm.available_transitions}
         # With consensus, p5 is available (and p3 is also a valid transition per spec).
@@ -261,14 +261,14 @@ class TestAC3RevisionLoop:
     def test_at_p10_with_revise_only_p9_available(self) -> None:
         sm = _make_sm()
         _advance_to(sm, PhaseId.P10_CODE_REVIEW)
-        sm.record_vote("A", VoteType.REVISE)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
 
         targets = {t.to_phase for t in sm.available_transitions}
         assert targets == {PhaseId.P9_SLICE}
 
     def test_advance_to_p3_from_p4_allowed_with_revise(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote("B", VoteType.REVISE)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.REVISE)
 
         # Should not raise
         record = sm.advance(
@@ -292,9 +292,9 @@ class TestAC4BlockerGate:
     def test_advance_p10_to_p11_with_blocker_raises(self) -> None:
         sm = self._sm_at_p10()
         sm.record_blocker()  # 1 unresolved blocker
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         with pytest.raises(TransitionError) as exc_info:
             sm.advance(
@@ -309,9 +309,9 @@ class TestAC4BlockerGate:
         sm = self._sm_at_p10()
         sm.record_blocker()   # +1 → count = 1
         sm.record_blocker(resolved=True)  # -1 → count = 0
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         record = sm.advance(
             PhaseId.P11_IMPL_UAT,
@@ -322,9 +322,9 @@ class TestAC4BlockerGate:
 
     def test_advance_p10_to_p11_without_blockers_and_with_consensus_succeeds(self) -> None:
         sm = self._sm_at_p10()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         record = sm.advance(
             PhaseId.P11_IMPL_UAT,
@@ -363,9 +363,9 @@ class TestAC4BlockerGate:
     def test_validate_advance_returns_blocker_violation(self) -> None:
         sm = self._sm_at_p10()
         sm.record_blocker()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         violations = sm.validate_advance(PhaseId.P11_IMPL_UAT)
         assert len(violations) == 1
@@ -454,18 +454,18 @@ class TestVoteRecording:
 
     def test_record_vote_stores_vote(self) -> None:
         sm = _make_sm()
-        sm.record_vote("A", VoteType.ACCEPT)
-        assert sm.state.review_votes["A"] == VoteType.ACCEPT
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        assert sm.state.review_votes[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
 
     def test_record_vote_overwrites_previous(self) -> None:
         sm = _make_sm()
-        sm.record_vote("A", VoteType.REVISE)
-        sm.record_vote("A", VoteType.ACCEPT)
-        assert sm.state.review_votes["A"] == VoteType.ACCEPT
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        assert sm.state.review_votes[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
 
     def test_votes_cleared_after_transition(self) -> None:
         sm = _make_sm()
-        sm.record_vote("A", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
         sm.advance(PhaseId.P2_ELICIT, triggered_by="test", condition_met="done")
         assert sm.state.review_votes == {}
 
@@ -476,9 +476,9 @@ class TestVoteRecording:
 
     def test_record_all_3_axes(self) -> None:
         sm = _make_sm()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.REVISE)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.REVISE)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
         assert len(sm.state.review_votes) == 3
 
     def test_has_consensus_false_with_no_votes(self) -> None:
@@ -487,22 +487,22 @@ class TestVoteRecording:
 
     def test_has_consensus_false_with_partial_votes(self) -> None:
         sm = _make_sm()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
         assert sm.has_consensus() is False
 
     def test_has_consensus_false_with_revise(self) -> None:
         sm = _make_sm()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.REVISE)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.REVISE)
         assert sm.has_consensus() is False
 
     def test_has_consensus_true_with_all_accept(self) -> None:
         sm = _make_sm()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
         assert sm.has_consensus() is True
 
 
@@ -702,8 +702,8 @@ class TestP10ConsensusGate:
 
     def test_advance_p10_to_p11_with_2_of_3_accept_raises(self) -> None:
         sm = self._sm_at_p10()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
         # C axis not voted
         with pytest.raises(TransitionError) as exc_info:
             sm.advance(
@@ -716,9 +716,9 @@ class TestP10ConsensusGate:
 
     def test_advance_p10_to_p11_with_all_3_accept_and_no_blockers_succeeds(self) -> None:
         sm = self._sm_at_p10()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
         record = sm.advance(
             PhaseId.P11_IMPL_UAT,
             triggered_by="supervisor",
@@ -728,17 +728,17 @@ class TestP10ConsensusGate:
 
     def test_validate_advance_returns_consensus_violation_at_p10(self) -> None:
         sm = self._sm_at_p10()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
 
         violations = sm.validate_advance(PhaseId.P11_IMPL_UAT)
         assert any("consensus" in v.lower() for v in violations)
 
     def test_validate_advance_no_violation_when_consensus_met_at_p10(self) -> None:
         sm = self._sm_at_p10()
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         violations = sm.validate_advance(PhaseId.P11_IMPL_UAT)
         assert violations == []
@@ -785,7 +785,7 @@ class TestSeverityGroupsAutoPopulation:
         sm.state.severity_groups[SeverityLevel.BLOCKER].add("finding-abc")
 
         # Simulate revision loop: p10 → p9 → p10.
-        sm.record_vote("A", VoteType.REVISE)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
         sm.advance(PhaseId.P9_SLICE, triggered_by="test", condition_met="revise")
         sm.advance(PhaseId.P10_CODE_REVIEW, triggered_by="test", condition_met="re-review")
 

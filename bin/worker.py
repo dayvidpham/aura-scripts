@@ -49,13 +49,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments with environment variable fallbacks.
 
     Priority (highest → lowest):
         1. Explicit CLI flag (e.g. --namespace my-ns)
         2. Environment variable (e.g. TEMPORAL_NAMESPACE=my-ns)
         3. Built-in default ("default", "aura", "localhost:7233")
+
+    Args:
+        argv: Argument list to parse. If None, reads from sys.argv[1:] (default
+              argparse behaviour). Pass an explicit list (e.g. ["--namespace", "prod"])
+              in tests to avoid relying on sys.argv patching.
 
     Returns:
         Parsed namespace with .namespace, .task_queue, .server_address.
@@ -88,7 +93,7 @@ def parse_args() -> argparse.Namespace:
         metavar="ADDR",
         help="Temporal server address (env: TEMPORAL_ADDRESS, default: 'localhost:7233')",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 async def run_worker(namespace: str, task_queue: str, server_address: str) -> None:

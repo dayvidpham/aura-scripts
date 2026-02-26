@@ -122,13 +122,14 @@ class TestFromSpec:
         assert serializable.name == phase_spec.name
 
     @pytest.mark.parametrize("phase_id", list(PhaseId)[:-1])
-    def test_owner_roles_sorted(self, phase_id: PhaseId) -> None:
+    def test_owner_roles_is_list_preserving_frozenset_members(self, phase_id: PhaseId) -> None:
+        """owner_roles is a list with the same members as the frozenset (any order)."""
         phase_spec = PHASE_SPECS[phase_id]
         serializable = SerializablePhaseSpec.from_spec(phase_spec)
 
         assert type(serializable.owner_roles) is list
-        sorted_values = sorted(r.value for r in phase_spec.owner_roles)
-        assert [r.value for r in serializable.owner_roles] == sorted_values
+        # All members of the frozenset must appear in the list (same elements, any order).
+        assert set(serializable.owner_roles) == phase_spec.owner_roles
 
     @pytest.mark.parametrize("phase_id", list(PhaseId)[:-1])
     def test_transitions_converted(self, phase_id: PhaseId) -> None:

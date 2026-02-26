@@ -152,21 +152,21 @@ class TestSchemaParserHandoffs:
 class TestSchemaParserReviewAxes:
     """Review axis specs contain expected data."""
 
-    def test_axis_a_correctness(self, parsed_spec: SchemaSpec) -> None:
-        axis_a = parsed_spec.review_axes["axis-A"]
-        assert axis_a.letter == ReviewAxis.A
-        assert axis_a.name == "Correctness"
-        assert len(axis_a.key_questions) >= 3
+    def test_axis_correctness(self, parsed_spec: SchemaSpec) -> None:
+        axis = parsed_spec.review_axes["axis-correctness"]
+        assert axis.letter == ReviewAxis.CORRECTNESS
+        assert axis.name == "Correctness"
+        assert len(axis.key_questions) >= 3
 
-    def test_axis_b_test_quality(self, parsed_spec: SchemaSpec) -> None:
-        axis_b = parsed_spec.review_axes["axis-B"]
-        assert axis_b.letter == ReviewAxis.B
-        assert "Test quality" in axis_b.name
+    def test_axis_test_quality(self, parsed_spec: SchemaSpec) -> None:
+        axis = parsed_spec.review_axes["axis-test_quality"]
+        assert axis.letter == ReviewAxis.TEST_QUALITY
+        assert "Test quality" in axis.name
 
-    def test_axis_c_elegance(self, parsed_spec: SchemaSpec) -> None:
-        axis_c = parsed_spec.review_axes["axis-C"]
-        assert axis_c.letter == ReviewAxis.C
-        assert axis_c.name == "Elegance"
+    def test_axis_elegance(self, parsed_spec: SchemaSpec) -> None:
+        axis = parsed_spec.review_axes["axis-elegance"]
+        assert axis.letter == ReviewAxis.ELEGANCE
+        assert axis.name == "Elegance"
 
 
 class TestSchemaParserLabels:

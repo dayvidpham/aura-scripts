@@ -21,7 +21,7 @@ from __future__ import annotations
 import pytest
 
 from aura_protocol.state_machine import EpochState, EpochStateMachine
-from aura_protocol.types import PhaseId, VoteType
+from aura_protocol.types import PhaseId, ReviewAxis, VoteType
 
 
 # ─── Module-Level Helpers ─────────────────────────────────────────────────────
@@ -75,15 +75,15 @@ def _advance_to(sm: EpochStateMachine, target: PhaseId) -> None:
 
         # Populate consensus gate before P4→P5 (plan review).
         if frm == PhaseId.P4_REVIEW and nxt == PhaseId.P5_UAT:
-            sm.record_vote("A", VoteType.ACCEPT)
-            sm.record_vote("B", VoteType.ACCEPT)
-            sm.record_vote("C", VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         # Populate consensus + blocker-clear gate before P10→P11 (code review).
         if frm == PhaseId.P10_CODE_REVIEW and nxt == PhaseId.P11_IMPL_UAT:
-            sm.record_vote("A", VoteType.ACCEPT)
-            sm.record_vote("B", VoteType.ACCEPT)
-            sm.record_vote("C", VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         sm.advance(nxt, triggered_by="test", condition_met="test-condition")
 
@@ -132,7 +132,7 @@ def sm_at_p4(sm: EpochStateMachine) -> EpochStateMachine:
 @pytest.fixture
 def sm_at_p4_with_consensus(sm_at_p4: EpochStateMachine) -> EpochStateMachine:
     """State machine at P4 with all 3 ACCEPT votes."""
-    sm_at_p4.record_vote("A", VoteType.ACCEPT)
-    sm_at_p4.record_vote("B", VoteType.ACCEPT)
-    sm_at_p4.record_vote("C", VoteType.ACCEPT)
+    sm_at_p4.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+    sm_at_p4.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+    sm_at_p4.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
     return sm_at_p4

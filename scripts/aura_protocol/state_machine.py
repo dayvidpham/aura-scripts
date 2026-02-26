@@ -21,6 +21,7 @@ from aura_protocol.types import (
     PHASE_SPECS,
     PhaseId,
     PhaseSpec,
+    ReviewAxis,
     RoleId,
     SeverityLevel,
     Transition,
@@ -38,7 +39,7 @@ class EpochState:
     Tracks the current phase, completed phases, review votes, blocker count,
     current role, and the full transition history.
 
-    review_votes keys are review axis letters: "A", "B", "C".
+    review_votes keys are ReviewAxis values: "correctness", "test_quality", "elegance".
     """
 
     epoch_id: str
@@ -91,7 +92,7 @@ class TransitionError(Exception):
 # ─── State Machine ────────────────────────────────────────────────────────────
 
 # The 3 canonical review axes used for consensus gating.
-_REVIEW_AXES: frozenset[str] = frozenset({"A", "B", "C"})
+_REVIEW_AXES: frozenset[str] = frozenset(ReviewAxis)
 
 # Transitions that require consensus (all 3 axes ACCEPT) to proceed.
 # Derived from schema.xml: p4→p5 condition "all 3 reviewers vote ACCEPT".
@@ -127,9 +128,9 @@ class EpochStateMachine:
         sm = EpochStateMachine("epoch-123")
         record = sm.advance(PhaseId.P2_ELICIT, triggered_by="architect",
                             condition_met="classification confirmed")
-        sm.record_vote("A", VoteType.ACCEPT)
-        sm.record_vote("B", VoteType.ACCEPT)
-        sm.record_vote("C", VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
         sm.advance(PhaseId.P5_UAT, triggered_by="reviewer", condition_met="all 3 vote ACCEPT")
     """
 
@@ -326,7 +327,7 @@ class EpochStateMachine:
             ]
             violations.append(
                 f"Consensus required for {current!r} → {to_phase!r}: "
-                f"all 3 axes (A, B, C) must ACCEPT. "
+                f"all 3 axes (correctness, test_quality, elegance) must ACCEPT. "
                 f"Axes with votes: {have}, accepted: {sorted(accepted)}."
             )
 
@@ -342,11 +343,11 @@ class EpochStateMachine:
     def record_vote(self, axis: str, vote: VoteType) -> None:
         """Record a reviewer vote for the given axis.
 
-        axis must be one of "A", "B", "C".
+        axis must be one of ReviewAxis values: "correctness", "test_quality", "elegance".
         Recording a vote for the same axis overwrites the previous vote.
 
         Raises:
-            ValueError: If axis is not one of "A", "B", "C".
+            ValueError: If axis is not a valid ReviewAxis value.
         """
         if axis not in _REVIEW_AXES:
             raise ValueError(
@@ -355,7 +356,7 @@ class EpochStateMachine:
         self._state.review_votes[axis] = vote
 
     def has_consensus(self) -> bool:
-        """Return True if all 3 review axes (A, B, C) have ACCEPT votes.
+        """Return True if all 3 review axes (CORRECTNESS, TEST_QUALITY, ELEGANCE) have ACCEPT votes.
 
         Returns False if any axis is missing a vote or voted REVISE.
         """

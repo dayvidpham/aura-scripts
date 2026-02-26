@@ -28,7 +28,7 @@ Usage:
 
 from __future__ import annotations
 
-from aura_protocol.types import AuditEvent, PhaseId
+from aura_protocol.types import AuditEvent, PhaseId, RoleId
 from aura_protocol.interfaces import AuditTrail
 
 from temporalio import activity
@@ -145,7 +145,7 @@ class InMemoryAuditTrail:
         *,
         epoch_id: str | None = None,
         phase: PhaseId | None = None,
-        role: object = None,
+        role: RoleId | None = None,
     ) -> list[AuditEvent]:
         """Return events matching the given filters.
 

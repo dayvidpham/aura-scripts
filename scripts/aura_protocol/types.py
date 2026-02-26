@@ -104,14 +104,15 @@ class ContentLevel(StrEnum):
 
 
 class ReviewAxis(StrEnum):
-    """Review axis identifier letters used in review votes.
+    """Review axis semantic identifiers used in review votes.
 
-    Values match schema.xml <axis letter="..."> elements.
+    Values are lowercase wire-format strings used in JSON/Temporal serialization.
+    Previously: A="A", B="B", C="C" (single-letter). Now semantic names for clarity.
     """
 
-    A = "A"
-    B = "B"
-    C = "C"
+    CORRECTNESS = "correctness"
+    TEST_QUALITY = "test_quality"
+    ELEGANCE = "elegance"
 
 
 class SubstepType(StrEnum):
@@ -238,14 +239,15 @@ class SerializablePhaseSpec:
     def from_spec(spec: "PhaseSpec") -> "SerializablePhaseSpec":
         """Convert a frozen PhaseSpec into a SerializablePhaseSpec.
 
-        owner_roles is sorted by .value for deterministic ordering.
+        owner_roles preserves frozenset iteration order (which is the declaration
+        order from PHASE_SPECS) rather than sorting alphabetically.
         """
         return SerializablePhaseSpec(
             id=spec.id,
             number=spec.number,
             domain=spec.domain,
             name=spec.name,
-            owner_roles=sorted(spec.owner_roles, key=lambda r: r.value),
+            owner_roles=list(spec.owner_roles),
             transitions=[
                 SerializableTransition(
                     to_phase=t.to_phase,
@@ -1555,9 +1557,9 @@ LABEL_SPECS: dict[str, LabelSpec] = {
 
 
 REVIEW_AXIS_SPECS: dict[str, ReviewAxisSpec] = {
-    "axis-A": ReviewAxisSpec(
-        id="axis-A",
-        letter=ReviewAxis.A,
+    "axis-correctness": ReviewAxisSpec(
+        id="axis-correctness",
+        letter=ReviewAxis.CORRECTNESS,
         name="Correctness",
         short="Spirit and technicality",
         key_questions=(
@@ -1566,9 +1568,9 @@ REVIEW_AXIS_SPECS: dict[str, ReviewAxisSpec] = {
             "Are there gaps where the proposal says one thing but the code does another?",
         ),
     ),
-    "axis-B": ReviewAxisSpec(
-        id="axis-B",
-        letter=ReviewAxis.B,
+    "axis-test_quality": ReviewAxisSpec(
+        id="axis-test_quality",
+        letter=ReviewAxis.TEST_QUALITY,
         name="Test quality",
         short="Test strategy adequacy",
         key_questions=(
@@ -1578,9 +1580,9 @@ REVIEW_AXIS_SPECS: dict[str, ReviewAxisSpec] = {
             "Assert observable outcomes, not internal state?",
         ),
     ),
-    "axis-C": ReviewAxisSpec(
-        id="axis-C",
-        letter=ReviewAxis.C,
+    "axis-elegance": ReviewAxisSpec(
+        id="axis-elegance",
+        letter=ReviewAxis.ELEGANCE,
         name="Elegance",
         short="Complexity matching",
         key_questions=(

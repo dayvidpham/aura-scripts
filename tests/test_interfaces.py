@@ -318,14 +318,15 @@ class TestA2APartTypes:
         assert part.text == "hello world"
 
     def test_file_part_creation(self) -> None:
-        fwu = FileWithUri(uri="file:///path/to/file.py")
-        part = FilePart(file_with_uri=fwu, mime_type="text/x-python")
+        fwu = FileWithUri(uri="file:///path/to/file.py", mime_type="text/x-python")
+        part = FilePart(file_with_uri=fwu)
         assert part.file_with_uri.uri == "file:///path/to/file.py"
-        assert part.mime_type == "text/x-python"
+        assert part.file_with_uri.mime_type == "text/x-python"
 
-    def test_file_part_optional_mime_type(self) -> None:
+    def test_file_part_mime_type_on_file_with_uri(self) -> None:
+        """mime_type lives on FileWithUri, not FilePart directly."""
         part = FilePart(file_with_uri=FileWithUri(uri="file:///path/to/data"))
-        assert part.mime_type is None
+        assert part.file_with_uri.mime_type is None
 
     def test_data_part_creation(self) -> None:
         payload = {"key": "value", "count": 42}
@@ -440,7 +441,7 @@ class TestEventStubReExports:
         event = ReviewVoteEvent(
             epoch_id="epoch-1",
             phase=PhaseId.P4_REVIEW,
-            axis="A",
+            axis=ReviewAxis.CORRECTNESS,
             vote=VoteType.ACCEPT,
             reviewer_id="reviewer-a",
         )
@@ -573,7 +574,7 @@ class TestNullTranscriptRecorder:
         event = ReviewVoteEvent(
             epoch_id="epoch-1",
             phase=PhaseId.P4_REVIEW,
-            axis="A",
+            axis=ReviewAxis.CORRECTNESS,
             vote=VoteType.ACCEPT,
             reviewer_id="reviewer-a",
         )
@@ -622,8 +623,8 @@ class TestReviewVoteSignalAxis:
         """Given ReviewAxis enum member when used as axis then ReviewVoteSignal created."""
         from aura_protocol.workflow import ReviewVoteSignal
 
-        sig = ReviewVoteSignal(axis=ReviewAxis.A, vote=VoteType.ACCEPT, reviewer_id="r1")
-        assert sig.axis == ReviewAxis.A
+        sig = ReviewVoteSignal(axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="r1")
+        assert sig.axis == ReviewAxis.CORRECTNESS
         assert isinstance(sig.axis, ReviewAxis)
 
     def test_axis_a_b_c_all_valid(self) -> None:
@@ -638,8 +639,8 @@ class TestReviewVoteSignalAxis:
         """Given ReviewAxis (StrEnum) when compared to str then compatible."""
         from aura_protocol.workflow import ReviewVoteSignal
 
-        sig = ReviewVoteSignal(axis=ReviewAxis.A, vote=VoteType.ACCEPT, reviewer_id="r1")
-        assert sig.axis == "A"  # StrEnum compatibility
+        sig = ReviewVoteSignal(axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="r1")
+        assert sig.axis == "correctness"  # StrEnum compatibility
 
 
 # ─── _REVISE_DRIVES_BACK_PHASES ───────────────────────────────────────────────

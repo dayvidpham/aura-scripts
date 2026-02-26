@@ -100,14 +100,14 @@
      REVIEW AXES
      ═══════════════════════════════════════════════════════════════════════ -->
   <review-axes>
-    <axis id="axis-A" letter="A" name="Correctness" short="Spirit and technicality">
+    <axis id="axis-correctness" letter="correctness" name="Correctness" short="Spirit and technicality">
       <key-questions>
         <q>Does the implementation faithfully serve the user's original request?</q>
         <q>Are technical decisions consistent with the rationale in the proposal?</q>
         <q>Are there gaps where the proposal says one thing but the code does another?</q>
       </key-questions>
     </axis>
-    <axis id="axis-B" letter="B" name="Test quality" short="Test strategy adequacy">
+    <axis id="axis-test_quality" letter="test_quality" name="Test quality" short="Test strategy adequacy">
       <key-questions>
         <q>Favour integration tests over brittle unit tests?</q>
         <q>System under test NOT mocked — mock dependencies only?</q>
@@ -115,7 +115,7 @@
         <q>Assert observable outcomes, not internal state?</q>
       </key-questions>
     </axis>
-    <axis id="axis-C" letter="C" name="Elegance" short="Complexity matching">
+    <axis id="axis-elegance" letter="elegance" name="Elegance" short="Complexity matching">
       <key-questions>
         <q>Design the API you know you will need?</q>
         <q>No over-engineering (premature abstractions, plugin systems)?</q>
@@ -413,9 +413,9 @@
       aura:p4-plan:s4-review, aura:p10-impl:s10-review, aura:severity:blocker, aura:severity:important, aura:severity:minor
     </label-awareness>
       <uses-axes>
-        <axis-ref ref="axis-A" />
-        <axis-ref ref="axis-B" />
-        <axis-ref ref="axis-C" />
+        <axis-ref ref="axis-correctness" />
+        <axis-ref ref="axis-test_quality" />
+        <axis-ref ref="axis-elegance" />
       </uses-axes>
     </role>
     <role id="supervisor" name="Supervisor" description="Task coordinator, spawns workers, manages parallel execution">
@@ -909,7 +909,7 @@
         <entity type="task-title" depth="full" refs="all" />
         <entity type="handoff" depth="summary" refs="h1,h2,h3,h4,h5,h6" />
         <entity type="severity" depth="full" refs="BLOCKER,IMPORTANT,MINOR" />
-        <entity type="review-axis" depth="summary" refs="axis-A,axis-B,axis-C" />
+        <entity type="review-axis" depth="summary" refs="axis-correctness,axis-test_quality,axis-elegance" />
       </covers>
     </document>
     <document id="doc-constraints" path="protocol/CONSTRAINTS.md" purpose="Coding standards, checklists, severity definitions, naming conventions">
@@ -938,7 +938,7 @@
         <entity type="phase" depth="role-mapping" refs="all" />
         <entity type="command" depth="role-mapping" refs="all" />
         <entity type="handoff" depth="full" refs="h1,h2,h3,h4,h5,h6" />
-        <entity type="review-axis" depth="full" refs="axis-A,axis-B,axis-C" />
+        <entity type="review-axis" depth="full" refs="axis-correctness,axis-test_quality,axis-elegance" />
       </covers>
     </document>
     <document id="doc-skills" path="protocol/SKILLS.md" purpose="Command reference: all /aura:* skills mapped to phase and role">
@@ -947,7 +947,7 @@
         <entity type="phase" depth="command-mapping" refs="all" />
         <entity type="role" depth="command-mapping" refs="all" />
         <entity type="label" depth="command-creates" refs="all" />
-        <entity type="review-axis" depth="summary" refs="axis-A,axis-B,axis-C" />
+        <entity type="review-axis" depth="summary" refs="axis-correctness,axis-test_quality,axis-elegance" />
       </covers>
     </document>
     <document id="doc-handoff" path="protocol/HANDOFF_TEMPLATE.md" purpose="Standardized template for 6 actor-change transitions">
