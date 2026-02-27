@@ -32,8 +32,8 @@ bin/aurad.py
     └── run_worker()          Connect to Temporal, register workflows + activities
             │
             ├── EpochWorkflow          (scripts/aura_protocol/workflow.py)
-            │       ├── Signals: advance_phase, submit_vote
-            │       ├── Queries: current_state, available_transitions
+            │       ├── Signals: advance_phase, submit_vote, slice_progress
+            │       ├── Queries: current_state, available_transitions, slice_progress_state
             │       ├── Loop:  wait → drain votes → check constraints → advance → upsert attrs
             │       ├── _run_p9_slices()  → starts N SliceWorkflow children concurrently
             │       └── _run_p10_review() → starts one ReviewPhaseWorkflow child
@@ -47,7 +47,7 @@ bin/aurad.py
             │       ├── Signal: submit_vote(ReviewVoteSignal)
             │       └── run(ReviewInput) → ReviewPhaseResult
             │           Child of EpochWorkflow for P10_CODE_REVIEW; blocks until
-            │           all 3 ReviewAxis members (A, B, C) have cast votes.
+            │           all 3 ReviewAxis members (CORRECTNESS, TEST_QUALITY, ELEGANCE) have cast votes.
             │
             └── Activities (module-level @activity.defn functions)
                     ├── check_constraints     (workflow.py)   — constraint checking
@@ -160,7 +160,9 @@ class SliceProgressSignal:
 
 - No `datetime.now()` in workflow code — use `workflow.now()` for timestamps.
 - No I/O in workflow code — all I/O goes through activities.
-- Signal handlers only enqueue; transitions happen in the `run()` loop.
+- Signal handlers only enqueue; transitions happen in the `run()` loop —
+  except `slice_progress`, which appends directly to `_slice_progress_log`
+  (observer pattern: no state-machine transition, just accumulation).
 
 ---
 
