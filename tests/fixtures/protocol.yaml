@@ -650,16 +650,22 @@ transition_matrix:
 
 # ─── Constraint Violations ────────────────────────────────────────────────────
 # All 26 C-* constraints from CONSTRAINT_SPECS in aura_protocol.types.
-# 5 runnable: have violation_state dicts → RuntimeConstraintChecker.check_state() fires.
+# 5 runnable: 4 state-based (violation_state) + 1 transition-based (violation_transition).
 # 21 skipped: have skip_reason → pytest.mark.skip applied at collection time.
 #
-# violation_state fields for runnable cases:
+# State-based runnable case fields (violation_state):
 #   current_phase: PhaseId string (p1–p12, complete)
 #   review_votes: dict (axis letters A/B/C → ACCEPT or REVISE), default {}
 #   blocker_count: int, default 0
 #   severity_groups_present: bool — if true, populate all 3 SeverityLevel groups, default false
 #
-# Tests assert that the expected constraint_id appears in check_state() violations.
+# Transition-based runnable case fields (violation_transition):
+#   from_phase: PhaseId string for source phase
+#   to_phase: PhaseId string for target phase
+#
+# State-based tests call check_state(violation_state); transition-based tests call
+# check_handoff_required(from_phase, to_phase). Both assert expected constraint_id
+# appears in the returned violations list.
 
 constraint_violations:
 
@@ -676,12 +682,14 @@ constraint_violations:
 
   C-severity-not-plan:
     description: >
-      State at P4 — severity trees are forbidden in plan review.
-      check_state() via check_severity_tree() always fires C-severity-not-plan at p4.
+      State at P4 with severity_groups already populated — severity trees must not
+      be used in plan review. check_state() via check_severity_tree() fires
+      C-severity-not-plan for any state at p4 (severity_groups_present isolates intent).
     violation_state:
       current_phase: p4
       review_votes: {}
       blocker_count: 0
+      severity_groups_present: true  # semantic: groups exist at p4, which is forbidden
 
   C-severity-eager:
     description: >
@@ -703,17 +711,23 @@ constraint_violations:
       blocker_count: 1
       severity_groups_present: true  # avoid C-severity-eager co-firing
 
-  C-audit-never-delete:
+  C-handoff-skill-invocation:
     description: >
-      State at P2 with empty transition_history — audit trail has been wiped.
-      check_state() fires C-audit-never-delete when history is empty past p1.
-    violation_state:
-      current_phase: p2
-      review_votes: {}
-      blocker_count: 0
-      # transition_history defaults to [] in EpochState → triggers violation
+      Transition P7→P8 (handoff to supervisor) is an actor-change transition that
+      requires a handoff document. check_handoff_required(p7, p8) fires the violation.
+    violation_transition:
+      from_phase: p7
+      to_phase: p8
 
   # ─── Skipped: require non-EpochState data or external enforcement (21) ────
+
+  C-audit-never-delete:
+    description: >
+      Audit trail must never be deleted or cleared. Detecting an empty
+      transition_history at a non-p1 phase requires a properly constructed
+      EpochState with history that was then wiped — not easily captured as a
+      static fixture without TransitionRecord objects.
+    skip_reason: "check_audit_trail requires transition_history with TransitionRecord objects; empty-history state is trivially constructable but not representative of real audit corruption"
 
   C-audit-dep-chain:
     description: >
@@ -781,12 +795,6 @@ constraint_violations:
       Every vertical slice must have leaf tasks (L1/L2/L3).
       Requires task child listing — not in EpochState.
     skip_reason: "check_slice_has_leaf_tasks requires task children data; not part of EpochState"
-
-  C-handoff-skill-invocation:
-    description: >
-      Actor-change transitions (p7→p8, p9→p10) require handoff documents.
-      check_handoff_required takes (from_phase, to_phase) not EpochState.
-    skip_reason: "check_handoff_required takes (from_phase, to_phase) args; not a pure check_state constraint"
 
   C-dep-direction:
     description: >

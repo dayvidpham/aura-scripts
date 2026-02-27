@@ -117,20 +117,32 @@ class ConstraintViolationTestCase:
 
     Each case covers one C-* constraint from CONSTRAINT_SPECS. Cases with
     skip_reason are skipped at collection time via pytest.mark.skip; the
-    remaining 5 runnable cases construct an EpochState that violates the
-    constraint and verify RuntimeConstraintChecker.check_state() fires it.
+    remaining 5 runnable cases verify that the appropriate RuntimeConstraintChecker
+    method fires the expected constraint_id.
+
+    Two check kinds (exactly one is set for runnable cases):
+    - State-based (violation_state set): call check_state(violation_state).
+    - Transition-based (violation_from_phase + violation_to_phase set): call
+      check_handoff_required(from_phase, to_phase).
 
     Fields:
         constraint_id: The C-* constraint under test (e.g. "C-review-consensus").
         description: Human-readable description of the violation scenario.
-        violation_state: EpochState that violates the constraint (None if skipped).
-        skip_reason: If set, this case is skipped; violation_state is None.
+        violation_state: EpochState that violates the constraint. Set for state-based
+            runnable cases; None for transition-based and skipped cases.
+        violation_from_phase: Source PhaseId for transition-based checks. Set only
+            for C-handoff-skill-invocation; None otherwise.
+        violation_to_phase: Target PhaseId for transition-based checks. Set only
+            for C-handoff-skill-invocation; None otherwise.
+        skip_reason: If set, this case is skipped; both violation fields are None.
         id: Pytest-friendly identifier (used in pytest.param(id=...)).
     """
 
     constraint_id: str
     description: str
     violation_state: EpochState | None
+    violation_from_phase: PhaseId | None
+    violation_to_phase: PhaseId | None
     skip_reason: str | None
     id: str
 
@@ -341,16 +353,24 @@ class ProtocolFixture:
         """Generate constraint violation test cases from the constraint_violations axis.
 
         Yields one ConstraintViolationTestCase per entry in constraint_violations.
-        Runnable cases (no skip_reason) have a constructed EpochState.
-        Skipped cases (skip_reason set) have violation_state=None.
+        Two kinds of runnable cases:
+        - State-based: violation_state dict present → EpochState constructed,
+          test calls check_state(state).
+        - Transition-based: violation_transition dict present → from/to PhaseIds
+          extracted, test calls check_handoff_required(from_phase, to_phase).
+        Skipped cases (skip_reason set) have all violation fields as None.
 
-        YAML violation_state fields:
-            current_phase: PhaseId string value (required for runnable cases).
+        YAML violation_state fields (for state-based runnable cases):
+            current_phase: PhaseId string value (required).
             review_votes: dict mapping axis letters (A/B/C) to VoteType values.
-                Defaults to empty dict if omitted.
+                Defaults to {}.
             blocker_count: int. Defaults to 0.
             severity_groups_present: bool. If True, populate all 3 SeverityLevel
                 groups with empty sets. Defaults to False (empty severity_groups).
+
+        YAML violation_transition fields (for transition-based runnable cases):
+            from_phase: PhaseId string for the source phase.
+            to_phase: PhaseId string for the target phase.
 
         Yields:
             ConstraintViolationTestCase: Each generated test case.
@@ -364,12 +384,30 @@ class ProtocolFixture:
                     constraint_id=constraint_id,
                     description=description,
                     violation_state=None,
+                    violation_from_phase=None,
+                    violation_to_phase=None,
                     skip_reason=skip_reason,
                     id=f"constraint:{constraint_id}",
                 )
                 continue
 
-            # Build EpochState from violation_state dict
+            # Transition-based check (e.g. C-handoff-skill-invocation)
+            if "violation_transition" in entry:
+                vt = entry["violation_transition"]
+                from_phase = PhaseId(vt["from_phase"])
+                to_phase = PhaseId(vt["to_phase"])
+                yield ConstraintViolationTestCase(
+                    constraint_id=constraint_id,
+                    description=description,
+                    violation_state=None,
+                    violation_from_phase=from_phase,
+                    violation_to_phase=to_phase,
+                    skip_reason=None,
+                    id=f"constraint:{constraint_id}",
+                )
+                continue
+
+            # State-based check: build EpochState from violation_state dict
             vs = entry.get("violation_state", {})
             phase_str = vs.get("current_phase", "p1")
             current_phase = PhaseId(phase_str)
@@ -399,6 +437,8 @@ class ProtocolFixture:
                 constraint_id=constraint_id,
                 description=description,
                 violation_state=state,
+                violation_from_phase=None,
+                violation_to_phase=None,
                 skip_reason=None,
                 id=f"constraint:{constraint_id}",
             )

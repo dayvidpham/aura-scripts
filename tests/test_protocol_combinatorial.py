@@ -516,14 +516,23 @@ class TestConstraintViolationCombinatorial:
         "tc",
         [pytest.param(tc, id=tc.id) for tc in _RUNNABLE_CONSTRAINT_CASES],
     )
-    def test_runnable_violation_state_fires_expected_constraint(
+    def test_runnable_violation_fires_expected_constraint(
         self, tc: ConstraintViolationTestCase
     ) -> None:
-        """check_state() on violation_state includes the expected constraint_id."""
-        assert tc.violation_state is not None, (
-            f"{tc.id}: runnable case must have violation_state"
-        )
-        violations = _CHECKER.check_state(tc.violation_state)
+        """Runnable violation case fires the expected constraint_id.
+
+        - State-based (violation_state set): calls check_state(state).
+        - Transition-based (violation_from/to_phase set): calls check_handoff_required.
+        Both assert the expected constraint_id appears in the returned violations.
+        """
+        if tc.violation_state is not None:
+            violations = _CHECKER.check_state(tc.violation_state)
+        else:
+            assert tc.violation_from_phase is not None
+            assert tc.violation_to_phase is not None
+            violations = _CHECKER.check_handoff_required(
+                tc.violation_from_phase, tc.violation_to_phase
+            )
         constraint_ids = {v.constraint_id for v in violations}
         assert tc.constraint_id in constraint_ids, (
             f"{tc.id}: expected '{tc.constraint_id}' in violations, got: {sorted(constraint_ids)}"
