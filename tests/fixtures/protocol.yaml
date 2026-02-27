@@ -646,3 +646,198 @@ transition_matrix:
       target: p1
       expected_success: false
       description: "P2 → P1: Backward without revision semantics (invalid)"
+
+
+# ─── Constraint Violations ────────────────────────────────────────────────────
+# All 26 C-* constraints from CONSTRAINT_SPECS in aura_protocol.types.
+# 5 runnable: have violation_state dicts → RuntimeConstraintChecker.check_state() fires.
+# 21 skipped: have skip_reason → pytest.mark.skip applied at collection time.
+#
+# violation_state fields for runnable cases:
+#   current_phase: PhaseId string (p1–p12, complete)
+#   review_votes: dict (axis letters A/B/C → ACCEPT or REVISE), default {}
+#   blocker_count: int, default 0
+#   severity_groups_present: bool — if true, populate all 3 SeverityLevel groups, default false
+#
+# Tests assert that the expected constraint_id appears in check_state() violations.
+
+constraint_violations:
+
+  # ─── Runnable (5) ─────────────────────────────────────────────────────────
+
+  C-review-consensus:
+    description: >
+      State at P4 with no review votes — all 3 axes (A, B, C) missing.
+      check_state() fires C-review-consensus violation.
+    violation_state:
+      current_phase: p4
+      review_votes: {}
+      blocker_count: 0
+
+  C-severity-not-plan:
+    description: >
+      State at P4 — severity trees are forbidden in plan review.
+      check_state() via check_severity_tree() always fires C-severity-not-plan at p4.
+    violation_state:
+      current_phase: p4
+      review_votes: {}
+      blocker_count: 0
+
+  C-severity-eager:
+    description: >
+      State at P10 with empty severity_groups — all 3 groups must be created on entry.
+      check_state() fires C-severity-eager when severity_groups is empty at p10.
+    violation_state:
+      current_phase: p10
+      review_votes: {}
+      blocker_count: 0
+      # severity_groups_present omitted (defaults false) → empty severity_groups
+
+  C-worker-gates:
+    description: >
+      State at P10 with 1 unresolved blocker — p10→p11 advance is blocked.
+      check_state() fires C-worker-gates when blocker_count > 0 at p10.
+    violation_state:
+      current_phase: p10
+      review_votes: {}
+      blocker_count: 1
+      severity_groups_present: true  # avoid C-severity-eager co-firing
+
+  C-audit-never-delete:
+    description: >
+      State at P2 with empty transition_history — audit trail has been wiped.
+      check_state() fires C-audit-never-delete when history is empty past p1.
+    violation_state:
+      current_phase: p2
+      review_votes: {}
+      blocker_count: 0
+      # transition_history defaults to [] in EpochState → triggers violation
+
+  # ─── Skipped: require non-EpochState data or external enforcement (21) ────
+
+  C-audit-dep-chain:
+    description: >
+      Transition records must have triggered_by and condition_met.
+      Violation requires a TransitionRecord with missing fields — not representable
+      as a static YAML violation_state dict.
+    skip_reason: "requires TransitionRecord objects with missing triggered_by/condition_met; not representable as static YAML EpochState"
+
+  C-review-binary:
+    description: >
+      Review votes must be ACCEPT or REVISE only. Violation requires an invalid
+      vote value (neither ACCEPT nor REVISE) which cannot pass VoteType enum parsing.
+    skip_reason: "check_review_binary takes a raw votes dict with non-enum values; enum construction at import time prevents invalid values in fixture"
+
+  C-blocker-dual-parent:
+    description: >
+      BLOCKER findings must have two parents (severity group + FOLLOWUP_SLICE-N).
+      Violation requires task hierarchy data — not observable from EpochState alone.
+    skip_reason: "check_blocker_dual_parent requires task parent/child ID lists; not part of EpochState"
+
+  C-followup-timing:
+    description: >
+      After code review completion with IMPORTANT or MINOR findings, a FOLLOWUP_SLICE-N
+      must be created immediately. Requires task listing data across the epic.
+    skip_reason: "check_followup_timing requires task listing data (IMPORTANT/MINOR findings); not part of EpochState"
+
+  C-vertical-slices:
+    description: >
+      Workers must implement full vertical slices (not horizontal layers).
+      Violation requires inspecting task ownership structure — not in EpochState.
+    skip_reason: "check_role_ownership checks vertical-slice ownership via task data; not part of EpochState"
+
+  C-supervisor-no-impl:
+    description: >
+      Supervisors must not write implementation code. Violation requires inspecting
+      commit/file authorship data — not in EpochState.
+    skip_reason: "check_supervisor_no_impl requires commit authorship data; not part of EpochState"
+
+  C-supervisor-cartographers:
+    description: >
+      Supervisors must use cartographer agents for exploration and review coordination.
+      Requires task listing data — not in EpochState.
+    skip_reason: "check_supervisor_cartographers requires task listing data; not part of EpochState"
+
+  C-integration-points:
+    description: >
+      Slices sharing types/interfaces/data flows must have explicit integration contracts.
+      Requires task-level dependency analysis — not in EpochState.
+    skip_reason: "check_integration_points requires slice task metadata; not part of EpochState"
+
+  C-slice-review-before-close:
+    description: >
+      Every worker slice must pass code review before being closed.
+      Requires task state data — not in EpochState.
+    skip_reason: "check_slice_review_before_close requires task status data; not part of EpochState"
+
+  C-max-review-cycles:
+    description: >
+      Worker-reviewer cycles are limited. Exceeding the cap requires external tracking.
+      Not observable from EpochState alone.
+    skip_reason: "check_max_review_cycles requires review cycle history; not part of EpochState"
+
+  C-slice-leaf-tasks:
+    description: >
+      Every vertical slice must have leaf tasks (L1/L2/L3).
+      Requires task child listing — not in EpochState.
+    skip_reason: "check_slice_has_leaf_tasks requires task children data; not part of EpochState"
+
+  C-handoff-skill-invocation:
+    description: >
+      Actor-change transitions (p7→p8, p9→p10) require handoff documents.
+      check_handoff_required takes (from_phase, to_phase) not EpochState.
+    skip_reason: "check_handoff_required takes (from_phase, to_phase) args; not a pure check_state constraint"
+
+  C-dep-direction:
+    description: >
+      Beads dependencies must point parent blocked-by child.
+      check_dep_direction takes (parent_id, child_id) strings — not EpochState.
+    skip_reason: "check_dep_direction takes (parent_id, child_id) string args; not a check_state constraint"
+
+  C-frontmatter-refs:
+    description: >
+      Cross-task references must use description frontmatter (not bd dep relate).
+      Requires document content parsing — not in EpochState.
+    skip_reason: "check_frontmatter_refs requires document body content; not part of EpochState"
+
+  C-agent-commit:
+    description: >
+      Code commits must use git agent-commit not git commit.
+      check_agent_commit takes a commit command string — not EpochState.
+    skip_reason: "check_agent_commit takes a commit command string; not a check_state constraint"
+
+  C-proposal-naming:
+    description: >
+      Proposal titles must follow PROPOSAL-{N}: {description} pattern.
+      check_proposal_naming takes a title string — not EpochState.
+    skip_reason: "check_proposal_naming takes a title string; not a check_state constraint"
+
+  C-review-naming:
+    description: >
+      Review task titles must follow {SCOPE}-REVIEW-{axis}-{round} pattern.
+      check_review_naming takes a title string — not EpochState.
+    skip_reason: "check_review_naming takes a title string; not a check_state constraint"
+
+  C-ure-verbatim:
+    description: >
+      URE and UAT interviews must capture user responses verbatim.
+      Requires interview document content — not in EpochState.
+    skip_reason: "check_ure_verbatim requires interview document content; not part of EpochState"
+
+  C-followup-lifecycle:
+    description: >
+      Follow-up slices must follow correct task lifecycle.
+      Requires task tree inspection — not in EpochState.
+    skip_reason: "check_followup_lifecycle requires task tree data; not part of EpochState"
+
+  C-followup-leaf-adoption:
+    description: >
+      FOLLOWUP_SLICE-N must adopt and resolve original leaf tasks.
+      Requires task parent/child structure — not in EpochState.
+    skip_reason: "check_followup_leaf_adoption requires task parent/child data; not part of EpochState"
+
+  C-actionable-errors:
+    description: >
+      Errors and user-facing messages must describe what, why, where, when, meaning,
+      and how to fix. Enforced at code review time — not checkable from EpochState.
+    skip_reason: "C-actionable-errors is a code-quality constraint enforced during code review; not checkable from EpochState"
