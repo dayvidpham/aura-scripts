@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0] - 2026-02-26
+
+### Changed (SLICE-1: rename worker→aurad + packaging + SQLite XDG)
+- rename(bin): bin/worker.py → bin/aurad.py (Temporal worker daemon entry point)
+- feat(nix): flake.nix packages.worker → packages.aurad (name="aurad"); aurad added to packages.default
+- feat(nix): temporal-service.nix ExecStartPre resolves XDG_DATA_HOME at runtime when dbPath="" → writes TEMPORAL_DB_PATH to env file; ExecStart uses \${TEMPORAL_DB_PATH}
+- rename(tests): tests/test_worker.py → tests/test_aurad.py; WORKER_PATH→AURAD_PATH, _load_worker→_load_aurad
+
 ## [0.8.0] - 2026-02-26
 
 ### Changed (UAT amendments)

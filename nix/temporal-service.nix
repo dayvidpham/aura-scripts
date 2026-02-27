@@ -22,6 +22,8 @@ let
   cfg = config.services.temporal-dev-server;
 
   # Build the temporal server start-dev command from options.
+  # When dbPath is empty, XDG resolution is deferred to ExecStartPre (runtime).
+  # When dbPath is set, pass it directly (no XDG resolution needed).
   startDevArgs = lib.concatStringsSep " " (
     [ "server" "start-dev" ]
     ++ [ "--port" (toString cfg.port) ]
@@ -29,6 +31,16 @@ let
     ++ [ "--namespace" cfg.namespace ]
     ++ lib.optionals (cfg.dbPath != "") [ "--db-filename" cfg.dbPath ]
   );
+
+  # ExecStartPre script: resolve XDG path and write to env file (only when dbPath="").
+  # The env file is sourced by systemd via EnvironmentFile at runtime.
+  xdgResolveScript = pkgs.writeShellScript "temporal-xdg-resolve" ''
+    set -euo pipefail
+    XDG_DATA_HOME="''${XDG_DATA_HOME:-$HOME/.local/share}"
+    TEMPORAL_DB_DIR="$XDG_DATA_HOME/aura/plugin"
+    mkdir -p "$TEMPORAL_DB_DIR"
+    echo "TEMPORAL_DB_PATH=$TEMPORAL_DB_DIR/temporal.db" > "%t/temporal-dev-server-db.env"
+  '';
 
 in
 {
@@ -110,20 +122,34 @@ in
         After           = [ "network.target" ];
       };
 
-      Service = {
-        ExecStart = "${cfg.package}/bin/temporal ${startDevArgs}";
-        Restart   = "on-failure";
+      Service = lib.mkMerge [
+        # Base service config (always applied).
+        {
+          Restart   = "on-failure";
 
-        # Environment hardening for user service.
-        Environment = [
-          "HOME=%h"
-          "PATH=${lib.makeBinPath [ cfg.package pkgs.coreutils ]}"
-        ];
+          # Environment hardening for user service.
+          Environment = [
+            "HOME=%h"
+            "PATH=${lib.makeBinPath [ cfg.package pkgs.coreutils ]}"
+          ];
 
-        # Graceful shutdown: SIGTERM → 10 s → SIGKILL.
-        KillMode          = "process";
-        TimeoutStopSec    = 10;
-      };
+          # Graceful shutdown: SIGTERM → 10 s → SIGKILL.
+          KillMode          = "process";
+          TimeoutStopSec    = 10;
+        }
+
+        # When dbPath is set: use it directly, no XDG resolution.
+        (lib.mkIf (cfg.dbPath != "") {
+          ExecStart = "${cfg.package}/bin/temporal ${startDevArgs}";
+        })
+
+        # When dbPath is empty: resolve XDG path at runtime via ExecStartPre.
+        (lib.mkIf (cfg.dbPath == "") {
+          ExecStartPre = "${xdgResolveScript}";
+          EnvironmentFile = "%t/temporal-dev-server-db.env";
+          ExecStart = "${cfg.package}/bin/temporal server start-dev --port ${toString cfg.port} --ui-port ${toString cfg.uiPort} --namespace ${cfg.namespace} --db-filename \${TEMPORAL_DB_PATH}";
+        })
+      ];
 
       Install = {
         WantedBy = [ "default.target" ];

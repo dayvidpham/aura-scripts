@@ -1,9 +1,9 @@
-"""Tests for bin/worker.py — Temporal worker entry point (SLICE-4-L2).
+"""Tests for bin/aurad.py — Temporal worker entry point (SLICE-1-L2).
 
 BDD Acceptance Criteria:
-    AC-W1: Given bin/worker.py exists, when imported, then parse_args and main
+    AC-W1: Given bin/aurad.py exists, when imported, then parse_args and main
            are present. Should not require a running Temporal server.
-    AC-W2: Given bin/worker.py with no args, when parse_args() is called, then
+    AC-W2: Given bin/aurad.py with no args, when parse_args() is called, then
            namespace='default', task_queue='aura', server_address='localhost:7233'.
     AC-W3: Given explicit CLI flags, when parse_args() is called, then those
            values override defaults.
@@ -44,15 +44,15 @@ import pytest
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
-WORKER_PATH = Path(__file__).parent.parent / "bin" / "worker.py"
+AURAD_PATH = Path(__file__).parent.parent / "bin" / "aurad.py"
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
 
-# Temporal env vars controlled by worker.py
+# Temporal env vars controlled by aurad.py
 _TEMPORAL_ENV_VARS = ("TEMPORAL_NAMESPACE", "TEMPORAL_TASK_QUEUE", "TEMPORAL_ADDRESS")
 
 
-def _load_worker() -> ModuleType:
-    """Load bin/worker.py as a Python module via importlib.
+def _load_aurad() -> ModuleType:
+    """Load bin/aurad.py as a Python module via importlib.
 
     Each call returns a fresh module (re-executed). This ensures test
     isolation for global state (e.g. _AUDIT_TRAIL singleton reset).
@@ -64,8 +64,8 @@ def _load_worker() -> ModuleType:
         sys.path.insert(0, scripts_str)
         inserted = True
     try:
-        spec = importlib.util.spec_from_file_location("worker", WORKER_PATH)
-        assert spec is not None, f"Could not create module spec for {WORKER_PATH}"
+        spec = importlib.util.spec_from_file_location("aurad", AURAD_PATH)
+        assert spec is not None, f"Could not create module spec for {AURAD_PATH}"
         assert spec.loader is not None, "Module spec has no loader"
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)  # type: ignore[union-attr]
@@ -115,39 +115,39 @@ def _clean_env(**overrides: str) -> Generator[None, None, None]:
 # ─── Filesystem checks ────────────────────────────────────────────────────────
 
 
-class TestWorkerFile:
-    def test_worker_script_exists(self) -> None:
-        assert WORKER_PATH.exists(), f"bin/worker.py not found at {WORKER_PATH}"
+class TestAuradFile:
+    def test_aurad_script_exists(self) -> None:
+        assert AURAD_PATH.exists(), f"bin/aurad.py not found at {AURAD_PATH}"
 
-    def test_worker_script_is_executable(self) -> None:
-        assert os.access(WORKER_PATH, os.X_OK), (
-            f"bin/worker.py is not executable — run: chmod +x {WORKER_PATH}"
+    def test_aurad_script_is_executable(self) -> None:
+        assert os.access(AURAD_PATH, os.X_OK), (
+            f"bin/aurad.py is not executable — run: chmod +x {AURAD_PATH}"
         )
 
 
 # ─── Import tests ─────────────────────────────────────────────────────────────
 
 
-class TestWorkerImport:
+class TestAuradImport:
     """AC-W1: Module importable; exposes expected callables."""
 
     def test_module_imports_successfully(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         assert module is not None
 
     def test_module_has_parse_args(self) -> None:
-        module = _load_worker()
-        assert hasattr(module, "parse_args"), "parse_args() not found in worker.py"
+        module = _load_aurad()
+        assert hasattr(module, "parse_args"), "parse_args() not found in aurad.py"
         assert callable(module.parse_args)
 
     def test_module_has_main(self) -> None:
-        module = _load_worker()
-        assert hasattr(module, "main"), "main() not found in worker.py"
+        module = _load_aurad()
+        assert hasattr(module, "main"), "main() not found in aurad.py"
         assert callable(module.main)
 
     def test_module_has_run_worker(self) -> None:
-        module = _load_worker()
-        assert hasattr(module, "run_worker"), "run_worker() not found in worker.py"
+        module = _load_aurad()
+        assert hasattr(module, "run_worker"), "run_worker() not found in aurad.py"
         assert callable(module.run_worker)
 
 
@@ -158,19 +158,19 @@ class TestArgParsingDefaults:
     """AC-W2: Default values when no CLI args and no env vars."""
 
     def test_default_namespace(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env():
             args = module.parse_args([])
         assert args.namespace == "default"
 
     def test_default_task_queue(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env():
             args = module.parse_args([])
         assert args.task_queue == "aura"
 
     def test_default_server_address(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env():
             args = module.parse_args([])
         assert args.server_address == "localhost:7233"
@@ -183,25 +183,25 @@ class TestArgParsingCLI:
     """AC-W3: Explicit CLI flags override defaults."""
 
     def test_cli_namespace(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env():
             args = module.parse_args(["--namespace", "my-namespace"])
         assert args.namespace == "my-namespace"
 
     def test_cli_task_queue(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env():
             args = module.parse_args(["--task-queue", "my-queue"])
         assert args.task_queue == "my-queue"
 
     def test_cli_server_address(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env():
             args = module.parse_args(["--server-address", "remote-host:7233"])
         assert args.server_address == "remote-host:7233"
 
     def test_all_cli_args_together(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env():
             args = module.parse_args([
                 "--namespace", "prod",
@@ -220,25 +220,25 @@ class TestArgParsingEnvVars:
     """AC-W4: Env vars used when CLI args absent."""
 
     def test_env_namespace(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env(TEMPORAL_NAMESPACE="env-namespace"):
             args = module.parse_args([])
         assert args.namespace == "env-namespace"
 
     def test_env_task_queue(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env(TEMPORAL_TASK_QUEUE="env-queue"):
             args = module.parse_args([])
         assert args.task_queue == "env-queue"
 
     def test_env_server_address(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env(TEMPORAL_ADDRESS="env-host:7233"):
             args = module.parse_args([])
         assert args.server_address == "env-host:7233"
 
     def test_all_env_vars(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env(
             TEMPORAL_NAMESPACE="env-ns",
             TEMPORAL_TASK_QUEUE="env-q",
@@ -257,26 +257,26 @@ class TestArgParsingPriority:
     """AC-W5: CLI flag wins over env var."""
 
     def test_cli_namespace_wins_over_env(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env(TEMPORAL_NAMESPACE="env-ns"):
             args = module.parse_args(["--namespace", "cli-ns"])
         assert args.namespace == "cli-ns"
 
     def test_cli_task_queue_wins_over_env(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env(TEMPORAL_TASK_QUEUE="env-queue"):
             args = module.parse_args(["--task-queue", "cli-queue"])
         assert args.task_queue == "cli-queue"
 
     def test_cli_address_wins_over_env(self) -> None:
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env(TEMPORAL_ADDRESS="env-host:7233"):
             args = module.parse_args(["--server-address", "cli-host:7233"])
         assert args.server_address == "cli-host:7233"
 
     def test_only_overridden_flag_wins(self) -> None:
         """CLI overrides only the flag it specifies; env var wins for the rest."""
-        module = _load_worker()
+        module = _load_aurad()
         with _clean_env(
             TEMPORAL_NAMESPACE="env-ns",
             TEMPORAL_TASK_QUEUE="env-queue",
@@ -289,12 +289,12 @@ class TestArgParsingPriority:
 # ─── --help output ────────────────────────────────────────────────────────────
 
 
-class TestWorkerHelp:
+class TestAuradHelp:
     """AC-W6: --help shows usage with expected flags."""
 
     def test_help_exits_zero(self) -> None:
         result = subprocess.run(
-            [sys.executable, str(WORKER_PATH), "--help"],
+            [sys.executable, str(AURAD_PATH), "--help"],
             capture_output=True,
             text=True,
             env={**os.environ, "PYTHONPATH": str(SCRIPTS_DIR)},
@@ -303,7 +303,7 @@ class TestWorkerHelp:
 
     def test_help_mentions_namespace(self) -> None:
         result = subprocess.run(
-            [sys.executable, str(WORKER_PATH), "--help"],
+            [sys.executable, str(AURAD_PATH), "--help"],
             capture_output=True,
             text=True,
             env={**os.environ, "PYTHONPATH": str(SCRIPTS_DIR)},
@@ -312,7 +312,7 @@ class TestWorkerHelp:
 
     def test_help_mentions_task_queue(self) -> None:
         result = subprocess.run(
-            [sys.executable, str(WORKER_PATH), "--help"],
+            [sys.executable, str(AURAD_PATH), "--help"],
             capture_output=True,
             text=True,
             env={**os.environ, "PYTHONPATH": str(SCRIPTS_DIR)},
@@ -321,7 +321,7 @@ class TestWorkerHelp:
 
     def test_help_mentions_server_address(self) -> None:
         result = subprocess.run(
-            [sys.executable, str(WORKER_PATH), "--help"],
+            [sys.executable, str(AURAD_PATH), "--help"],
             capture_output=True,
             text=True,
             env={**os.environ, "PYTHONPATH": str(SCRIPTS_DIR)},

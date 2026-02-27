@@ -59,13 +59,13 @@
             (builtins.readFile ./bin/aura-release)
         );
 
-        worker = pkgs.writeShellApplication {
-          name = "worker";
+        aurad = pkgs.writeShellApplication {
+          name = "aurad";
           runtimeInputs = [
             (pkgs.python3.withPackages (ps: [ ps.temporalio ]))
           ];
           text = ''
-            PYTHONPATH="${self}/scripts" exec python3 "${self}/bin/worker.py" "$@"
+            PYTHONPATH="${self}/scripts" exec python3 "${self}/bin/aurad.py" "$@"
           '';
         };
 
@@ -75,6 +75,7 @@
             self.packages.${system}.aura-parallel
             self.packages.${system}.aura-swarm
             self.packages.${system}.aura-release
+            self.packages.${system}.aurad
           ];
         };
       });

@@ -22,9 +22,9 @@ Workflows registered:
     ReviewPhaseWorkflow   — child workflow for P10_CODE_REVIEW (vote-driven)
 
 Usage:
-    bin/worker.py                                       # defaults + env vars
-    bin/worker.py --namespace dev --task-queue aura     # explicit args
-    TEMPORAL_NAMESPACE=prod bin/worker.py               # env var override
+    bin/aurad.py                                       # defaults + env vars
+    bin/aurad.py --namespace dev --task-queue aura     # explicit args
+    TEMPORAL_NAMESPACE=prod bin/aurad.py               # env var override
 """
 
 import argparse
