@@ -69,6 +69,16 @@
           '';
         };
 
+        aura-msg = pkgs.writeShellApplication {
+          name = "aura-msg";
+          runtimeInputs = [
+            pkgs.python3
+          ];
+          text = ''
+            exec python3 "${self}/bin/aura-msg.py" "$@"
+          '';
+        };
+
         default = pkgs.symlinkJoin {
           name = "aura-plugins";
           paths = [
@@ -76,6 +86,7 @@
             self.packages.${system}.aura-swarm
             self.packages.${system}.aura-release
             self.packages.${system}.aurad
+            self.packages.${system}.aura-msg
           ];
         };
       });
@@ -84,6 +95,7 @@
       homeManagerModules = {
         aura-config-sync = import ./nix/hm-module.nix { inherit self; };
         temporal-service = import ./nix/temporal-service.nix;
+        aurad-service    = import ./nix/aurad-service.nix { inherit self; };
       };
 
       # ── Dev Shell (for working on aura-plugins itself) ───────
