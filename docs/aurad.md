@@ -116,6 +116,66 @@ Temporal's `Worker` context manager handles graceful shutdown on signal receipt.
 
 ## systemd User Service (NixOS / home-manager)
 
+Two systemd user services are provided: one for `aurad` itself and one for the
+Temporal dev server that `aurad` depends on.
+
+### aurad service (`nix/aurad-service.nix`)
+
+`nix/aurad-service.nix` provides a home-manager module that runs `aurad` as a
+long-running systemd user daemon. It starts after both `network.target` and
+`temporal-dev-server.service`, so the Temporal server is available before
+`aurad` connects.
+
+**The module is exported from `flake.nix`:**
+
+```nix
+# flake.nix outputs
+homeManagerModules = {
+  aurad-service = import ./nix/aurad-service.nix self;
+};
+```
+
+**Enable the service in `home.nix`:**
+
+```nix
+imports = [ inputs.aura-plugins.homeManagerModules.aurad-service ];
+
+services.aurad = {
+  enable  = true;
+  package = inputs.aura-plugins.packages.${pkgs.system}.aurad;
+};
+```
+
+**Full option reference:**
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enable` | bool | `false` | Enable the systemd user service |
+| `namespace` | string | `"default"` | Temporal namespace to connect to |
+| `taskQueue` | string | `"aura"` | Task queue name |
+| `serverAddress` | string | `"localhost:7233"` | Temporal gRPC address |
+| `package` | package | `packages.aurad` from this flake | The `aurad` package |
+
+**Service management:**
+
+```bash
+# Check status
+systemctl --user status aurad
+
+# View logs
+journalctl --user -u aurad -f
+
+# Restart
+systemctl --user restart aurad
+```
+
+**Namespace alignment:** The `namespace` option on the aurad service must
+match the `namespace` option on the Temporal dev server service (see below).
+Mismatches cause `aurad` to connect to a namespace the dev server is not
+serving, resulting in connection or registration errors.
+
+### Temporal dev server (`nix/temporal-service.nix`)
+
 `nix/temporal-service.nix` provides a home-manager module that runs
 `temporal server start-dev` as a systemd user service. This keeps a Temporal
 dev server available without manual intervention.
@@ -148,7 +208,7 @@ services.temporal-dev-server = {
 | `enable` | bool | `false` | Enable the systemd user service |
 | `port` | port | `7233` | gRPC frontend port |
 | `uiPort` | port | `8233` | HTTP Web UI port |
-| `namespace` | string | `"default"` | Namespace to create and serve. Must match `TEMPORAL_NAMESPACE` used by `aurad`. |
+| `namespace` | string | `"default"` | Namespace to create and serve. Must match `namespace` on the aurad service. |
 | `dbPath` | string | `""` | Path to SQLite file for persistence. Empty (default) = XDG-resolved path at runtime. |
 | `package` | package | `pkgs.temporal-cli` | The temporal CLI package. Override to pin a specific version. |
 
@@ -192,10 +252,30 @@ journalctl --user -u temporal-dev-server -f
 systemctl --user restart temporal-dev-server
 ```
 
-**Namespace alignment:** The `namespace` option on the service and the
-`--namespace` flag (or `TEMPORAL_NAMESPACE` env var) on `aurad` must match.
-Mismatches cause `aurad` to connect to a namespace the dev server is not
-serving, resulting in connection or registration errors.
+### Enabling both services together
+
+The typical setup enables both modules and aligns their namespaces:
+
+```nix
+imports = [
+  inputs.aura-plugins.homeManagerModules.temporal-service
+  inputs.aura-plugins.homeManagerModules.aurad-service
+];
+
+services.temporal-dev-server = {
+  enable    = true;
+  namespace = "aura";
+};
+
+services.aurad = {
+  enable    = true;
+  namespace = "aura";   # must match temporal-dev-server namespace
+  package   = inputs.aura-plugins.packages.${pkgs.system}.aurad;
+};
+```
+
+`aurad` depends on `temporal-dev-server.service` via `After=`, so systemd
+ensures the Temporal server is up before `aurad` starts.
 
 ---
 
@@ -340,24 +420,16 @@ PYTHONPATH=scripts .venv/bin/pytest tests/ --tb=short -q \
 
 ## Roadmap
 
-### aurad systemd user service (R2)
+### auditTrailBackend option for aurad-service.nix
 
-**Current state:** `aurad` is packaged as `packages.aurad` in `flake.nix` and
-runs manually or via the Nix package. There is no dedicated `systemd` user
-service for `aurad` itself yet.
+**Current state:** `nix/aurad-service.nix` exposes `namespace`, `taskQueue`,
+`serverAddress`, and `package`. The audit trail backend is hardcoded to
+`InMemoryAuditTrail` inside `bin/aurad.py`.
 
-**Design intent:** Add `nix/aurad-service.nix`, a home-manager module
-providing a `systemd` user service that:
-
-- Runs `aurad` as a long-running daemon.
-- Depends on the Temporal dev server
-  (`After = ["network.target" "temporal-dev-server.service"]`).
-- Owns `home.packages = [aurad]` (so installing the module brings in the binary).
-- Exposes options for `namespace`, `taskQueue`, `serverAddress`, and
-  `auditTrailBackend`.
-
-The service is intentionally separate from `temporal-service.nix` (which owns
-the Temporal dev server) to allow each to be enabled independently.
+**Design intent:** Add an `auditTrailBackend` option to `services.aurad`
+(e.g. `"memory"`, `"sqlite"`, `"temporal"`) that sets an env var or CLI flag
+forwarded to `aurad`. This allows operators to select a durable audit backend
+without modifying the Nix module or patching the source.
 
 ### Durable AuditTrail backend
 

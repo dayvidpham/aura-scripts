@@ -123,6 +123,7 @@ on every transition:
 |---|---|---|
 | `advance_phase` | `PhaseAdvanceSignal` | Request a phase transition |
 | `submit_vote` | `ReviewVoteSignal` | Record a reviewer vote (ACCEPT or REVISE) |
+| `slice_progress` | `SliceProgressSignal` | Receive per-leaf-task progress from a child `SliceWorkflow` |
 
 **Queries:**
 
@@ -130,6 +131,7 @@ on every transition:
 |---|---|---|
 | `current_state` | `EpochState` | Snapshot of epoch runtime state |
 | `available_transitions` | `list[Transition]` | Valid next transitions from current phase |
+| `slice_progress_state` | `list[SliceProgressSignal]` | Ordered log of all slice progress events received so far |
 
 **Key signal payload types** (`workflow.py`, all `frozen=True` dataclasses):
 
@@ -145,6 +147,13 @@ class ReviewVoteSignal:
     axis: ReviewAxis           # CORRECTNESS, TEST_QUALITY, or ELEGANCE
     vote: VoteType             # ACCEPT or REVISE
     reviewer_id: str           # unique reviewer identifier
+
+@dataclass(frozen=True)
+class SliceProgressSignal:
+    slice_id: str              # which slice emitted this event (e.g. "slice-1")
+    leaf_task_id: str          # specific leaf task that completed
+    stage_name: str            # human-readable stage name (e.g. "execute")
+    completed: bool            # True = leaf task finished; False = in-progress
 ```
 
 **Design rules (must not be violated):**
@@ -204,14 +213,19 @@ Both child workflow classes **must be registered** in `run_worker()` alongside
 with other slices in the P9 implementation phase.
 
 - **Parent:** `EpochWorkflow._run_p9_slices()`
-- **Input:** `SliceInput(epoch_id, slice_id, phase_spec)`
+- **Input:** `SliceInput(epoch_id, slice_id, phase_spec, parent_workflow_id)`
 - **Output:** `SliceResult(slice_id, success, error)`
 - **Concurrency:** All slices start together; `workflow.wait(FIRST_EXCEPTION)`
   provides fail-fast semantics — if any slice raises, remaining slices are
   cancelled. `workflow.wait` is the deterministic Temporal replacement for
   `asyncio.wait` and must be used in workflow code.
-- **Status:** R12 stub — `run()` returns `SliceResult(success=True)` immediately.
-  Future implementation will execute slice agents via activities.
+- **Progress signalling:** Each `SliceWorkflow` sends `slice_progress(SliceProgressSignal)`
+  back to the parent `EpochWorkflow` via `get_external_workflow_handle(input.parent_workflow_id)`.
+  `parent_workflow_id` is passed explicitly in `SliceInput` (rather than reading
+  `workflow.info().parent.workflow_id`) for testability.
+- **Status:** R12 stub — `run()` emits a single `SliceProgressSignal` on completion and
+  returns `SliceResult(success=True)`. Future implementation will emit one signal per
+  leaf task and execute slice agents via activities.
 
 ### ReviewPhaseWorkflow (P10_CODE_REVIEW)
 
