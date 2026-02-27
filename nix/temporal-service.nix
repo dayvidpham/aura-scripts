@@ -21,16 +21,16 @@
 let
   cfg = config.services.temporal-dev-server;
 
-  # Build the temporal server start-dev command from options.
-  # When dbPath is empty, XDG resolution is deferred to ExecStartPre (runtime).
-  # When dbPath is set, pass it directly (no XDG resolution needed).
-  startDevArgs = lib.concatStringsSep " " (
-    [ "server" "start-dev" ]
-    ++ [ "--port" (toString cfg.port) ]
-    ++ [ "--ui-port" (toString cfg.uiPort) ]
-    ++ [ "--namespace" cfg.namespace ]
-    ++ lib.optionals (cfg.dbPath != "") [ "--db-filename" cfg.dbPath ]
-  );
+  # Base args shared by both ExecStart variants (dbPath set and dbPath empty).
+  baseArgs = lib.concatStringsSep " " [
+    "server" "start-dev"
+    "--port"     (toString cfg.port)
+    "--ui-port"  (toString cfg.uiPort)
+    "--namespace" cfg.namespace
+  ];
+
+  # Full args when dbPath is explicitly set (appends --db-filename directly).
+  startDevArgs = "${baseArgs} --db-filename ${cfg.dbPath}";
 
   # ExecStartPre script: resolve XDG path and write to env file (only when dbPath="").
   # The env file is loaded by systemd via EnvironmentFile at runtime.
@@ -84,8 +84,10 @@ in
       default     = "";
       description = ''
         Path to SQLite database file for persistence across restarts.
-        Empty string (default) uses in-memory storage (data lost on restart).
-        Example: "$HOME/.local/share/temporal/temporal.db"
+        Empty string (default) auto-resolves to
+        ''${XDG_DATA_HOME:-$HOME/.local/share}/aura/plugin/temporal.db
+        at service start via ExecStartPre (persistent across restarts).
+        Set to an explicit path to override the XDG default.
       '';
       example     = "/home/user/.local/share/temporal/temporal.db";
     };
@@ -156,7 +158,7 @@ in
           RuntimeDirectory  = "temporal-dev-server";
           ExecStartPre      = "${xdgResolveScript}";
           EnvironmentFile   = "%t/temporal-dev-server/db.env";
-          ExecStart         = "${cfg.package}/bin/temporal server start-dev --port ${toString cfg.port} --ui-port ${toString cfg.uiPort} --namespace ${cfg.namespace} --db-filename \${TEMPORAL_DB_PATH}";
+          ExecStart         = "${cfg.package}/bin/temporal ${baseArgs} --db-filename \${TEMPORAL_DB_PATH}";
         })
       ];
 

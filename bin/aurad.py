@@ -73,7 +73,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         Parsed namespace with .namespace, .task_queue, .server_address.
     """
     parser = argparse.ArgumentParser(
-        description="Temporal worker for Aura Protocol v3.",
+        description="aurad — Temporal worker daemon for Aura Protocol v3.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Environment variables:\n"
