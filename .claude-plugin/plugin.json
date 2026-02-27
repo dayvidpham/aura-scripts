@@ -1,7 +1,7 @@
 {
   "name": "aura",
   "description": "Aura protocol \u2014 12-phase audit-trail workflow for structured software development with agent coordination, beads task tracking, and vertical slice implementation",
-  "version": "0.6.0",
+  "version": "0.8.0",
   "author": {
     "name": "David Pham"
   },

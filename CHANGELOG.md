@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.0] - 2026-02-27
+
+### Added
+- feat: aura-release -- adds plugin/marketplace registry in user config
+- feat: aura-protocol v3 — EpochWorkflow, aurad daemon, protocol fixtures (aura-plugins-eocq)
+
+### Other
+- Merge branch 'aura-release-registry' into main
+
 ## [0.9.0] - 2026-02-26
 
 ### Changed (SLICE-1: rename worker→aurad + packaging + SQLite XDG)
