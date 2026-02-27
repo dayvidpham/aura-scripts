@@ -673,7 +673,7 @@ constraint_violations:
 
   C-review-consensus:
     description: >
-      State at P4 with no review votes — all 3 axes (A, B, C) missing.
+      State at P4 with no review votes — all 3 axes (CORRECTNESS, TEST_QUALITY, ELEGANCE) missing.
       check_state() fires C-review-consensus violation.
     violation_state:
       current_phase: p4
