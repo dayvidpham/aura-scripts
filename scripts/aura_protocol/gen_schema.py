@@ -235,7 +235,7 @@ _ROLE_OWNERSHIP_MODEL: dict[str, str] = {
 }
 
 _ROLE_USES_AXES: dict[str, list[str]] = {
-    "reviewer": ["axis-A", "axis-B", "axis-C"],
+    "reviewer": ["axis-correctness", "axis-test_quality", "axis-elegance"],
 }
 
 
@@ -466,7 +466,7 @@ def _build_review_axes(root: ET.Element) -> None:
     """Append <review-axes> section to root, derived from REVIEW_AXIS_SPECS."""
     axes_el = ET.SubElement(root, "review-axes")
 
-    for axis_id in ("axis-A", "axis-B", "axis-C"):
+    for axis_id in ("axis-correctness", "axis-test_quality", "axis-elegance"):
         spec = REVIEW_AXIS_SPECS[axis_id]
         axis_el = ET.SubElement(axes_el, "axis",
                                 id=spec.id,
@@ -986,7 +986,7 @@ def _build_documents(root: ET.Element) -> None:
                 {"type": "task-title", "refs": "all", "depth": "full"},
                 {"type": "handoff", "refs": "h1,h2,h3,h4,h5,h6", "depth": "summary"},
                 {"type": "severity", "refs": "BLOCKER,IMPORTANT,MINOR", "depth": "full"},
-                {"type": "review-axis", "refs": "axis-A,axis-B,axis-C", "depth": "summary"},
+                {"type": "review-axis", "refs": "axis-correctness,axis-test_quality,axis-elegance", "depth": "summary"},
             ],
         },
         {
@@ -1028,7 +1028,7 @@ def _build_documents(root: ET.Element) -> None:
                 {"type": "phase", "refs": "all", "depth": "role-mapping"},
                 {"type": "command", "refs": "all", "depth": "role-mapping"},
                 {"type": "handoff", "refs": "h1,h2,h3,h4,h5,h6", "depth": "full"},
-                {"type": "review-axis", "refs": "axis-A,axis-B,axis-C", "depth": "full"},
+                {"type": "review-axis", "refs": "axis-correctness,axis-test_quality,axis-elegance", "depth": "full"},
             ],
         },
         {
@@ -1041,7 +1041,7 @@ def _build_documents(root: ET.Element) -> None:
                 {"type": "phase", "refs": "all", "depth": "command-mapping"},
                 {"type": "role", "refs": "all", "depth": "command-mapping"},
                 {"type": "label", "refs": "all", "depth": "command-creates"},
-                {"type": "review-axis", "refs": "axis-A,axis-B,axis-C", "depth": "summary"},
+                {"type": "review-axis", "refs": "axis-correctness,axis-test_quality,axis-elegance", "depth": "summary"},
             ],
         },
         {

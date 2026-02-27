@@ -56,6 +56,7 @@ from aura_protocol.constraints import (
 )
 from aura_protocol.state_machine import EpochState, EpochStateMachine, TransitionRecord
 from aura_protocol.types import (
+    ReviewAxis,
     CONSTRAINT_SPECS,
     PhaseId,
     RoleId,
@@ -91,7 +92,7 @@ def _make_checker() -> RuntimeConstraintChecker:
 def _all_accept_state(phase: PhaseId) -> EpochState:
     """Return an EpochState at the given phase with all 3 axes ACCEPT."""
     state = _make_state(phase=phase)
-    state.review_votes = {"A": VoteType.ACCEPT, "B": VoteType.ACCEPT, "C": VoteType.ACCEPT}
+    state.review_votes = {ReviewAxis.CORRECTNESS: VoteType.ACCEPT, ReviewAxis.TEST_QUALITY: VoteType.ACCEPT, ReviewAxis.ELEGANCE: VoteType.ACCEPT}
     return state
 
 
@@ -334,9 +335,9 @@ class TestAC4CheckState:
             },
         )
         state.review_votes = {
-            "A": VoteType.ACCEPT,
-            "B": VoteType.ACCEPT,
-            "C": VoteType.ACCEPT,
+            ReviewAxis.CORRECTNESS: VoteType.ACCEPT,
+            ReviewAxis.TEST_QUALITY: VoteType.ACCEPT,
+            ReviewAxis.ELEGANCE: VoteType.ACCEPT,
         }
         # Add a transition record so audit trail is satisfied
         state.transition_history.append(

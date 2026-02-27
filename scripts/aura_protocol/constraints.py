@@ -37,6 +37,7 @@ from aura_protocol.types import (
     ConstraintSpec,
     HandoffSpec,
     PhaseId,
+    ReviewAxis,
     RoleId,
     SeverityLevel,
     VoteType,
@@ -62,7 +63,7 @@ class ConstraintViolation:
 
 # ─── Review axes (canonical) ───────────────────────────────────────────────────
 
-_REVIEW_AXES: frozenset[str] = frozenset({"A", "B", "C"})
+_REVIEW_AXES: frozenset[str] = frozenset(ReviewAxis)
 
 # Phases that use review consensus gating
 _REVIEW_PHASES: frozenset[PhaseId] = frozenset(
@@ -454,7 +455,8 @@ class RuntimeConstraintChecker:
             ConstraintViolation(
                 constraint_id="C-review-consensus",
                 message=(
-                    f"Phase {current.value!r} requires all 3 axes (A, B, C) to ACCEPT "
+                    f"Phase {current.value!r} requires all 3 axes "
+                    f"(correctness, test_quality, elegance) to ACCEPT "
                     f"before proceeding. "
                     f"Accepted: {accepted}, REVISE: {revise}, not voted: {not_voted}."
                 ),

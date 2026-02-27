@@ -334,3 +334,144 @@ class TestHandoffSpecs:
             assert isinstance(spec.required_fields, tuple), (
                 f"{hid} required_fields is not a tuple"
             )
+
+
+# ─── Contract Tests: SLICE-2 Types ────────────────────────────────────────────
+# Note: SLICE-1 type tests (SerializableTransition, SerializablePhaseSpec,
+# PhaseInput, PhaseResult) are covered in tests/test_serializable_phase_spec.py.
+# Duplicate tests removed per UAT amendment #6.
+
+
+class TestFileWithUri:
+    """Contract tests for FileWithUri (SLICE-2).
+
+    FileWithUri(uri: str, name: str | None = None, mime_type: str | None = None)
+    is a new frozen dataclass for A2A file references, replacing the flattened
+    file_uri field on FilePart.
+    """
+
+    def test_importable(self) -> None:
+        from aura_protocol.interfaces import FileWithUri  # noqa: F401
+
+    def test_is_frozen(self) -> None:
+        from aura_protocol.interfaces import FileWithUri
+
+        fwu = FileWithUri(uri="https://example.com/file.txt")
+        with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
+            fwu.uri = "mutate"  # type: ignore[misc]
+
+    def test_required_uri_field(self) -> None:
+        from aura_protocol.interfaces import FileWithUri
+
+        fwu = FileWithUri(uri="https://example.com/doc.md")
+        assert fwu.uri == "https://example.com/doc.md"
+
+    def test_optional_name_and_mime_type(self) -> None:
+        from aura_protocol.interfaces import FileWithUri
+
+        fwu_minimal = FileWithUri(uri="file:///tmp/x.txt")
+        assert fwu_minimal.name is None
+        assert fwu_minimal.mime_type is None
+
+        fwu_full = FileWithUri(
+            uri="file:///tmp/x.txt",
+            name="x.txt",
+            mime_type="text/plain",
+        )
+        assert fwu_full.name == "x.txt"
+        assert fwu_full.mime_type == "text/plain"
+
+
+class TestReviewAxisUsedInSignal:
+    """ReviewAxis StrEnum typed on ReviewVoteSignal.axis after SLICE-2.
+
+    SLICE-2 changed ReviewVoteSignal.axis from plain str to ReviewAxis, making
+    the type system enforce valid axis identifiers. UAT amendment #7 renamed the
+    enum values from A/B/C to CORRECTNESS/TEST_QUALITY/ELEGANCE with wire-format
+    values "correctness"/"test_quality"/"elegance".
+    """
+
+    def test_all_three_axis_members_exist(self) -> None:
+        from aura_protocol.types import ReviewAxis
+
+        for name in ("CORRECTNESS", "TEST_QUALITY", "ELEGANCE"):
+            assert hasattr(ReviewAxis, name), f"ReviewAxis.{name} not found"
+
+    def test_is_str_enum(self) -> None:
+        from aura_protocol.types import ReviewAxis
+
+        assert isinstance(ReviewAxis.CORRECTNESS, str)
+        assert isinstance(ReviewAxis.TEST_QUALITY, str)
+        assert isinstance(ReviewAxis.ELEGANCE, str)
+
+    def test_values_are_semantic_lowercase(self) -> None:
+        from aura_protocol.types import ReviewAxis
+
+        assert ReviewAxis.CORRECTNESS == "correctness"
+        assert ReviewAxis.TEST_QUALITY == "test_quality"
+        assert ReviewAxis.ELEGANCE == "elegance"
+
+    def test_review_vote_signal_construction_with_review_axis(self) -> None:
+        from aura_protocol.types import ReviewAxis, VoteType
+        from aura_protocol.workflow import ReviewVoteSignal
+
+        signal = ReviewVoteSignal(
+            axis=ReviewAxis.CORRECTNESS,
+            vote=VoteType.ACCEPT,
+            reviewer_id="reviewer-1",
+        )
+        assert signal.axis == ReviewAxis.CORRECTNESS
+        assert signal.axis == "correctness"  # StrEnum equality with str
+
+
+class TestToolCallRenames:
+    """ToolCall field renames after SLICE-2.
+
+    SLICE-2 renames:
+      tool_input → raw_input
+      tool_output → raw_output
+    And adds:
+      tool_call_id: str | None = None
+
+    These tests fail until SLICE-2 (aura-plugins-vhtx) is merged.
+    """
+
+    def test_raw_input_field_exists(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        tc = ToolCall(tool_name="bash", raw_input={"command": "ls"})
+        assert tc.raw_input == {"command": "ls"}
+
+    def test_raw_output_field_with_value(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        tc = ToolCall(tool_name="bash", raw_input={}, raw_output={"stdout": "ok"})
+        assert tc.raw_output == {"stdout": "ok"}
+
+    def test_tool_call_id_optional_defaults_none(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        tc = ToolCall(tool_name="bash", raw_input={})
+        assert tc.tool_call_id is None
+
+    def test_tool_call_id_can_be_set(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        tc = ToolCall(tool_name="bash", raw_input={}, tool_call_id="call-abc-123")
+        assert tc.tool_call_id == "call-abc-123"
+
+    def test_old_tool_input_field_removed(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        field_names = {f.name for f in dataclasses.fields(ToolCall)}
+        assert "tool_input" not in field_names, (
+            "Old field 'tool_input' should be renamed to 'raw_input' by SLICE-2"
+        )
+
+    def test_old_tool_output_field_removed(self) -> None:
+        from aura_protocol.interfaces import ToolCall
+
+        field_names = {f.name for f in dataclasses.fields(ToolCall)}
+        assert "tool_output" not in field_names, (
+            "Old field 'tool_output' should be renamed to 'raw_output' by SLICE-2"
+        )

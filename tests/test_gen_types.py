@@ -145,10 +145,10 @@ class TestGenTypesDataIntegrity:
         assert "full-provenance" in generated_source
         assert "summary-with-ids" in generated_source
 
-    def test_review_axis_letters_in_source(self, generated_source: str) -> None:
-        for letter in ("A", "B", "C"):
-            assert f"= '{letter}'" in generated_source or f'= "{letter}"' in generated_source, (
-                f"ReviewAxis letter {letter!r} not found in generated source"
+    def test_review_axis_values_in_source(self, generated_source: str) -> None:
+        for value in ("correctness", "test_quality", "elegance"):
+            assert f"= '{value}'" in generated_source or f'= "{value}"' in generated_source, (
+                f"ReviewAxis value {value!r} not found in generated source"
             )
 
     def test_phase_labels_in_source(self, generated_source: str) -> None:

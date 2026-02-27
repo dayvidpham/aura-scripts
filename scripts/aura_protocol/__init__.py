@@ -82,14 +82,30 @@ Runtime Constraint Checking (from constraints.py):
         check_state_constraints(state) — aggregates the 5 state-based checks
         check_transition_constraints(state, to_phase) — combines transition-specific checks
 
+Audit Activities (submodule — NOT re-exported here; import directly):
+    from aura_protocol.audit_activities import (
+        init_audit_trail,       — inject AuditTrail implementation before worker start
+        record_audit_event,     — @activity.defn: persist AuditEvent via injected trail
+        query_audit_events,     — @activity.defn: query AuditEvents by epoch_id + phase + role
+        InMemoryAuditTrail,     — in-process AuditTrail for testing and local dev
+    )
+    These are intentionally NOT imported into aura_protocol.__init__ because
+    audit_activities carries module-level singleton state (_AUDIT_TRAIL) that
+    must be injected via init_audit_trail() before use. Re-exporting these
+    symbols here would mislead callers into thinking they are stateless utilities.
+
 Protocol Interfaces (runtime_checkable, from interfaces.py):
     ConstraintValidatorInterface
     TranscriptRecorder
     SecurityGate
     AuditTrail
 
+Null Stub Implementations (from interfaces.py):
+    NullTranscriptRecorder — no-op TranscriptRecorder (R12 stub)
+    NullSecurityGate       — always-permit SecurityGate (R12 stub)
+
 A2A Content Types (frozen dataclasses, from interfaces.py):
-    TextPart, FilePart, DataPart, Part (union), ToolCall
+    FileWithUri, TextPart, FilePart, DataPart, Part (union), ToolCall
 
 Model Identifier (from interfaces.py):
     ModelId — models.dev {provider}/{model} composite ID
@@ -123,7 +139,10 @@ from aura_protocol.interfaces import (
     ConstraintValidatorInterface,
     DataPart,
     FilePart,
+    FileWithUri,
     ModelId,
+    NullSecurityGate,
+    NullTranscriptRecorder,
     Part,
     SecurityGate,
     TextPart,
@@ -160,6 +179,8 @@ from aura_protocol.types import (
     LabelSpec,
     PermissionDecision,
     PhaseId,
+    PhaseInput,
+    PhaseResult,
     PhaseSpec,
     PhaseTransitionEvent,
     ProcedureStep,
@@ -168,6 +189,8 @@ from aura_protocol.types import (
     ReviewVoteEvent,
     RoleId,
     RoleSpec,
+    SerializablePhaseSpec,
+    SerializableTransition,
     SeverityLevel,
     SkillRef,
     StepSlug,
@@ -198,6 +221,10 @@ __all__ = [
     # Frozen dataclasses
     "Transition",
     "PhaseSpec",
+    "SerializableTransition",
+    "SerializablePhaseSpec",
+    "PhaseInput",
+    "PhaseResult",
     "ConstraintSpec",
     "HandoffSpec",
     "SubstepSpec",
@@ -232,7 +259,11 @@ __all__ = [
     "TranscriptRecorder",
     "SecurityGate",
     "AuditTrail",
+    # Null stub implementations
+    "NullTranscriptRecorder",
+    "NullSecurityGate",
     # A2A content types
+    "FileWithUri",
     "TextPart",
     "FilePart",
     "DataPart",

@@ -104,14 +104,15 @@ class ContentLevel(StrEnum):
 
 
 class ReviewAxis(StrEnum):
-    """Review axis identifier letters used in review votes.
+    """Review axis semantic identifiers used in review votes.
 
-    Values match schema.xml <axis letter="..."> elements.
+    Values are lowercase wire-format strings used in JSON/Temporal serialization.
+    Previously: A="A", B="B", C="C" (single-letter). Now semantic names for clarity.
     """
 
-    A = "A"
-    B = "B"
-    C = "C"
+    CORRECTNESS = "correctness"
+    TEST_QUALITY = "test_quality"
+    ELEGANCE = "elegance"
 
 
 class SubstepType(StrEnum):
@@ -203,6 +204,85 @@ class PhaseSpec:
     name: str
     owner_roles: frozenset[RoleId]
     transitions: tuple[Transition, ...]
+
+
+@dataclass(frozen=True)
+class SerializableTransition:
+    """A single phase transition that is fully JSON-serializable.
+
+    Mirrors Transition but uses only StrEnum/str fields (no frozenset/tuple)
+    for safe round-tripping through Temporal DataConverter.
+    """
+
+    to_phase: PhaseId
+    condition: str
+    action: str | None = None
+
+
+@dataclass(frozen=True)
+class SerializablePhaseSpec:
+    """JSON-serializable frozen snapshot of a PhaseSpec.
+
+    Replaces frozenset[RoleId] with list[RoleId] (sorted by .value) and
+    tuple[Transition, ...] with list[SerializableTransition] so that
+    Temporal's JSON DataConverter can encode/decode the type without error.
+    """
+
+    id: PhaseId
+    number: int
+    domain: Domain
+    name: str
+    owner_roles: list[RoleId]
+    transitions: list[SerializableTransition]
+
+    @staticmethod
+    def from_spec(spec: "PhaseSpec") -> "SerializablePhaseSpec":
+        """Convert a frozen PhaseSpec into a SerializablePhaseSpec.
+
+        owner_roles preserves frozenset iteration order (which is the declaration
+        order from PHASE_SPECS) rather than sorting alphabetically.
+        """
+        return SerializablePhaseSpec(
+            id=spec.id,
+            number=spec.number,
+            domain=spec.domain,
+            name=spec.name,
+            owner_roles=list(spec.owner_roles),
+            transitions=[
+                SerializableTransition(
+                    to_phase=t.to_phase,
+                    condition=t.condition,
+                    action=t.action,
+                )
+                for t in spec.transitions
+            ],
+        )
+
+
+@dataclass(frozen=True)
+class PhaseInput:
+    """Input payload passed to a phase child workflow.
+
+    Contains the epoch identity and a serializable snapshot of the phase spec.
+    All fields are Temporal DataConverter-safe (StrEnum, str, frozen dataclass).
+    """
+
+    epoch_id: str
+    phase_spec: SerializablePhaseSpec
+
+
+@dataclass(frozen=True)
+class PhaseResult:
+    """Result payload returned by a phase child workflow.
+
+    Contains the phase identity, success flag, number of open blockers, and
+    the optional vote result (only present for review phases).
+    """
+
+    phase_id: PhaseId
+    success: bool
+    blocker_count: int = 0
+    vote_result: VoteType | None = None
 
 
 @dataclass(frozen=True)
@@ -1477,9 +1557,9 @@ LABEL_SPECS: dict[str, LabelSpec] = {
 
 
 REVIEW_AXIS_SPECS: dict[str, ReviewAxisSpec] = {
-    "axis-A": ReviewAxisSpec(
-        id="axis-A",
-        letter=ReviewAxis.A,
+    "axis-correctness": ReviewAxisSpec(
+        id="axis-correctness",
+        letter=ReviewAxis.CORRECTNESS,
         name="Correctness",
         short="Spirit and technicality",
         key_questions=(
@@ -1488,9 +1568,9 @@ REVIEW_AXIS_SPECS: dict[str, ReviewAxisSpec] = {
             "Are there gaps where the proposal says one thing but the code does another?",
         ),
     ),
-    "axis-B": ReviewAxisSpec(
-        id="axis-B",
-        letter=ReviewAxis.B,
+    "axis-test_quality": ReviewAxisSpec(
+        id="axis-test_quality",
+        letter=ReviewAxis.TEST_QUALITY,
         name="Test quality",
         short="Test strategy adequacy",
         key_questions=(
@@ -1500,9 +1580,9 @@ REVIEW_AXIS_SPECS: dict[str, ReviewAxisSpec] = {
             "Assert observable outcomes, not internal state?",
         ),
     ),
-    "axis-C": ReviewAxisSpec(
-        id="axis-C",
-        letter=ReviewAxis.C,
+    "axis-elegance": ReviewAxisSpec(
+        id="axis-elegance",
+        letter=ReviewAxis.ELEGANCE,
         name="Elegance",
         short="Complexity matching",
         key_questions=(

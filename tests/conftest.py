@@ -4,16 +4,21 @@ Provides:
 - Module-level helper functions (_advance_to, _make_state) importable directly
   by any test module that needs them without going through pytest fixture injection.
 - pytest fixtures for common EpochStateMachine setup patterns.
+- Module-level _PROTOCOL_FIXTURE singleton for YAML-driven combinatorial tests.
 
 Module-level helpers (import directly):
     _advance_to(sm, target) — drive a state machine through the forward phase path.
     _make_state(phase, epoch_id, **kwargs) — construct a bare EpochState.
 
+Module-level fixtures (import directly):
+    _PROTOCOL_FIXTURE — ProtocolFixture singleton (loaded once, shared across tests).
+
 pytest fixtures:
-    epoch_id — canonical test epoch ID string.
-    sm       — fresh EpochStateMachine at P1.
-    sm_at_p4 — state machine advanced to P4 (review phase).
+    epoch_id            — canonical test epoch ID string.
+    sm                  — fresh EpochStateMachine at P1.
+    sm_at_p4            — state machine advanced to P4 (review phase).
     sm_at_p4_with_consensus — sm_at_p4 with all 3 ACCEPT votes recorded.
+    protocol_fixture    — ProtocolFixture singleton (YAML-driven test data).
 """
 
 from __future__ import annotations
@@ -21,7 +26,18 @@ from __future__ import annotations
 import pytest
 
 from aura_protocol.state_machine import EpochState, EpochStateMachine
-from aura_protocol.types import PhaseId, VoteType
+from aura_protocol.types import PhaseId, ReviewAxis, VoteType
+
+# Import after production imports so PYTHONPATH=scripts:tests resolves fixtures/
+from fixtures.fixture_loader import ProtocolFixture
+
+
+# ─── Protocol Fixture Singleton ───────────────────────────────────────────────
+# Loaded once at module import time; shared across all test modules.
+# Use the pytest fixture `protocol_fixture` for injection, or import
+# _PROTOCOL_FIXTURE directly in parametrize decorators (module-level eval).
+
+_PROTOCOL_FIXTURE = ProtocolFixture()
 
 
 # ─── Module-Level Helpers ─────────────────────────────────────────────────────
@@ -75,15 +91,15 @@ def _advance_to(sm: EpochStateMachine, target: PhaseId) -> None:
 
         # Populate consensus gate before P4→P5 (plan review).
         if frm == PhaseId.P4_REVIEW and nxt == PhaseId.P5_UAT:
-            sm.record_vote("A", VoteType.ACCEPT)
-            sm.record_vote("B", VoteType.ACCEPT)
-            sm.record_vote("C", VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         # Populate consensus + blocker-clear gate before P10→P11 (code review).
         if frm == PhaseId.P10_CODE_REVIEW and nxt == PhaseId.P11_IMPL_UAT:
-            sm.record_vote("A", VoteType.ACCEPT)
-            sm.record_vote("B", VoteType.ACCEPT)
-            sm.record_vote("C", VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
 
         sm.advance(nxt, triggered_by="test", condition_met="test-condition")
 
@@ -132,7 +148,18 @@ def sm_at_p4(sm: EpochStateMachine) -> EpochStateMachine:
 @pytest.fixture
 def sm_at_p4_with_consensus(sm_at_p4: EpochStateMachine) -> EpochStateMachine:
     """State machine at P4 with all 3 ACCEPT votes."""
-    sm_at_p4.record_vote("A", VoteType.ACCEPT)
-    sm_at_p4.record_vote("B", VoteType.ACCEPT)
-    sm_at_p4.record_vote("C", VoteType.ACCEPT)
+    sm_at_p4.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+    sm_at_p4.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+    sm_at_p4.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
     return sm_at_p4
+
+
+@pytest.fixture
+def protocol_fixture() -> ProtocolFixture:
+    """Return the module-level ProtocolFixture singleton.
+
+    Loads protocol.yaml once at import time; this fixture just provides
+    the singleton via pytest injection for tests that prefer injection
+    over direct import.
+    """
+    return _PROTOCOL_FIXTURE

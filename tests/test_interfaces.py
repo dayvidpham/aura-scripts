@@ -23,7 +23,10 @@ from aura_protocol.interfaces import (
     ConstraintValidatorInterface,
     DataPart,
     FilePart,
+    FileWithUri,
     ModelId,
+    NullSecurityGate,
+    NullTranscriptRecorder,
     Part,
     PermissionDecision,
     PhaseTransitionEvent,
@@ -34,7 +37,7 @@ from aura_protocol.interfaces import (
     ToolPermissionRequest,
     TranscriptRecorder,
 )
-from aura_protocol.types import PhaseId, RoleId, VoteType
+from aura_protocol.types import PhaseId, ReviewAxis, RoleId, VoteType
 
 
 # ─── AC9: Protocol isinstance() checks ───────────────────────────────────────
@@ -315,13 +318,15 @@ class TestA2APartTypes:
         assert part.text == "hello world"
 
     def test_file_part_creation(self) -> None:
-        part = FilePart(file_uri="file:///path/to/file.py", mime_type="text/x-python")
-        assert part.file_uri == "file:///path/to/file.py"
-        assert part.mime_type == "text/x-python"
+        fwu = FileWithUri(uri="file:///path/to/file.py", mime_type="text/x-python")
+        part = FilePart(file_with_uri=fwu)
+        assert part.file_with_uri.uri == "file:///path/to/file.py"
+        assert part.file_with_uri.mime_type == "text/x-python"
 
-    def test_file_part_optional_mime_type(self) -> None:
-        part = FilePart(file_uri="file:///path/to/data")
-        assert part.mime_type is None
+    def test_file_part_mime_type_on_file_with_uri(self) -> None:
+        """mime_type lives on FileWithUri, not FilePart directly."""
+        part = FilePart(file_with_uri=FileWithUri(uri="file:///path/to/data"))
+        assert part.file_with_uri.mime_type is None
 
     def test_data_part_creation(self) -> None:
         payload = {"key": "value", "count": 42}
@@ -335,7 +340,7 @@ class TestA2APartTypes:
 
     def test_file_part_is_part_union(self) -> None:
         """FilePart is an instance of FilePart (member of Part union)."""
-        part: Part = FilePart(file_uri="file:///x")
+        part: Part = FilePart(file_with_uri=FileWithUri(uri="file:///x"))
         assert isinstance(part, FilePart)
 
     def test_data_part_is_part_union(self) -> None:
@@ -349,9 +354,9 @@ class TestA2APartTypes:
             part.text = "mutated"  # type: ignore[misc]
 
     def test_file_part_is_frozen(self) -> None:
-        part = FilePart(file_uri="file:///x")
+        part = FilePart(file_with_uri=FileWithUri(uri="file:///x"))
         with pytest.raises(Exception):
-            part.file_uri = "file:///y"  # type: ignore[misc]
+            part.file_with_uri = FileWithUri(uri="file:///y")  # type: ignore[misc]
 
     def test_data_part_is_frozen(self) -> None:
         part = DataPart(data={"x": 1})
@@ -366,21 +371,30 @@ class TestToolCall:
     """ToolCall creation and immutability."""
 
     def test_tool_call_creation(self) -> None:
-        tc = ToolCall(tool_name="bash", tool_input={"command": "ls -la"})
+        tc = ToolCall(tool_name="bash", raw_input={"command": "ls -la"})
         assert tc.tool_name == "bash"
-        assert tc.tool_input == {"command": "ls -la"}
-        assert tc.tool_output is None
+        assert tc.raw_input == {"command": "ls -la"}
+        assert tc.raw_output is None
+        assert tc.tool_call_id is None
 
     def test_tool_call_with_output(self) -> None:
         tc = ToolCall(
             tool_name="bash",
-            tool_input={"command": "echo hello"},
-            tool_output={"stdout": "hello\n", "exit_code": 0},
+            raw_input={"command": "echo hello"},
+            raw_output={"stdout": "hello\n", "exit_code": 0},
         )
-        assert tc.tool_output == {"stdout": "hello\n", "exit_code": 0}
+        assert tc.raw_output == {"stdout": "hello\n", "exit_code": 0}
+
+    def test_tool_call_with_tool_call_id(self) -> None:
+        tc = ToolCall(
+            tool_name="bash",
+            raw_input={"command": "ls"},
+            tool_call_id="call_abc123",
+        )
+        assert tc.tool_call_id == "call_abc123"
 
     def test_tool_call_is_frozen(self) -> None:
-        tc = ToolCall(tool_name="tool", tool_input={})
+        tc = ToolCall(tool_name="tool", raw_input={})
         with pytest.raises(Exception):
             tc.tool_name = "other"  # type: ignore[misc]
 
@@ -388,7 +402,7 @@ class TestToolCall:
         """Frozen dataclass should be hashable when fields are hashable."""
         # Note: dict fields make this not directly hashable — this documents that
         # expected behavior. ToolCall with dict fields is NOT hashable.
-        tc = ToolCall(tool_name="bash", tool_input={"cmd": "ls"})
+        tc = ToolCall(tool_name="bash", raw_input={"cmd": "ls"})
         with pytest.raises(TypeError):
             hash(tc)
 
@@ -427,7 +441,7 @@ class TestEventStubReExports:
         event = ReviewVoteEvent(
             epoch_id="epoch-1",
             phase=PhaseId.P4_REVIEW,
-            axis="A",
+            axis=ReviewAxis.CORRECTNESS,
             vote=VoteType.ACCEPT,
             reviewer_id="reviewer-a",
         )
@@ -474,3 +488,182 @@ class TestEventStubReExports:
         )
         with pytest.raises(Exception):
             event.epoch_id = "mutated"  # type: ignore[misc]
+
+
+# ─── FileWithUri ──────────────────────────────────────────────────────────────
+
+
+class TestFileWithUri:
+    """FileWithUri frozen dataclass construction and immutability."""
+
+    def test_construction_uri_only(self) -> None:
+        """Given uri when constructed then name and mime_type default to None."""
+        fwu = FileWithUri(uri="file:///path/to/file.py")
+        assert fwu.uri == "file:///path/to/file.py"
+        assert fwu.name is None
+        assert fwu.mime_type is None
+
+    def test_construction_all_fields(self) -> None:
+        """Given all fields when constructed then all accessible."""
+        fwu = FileWithUri(
+            uri="file:///path/to/file.py",
+            name="file.py",
+            mime_type="text/x-python",
+        )
+        assert fwu.uri == "file:///path/to/file.py"
+        assert fwu.name == "file.py"
+        assert fwu.mime_type == "text/x-python"
+
+    def test_is_frozen(self) -> None:
+        """Given FileWithUri when mutation attempted then raises FrozenInstanceError."""
+        fwu = FileWithUri(uri="file:///x")
+        with pytest.raises(Exception):
+            fwu.uri = "file:///y"  # type: ignore[misc]
+
+
+class TestFilePartWithUri:
+    """FilePart.file_with_uri replaces old file_uri field."""
+
+    def test_file_part_uses_file_with_uri(self) -> None:
+        """Given FilePart when accessed then file_with_uri returns FileWithUri."""
+        fwu = FileWithUri(uri="file:///path/to/file.py")
+        part = FilePart(file_with_uri=fwu)
+        assert isinstance(part.file_with_uri, FileWithUri)
+        assert part.file_with_uri.uri == "file:///path/to/file.py"
+
+    def test_file_part_no_file_uri_field(self) -> None:
+        """Old file_uri field must not exist on FilePart."""
+        assert not hasattr(FilePart, "file_uri") or "file_uri" not in FilePart.__dataclass_fields__
+
+
+# ─── NullTranscriptRecorder ───────────────────────────────────────────────────
+
+
+class TestNullTranscriptRecorder:
+    """NullTranscriptRecorder implements TranscriptRecorder Protocol as a no-op stub."""
+
+    def test_isinstance_transcript_recorder(self) -> None:
+        """Given NullTranscriptRecorder when isinstance checked then True for Protocol."""
+        stub = NullTranscriptRecorder()
+        assert isinstance(stub, TranscriptRecorder)
+
+    def test_has_r12_structured_label_in_docstring(self) -> None:
+        """Given NullTranscriptRecorder when inspected then docstring carries R12 stub label."""
+        doc = NullTranscriptRecorder.__doc__ or ""
+        assert "R12" in doc or "stub" in doc.lower()
+
+    def test_record_phase_transition_is_no_op(self) -> None:
+        """Given NullTranscriptRecorder.record_phase_transition then no exception raised."""
+        import asyncio
+
+        stub = NullTranscriptRecorder()
+        event = PhaseTransitionEvent(
+            epoch_id="epoch-1",
+            from_phase=PhaseId.P1_REQUEST,
+            to_phase=PhaseId.P2_ELICIT,
+            triggered_by="architect",
+            condition_met="confirmed",
+        )
+        asyncio.run(stub.record_phase_transition(event))  # must not raise
+
+    def test_record_review_vote_is_no_op(self) -> None:
+        """Given NullTranscriptRecorder.record_review_vote then no exception raised."""
+        import asyncio
+
+        stub = NullTranscriptRecorder()
+        event = ReviewVoteEvent(
+            epoch_id="epoch-1",
+            phase=PhaseId.P4_REVIEW,
+            axis=ReviewAxis.CORRECTNESS,
+            vote=VoteType.ACCEPT,
+            reviewer_id="reviewer-a",
+        )
+        asyncio.run(stub.record_review_vote(event))  # must not raise
+
+
+# ─── NullSecurityGate ─────────────────────────────────────────────────────────
+
+
+class TestNullSecurityGate:
+    """NullSecurityGate implements SecurityGate Protocol, always permits tool use."""
+
+    def test_isinstance_security_gate(self) -> None:
+        """Given NullSecurityGate when isinstance checked then True for Protocol."""
+        stub = NullSecurityGate()
+        assert isinstance(stub, SecurityGate)
+
+    def test_has_r12_structured_label_in_docstring(self) -> None:
+        """Given NullSecurityGate when inspected then docstring carries R12 stub label."""
+        doc = NullSecurityGate.__doc__ or ""
+        assert "R12" in doc or "stub" in doc.lower()
+
+    def test_check_tool_permission_returns_allowed(self) -> None:
+        """Given NullSecurityGate when check_tool_permission called then returns allowed=True."""
+        import asyncio
+
+        stub = NullSecurityGate()
+        request = ToolPermissionRequest(
+            epoch_id="epoch-1",
+            phase=PhaseId.P9_SLICE,
+            role=RoleId.WORKER,
+            tool_name="bash",
+            tool_input_summary="ls -la",
+        )
+        decision = asyncio.run(stub.check_tool_permission(request))
+        assert decision.allowed is True
+
+
+# ─── ReviewVoteSignal.axis: ReviewAxis ────────────────────────────────────────
+
+
+class TestReviewVoteSignalAxis:
+    """ReviewVoteSignal.axis must be ReviewAxis (not plain str)."""
+
+    def test_axis_accepts_review_axis_members(self) -> None:
+        """Given ReviewAxis enum member when used as axis then ReviewVoteSignal created."""
+        from aura_protocol.workflow import ReviewVoteSignal
+
+        sig = ReviewVoteSignal(axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="r1")
+        assert sig.axis == ReviewAxis.CORRECTNESS
+        assert isinstance(sig.axis, ReviewAxis)
+
+    def test_axis_a_b_c_all_valid(self) -> None:
+        """Given each ReviewAxis member when used then all create valid signals."""
+        from aura_protocol.workflow import ReviewVoteSignal
+
+        for axis in ReviewAxis:
+            sig = ReviewVoteSignal(axis=axis, vote=VoteType.ACCEPT, reviewer_id="r1")
+            assert sig.axis == axis
+
+    def test_axis_is_str_compatible(self) -> None:
+        """Given ReviewAxis (StrEnum) when compared to str then compatible."""
+        from aura_protocol.workflow import ReviewVoteSignal
+
+        sig = ReviewVoteSignal(axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="r1")
+        assert sig.axis == "correctness"  # StrEnum compatibility
+
+
+# ─── _REVISE_DRIVES_BACK_PHASES ───────────────────────────────────────────────
+
+
+class TestReviseDrivesBackPhases:
+    """_REVISE_DRIVES_BACK_PHASES constant exists with correct name and content."""
+
+    def test_constant_exists(self) -> None:
+        """Given state_machine module when imported then _REVISE_DRIVES_BACK_PHASES exists."""
+        from aura_protocol.state_machine import _REVISE_DRIVES_BACK_PHASES
+
+        assert _REVISE_DRIVES_BACK_PHASES is not None
+
+    def test_constant_contains_review_phases(self) -> None:
+        """Given _REVISE_DRIVES_BACK_PHASES then contains p4 and p10."""
+        from aura_protocol.state_machine import _REVISE_DRIVES_BACK_PHASES
+
+        assert PhaseId.P4_REVIEW in _REVISE_DRIVES_BACK_PHASES
+        assert PhaseId.P10_CODE_REVIEW in _REVISE_DRIVES_BACK_PHASES
+
+    def test_old_name_does_not_exist(self) -> None:
+        """Given state_machine module then _REVISE_DRIVES_BACK no longer exported."""
+        import aura_protocol.state_machine as sm
+
+        assert not hasattr(sm, "_REVISE_DRIVES_BACK")

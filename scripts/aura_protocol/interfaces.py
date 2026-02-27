@@ -3,8 +3,10 @@
 This module defines:
 - Protocol interfaces (@runtime_checkable) for structural subtyping across repos:
     ConstraintValidatorInterface, TranscriptRecorder, SecurityGate, AuditTrail
+- Null stub implementations for optional integrations:
+    NullTranscriptRecorder, NullSecurityGate
 - A2A content types (frozen dataclasses):
-    TextPart, FilePart, DataPart, Part union, ToolCall
+    FileWithUri, TextPart, FilePart, DataPart, Part union, ToolCall
 - Composite model identifier:
     ModelId (models.dev {provider}/{model} format)
 
@@ -138,14 +140,16 @@ class AuditTrail(Protocol):
     async def query_events(
         self,
         *,
+        epoch_id: str | None = None,
         phase: PhaseId | None = None,
         role: RoleId | None = None,
     ) -> list[AuditEvent]:
         """Query recorded audit events with optional filters.
 
         Args:
-            phase: Optional phase filter — only return events from this phase.
-            role:  Optional role filter — only return events from this role.
+            epoch_id: Optional epoch filter — only return events for this epoch.
+            phase:    Optional phase filter — only return events from this phase.
+            role:     Optional role filter — only return events from this role.
 
         Returns:
             Matching audit events in chronological order.
@@ -153,9 +157,70 @@ class AuditTrail(Protocol):
         ...
 
 
+# ─── Null Stub Implementations ────────────────────────────────────────────────
+
+
+class NullTranscriptRecorder:
+    """No-op TranscriptRecorder stub for contexts where transcript recording is not wired.
+
+    Motivation: Many test and script contexts do not have a unified-schema
+    integration available. Passing ``None`` forces every call site to null-check;
+    this stub provides a safe default with zero behaviour.
+
+    Epic: aura-plugins v3 (aura-plugins-eocq)
+    Expected implementation: unified-schema integration (external repo).
+    Status: R12 stub — implement when unified-schema is available.
+    """
+
+    async def record_phase_transition(self, event: PhaseTransitionEvent) -> None:
+        """No-op: discard phase transition event."""
+
+    async def record_constraint_check(self, event: ConstraintCheckEvent) -> None:
+        """No-op: discard constraint check event."""
+
+    async def record_review_vote(self, event: ReviewVoteEvent) -> None:
+        """No-op: discard review vote event."""
+
+
+class NullSecurityGate:
+    """No-op SecurityGate stub that permits all tool use.
+
+    Motivation: Many test and script contexts do not have an agentfilter
+    integration available. This stub always returns ALLOW so that the rest
+    of the protocol can run without requiring the security layer to be wired.
+
+    Epic: aura-plugins v3 (aura-plugins-eocq)
+    Expected implementation: agentfilter integration (external repo).
+    Status: R12 stub — implement when agentfilter is available.
+    """
+
+    async def check_tool_permission(
+        self, request: ToolPermissionRequest
+    ) -> PermissionDecision:
+        """Always permit tool use (no-op security gate)."""
+        return PermissionDecision(allowed=True, reason="NullSecurityGate: always permit")
+
+
 # ─── A2A Content Types ────────────────────────────────────────────────────────
 # Minimal v1 subset of the A2A content type hierarchy.
 # Full hierarchy is v2/v3 scope.
+
+
+@dataclass(frozen=True)
+class FileWithUri:
+    """A2A file content object with URI reference.
+
+    Mirrors the A2A specification's ``FileWithUri`` structure. Used as the
+    nested file content object within FilePart.
+
+    uri:       File URI (e.g. "file:///path/to/file.py" or "https://...")
+    name:      Optional human-readable filename.
+    mime_type: Optional IANA media type (e.g. "text/x-python").
+    """
+
+    uri: str
+    name: str | None = None
+    mime_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -167,17 +232,16 @@ class TextPart:
 
 @dataclass(frozen=True)
 class FilePart:
-    """A2A FilePart — file content reference by URI.
+    """A2A FilePart — file content reference via nested FileWithUri.
 
-    Note on A2A spec alignment: The A2A specification uses ``file_with_uri``
-    as the field name within the file content object. This v1 implementation
-    uses the flattened ``file_uri`` field directly on the dataclass as a known
-    simplification. Migration to the nested A2A ``file_with_uri`` structure is
-    deferred to v2 scope.
+    v3 alignment: migrated from the v1 flattened ``file_uri: str`` field to
+    the A2A-spec-aligned ``file_with_uri: FileWithUri`` nested structure.
+
+    mime_type is on FileWithUri (the nested object), not directly on FilePart.
+    To set mime_type, pass it to FileWithUri: ``FilePart(file_with_uri=FileWithUri(uri=..., mime_type=...))``.
     """
 
-    file_uri: str
-    mime_type: str | None = None
+    file_with_uri: FileWithUri
 
 
 @dataclass(frozen=True)
@@ -201,8 +265,23 @@ class ToolCall:
     Captures tool invocation input and optional output for audit/transcript
     purposes.
 
+    v3 changes (aura-plugins-eocq, PROPOSAL-10/11):
+    - ``tool_input`` renamed to ``raw_input`` (JSON alias: rawInput)
+    - ``tool_output`` renamed to ``raw_output`` (JSON alias: rawOutput)
+    - ``tool_call_id`` added (JSON alias: toolCallId); None for v2-origin records
+      where no MCP correlation ID was available.
+
+    JSON field mapping (Python → JSON wire format):
+        tool_name    → toolName
+        raw_input    → rawInput
+        raw_output   → rawOutput
+        tool_call_id → toolCallId
+
+    Use ``to_json_dict()`` to obtain a dict with camelCase keys suitable
+    for JSON serialization (e.g. when forwarding to an A2A endpoint).
+
     Note on hashability: Although this is a ``frozen=True`` dataclass (which
-    normally enables hashing), the ``tool_input`` and ``tool_output`` fields
+    normally enables hashing), the ``raw_input`` and ``raw_output`` fields
     are ``dict[str, Any]``. Python dicts are mutable and not hashable, so
     frozen dataclasses containing dict fields are also NOT hashable. Attempting
     ``hash(tool_call_instance)`` will raise ``TypeError``. If set membership or
@@ -211,8 +290,32 @@ class ToolCall:
     """
 
     tool_name: str
-    tool_input: dict[str, Any]
-    tool_output: dict[str, Any] | None = None
+    raw_input: dict[str, Any]
+    raw_output: dict[str, Any] | None = None
+    tool_call_id: str | None = None
+
+    def to_json_dict(self) -> dict[str, Any]:
+        """Return a dict with camelCase keys for JSON/A2A wire-format serialization.
+
+        Maps Python snake_case field names to camelCase JSON aliases:
+            tool_name    → toolName
+            raw_input    → rawInput
+            raw_output   → rawOutput
+            tool_call_id → toolCallId
+
+        Returns:
+            dict with camelCase keys. ``rawOutput`` and ``toolCallId`` are
+            omitted when their values are None (compact wire format).
+        """
+        result: dict[str, Any] = {
+            "toolName": self.tool_name,
+            "rawInput": self.raw_input,
+        }
+        if self.raw_output is not None:
+            result["rawOutput"] = self.raw_output
+        if self.tool_call_id is not None:
+            result["toolCallId"] = self.tool_call_id
+        return result
 
 
 # ─── Model Identifier ─────────────────────────────────────────────────────────
@@ -276,7 +379,11 @@ __all__ = [
     "TranscriptRecorder",
     "SecurityGate",
     "AuditTrail",
+    # Null stub implementations
+    "NullTranscriptRecorder",
+    "NullSecurityGate",
     # A2A content types
+    "FileWithUri",
     "TextPart",
     "FilePart",
     "DataPart",
