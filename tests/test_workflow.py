@@ -66,6 +66,7 @@ from aura_protocol.workflow import (
     ReviewPhaseWorkflow,
     ReviewVoteSignal,
     SliceInput,
+    SliceProgressSignal,
     SliceResult,
     SliceWorkflow,
     check_constraints,
@@ -1271,13 +1272,24 @@ class TestSliceWorkflowTypes:
     """
 
     def test_slice_input_is_frozen_dataclass(self) -> None:
-        """SliceInput must be a frozen dataclass with epoch_id, slice_id, phase_spec."""
-        inp = SliceInput(epoch_id="ep-1", slice_id="slice-1", phase_spec="p9")
+        """SliceInput must be a frozen dataclass with epoch_id, slice_id, phase_spec, parent_workflow_id."""
+        inp = SliceInput(
+            epoch_id="ep-1",
+            slice_id="slice-1",
+            phase_spec="p9",
+            parent_workflow_id="epoch-wf-1",
+        )
         assert inp.epoch_id == "ep-1"
         assert inp.slice_id == "slice-1"
         assert inp.phase_spec == "p9"
+        assert inp.parent_workflow_id == "epoch-wf-1"
         with pytest.raises((AttributeError, TypeError)):
             inp.slice_id = "changed"  # type: ignore[misc]
+
+    def test_slice_input_parent_workflow_id_required(self) -> None:
+        """SliceInput.parent_workflow_id is a required field (no default)."""
+        with pytest.raises(TypeError, match="parent_workflow_id"):
+            SliceInput(epoch_id="ep-1", slice_id="slice-1", phase_spec="p9")  # type: ignore[call-arg]
 
     def test_slice_result_success_path(self) -> None:
         """SliceResult success path: success=True, error=None."""
@@ -1330,11 +1342,15 @@ class TestReviewPhaseWorkflowTypes:
         result = ReviewPhaseResult(
             phase_id="p10",
             success=True,
-            vote_result={"correctness": "ACCEPT", "test_quality": "ACCEPT", "elegance": "REVISE"},
+            vote_result={
+                ReviewAxis.CORRECTNESS: VoteType.ACCEPT,
+                ReviewAxis.TEST_QUALITY: VoteType.ACCEPT,
+                ReviewAxis.ELEGANCE: VoteType.REVISE,
+            },
         )
         assert result.phase_id == "p10"
         assert result.success is True
-        assert result.vote_result["correctness"] == "ACCEPT"
+        assert result.vote_result[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
         with pytest.raises((AttributeError, TypeError)):
             result.success = False  # type: ignore[misc]
 
@@ -1401,8 +1417,8 @@ class TestReviewPhaseWorkflowSignalLogic:
         finally:
             loop.close()
 
-        assert wf._votes[ReviewAxis.CORRECTNESS.value] == VoteType.ACCEPT.value
-        assert wf._votes[ReviewAxis.TEST_QUALITY.value] == VoteType.REVISE.value
+        assert wf._votes[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
+        assert wf._votes[ReviewAxis.TEST_QUALITY] == VoteType.REVISE
 
     def test_submit_vote_overwrites_duplicate_axis(self) -> None:
         """A second vote for the same axis overwrites the first."""
@@ -1432,12 +1448,12 @@ class TestReviewPhaseWorkflowSignalLogic:
             loop.close()
 
         # Second vote wins.
-        assert wf._votes[ReviewAxis.ELEGANCE.value] == VoteType.REVISE.value
+        assert wf._votes[ReviewAxis.ELEGANCE] == VoteType.REVISE
 
     def test_vote_completeness_check(self) -> None:
         """All 3 ReviewAxis values must be present for the wait condition to be satisfied."""
         wf = ReviewPhaseWorkflow()
-        all_axes = {axis.value for axis in ReviewAxis}
+        all_axes = set(ReviewAxis)
         assert len(all_axes) == 3, "ReviewAxis must have exactly 3 members"
 
         import asyncio as _asyncio
@@ -1504,8 +1520,158 @@ class TestWorkerRegistration:
             )
 
     def test_all_new_types_importable(self) -> None:
-        """SliceInput, SliceResult, ReviewInput, ReviewPhaseResult all importable."""
+        """SliceInput, SliceResult, ReviewInput, ReviewPhaseResult, SliceProgressSignal all importable."""
         assert SliceInput is not None
         assert SliceResult is not None
         assert ReviewInput is not None
         assert ReviewPhaseResult is not None
+        assert SliceProgressSignal is not None
+
+
+# ─── SliceProgressSignal Type Tests ───────────────────────────────────────────
+
+
+class TestSliceProgressSignalTypes:
+    """SliceProgressSignal structural invariants.
+
+    Tests frozen-dataclass contract for the child→parent progress signal.
+    """
+
+    def test_slice_progress_signal_is_frozen_dataclass(self) -> None:
+        """SliceProgressSignal must be a frozen dataclass with all required fields."""
+        sig = SliceProgressSignal(
+            slice_id="slice-1",
+            leaf_task_id="task-L1",
+            stage_name="execute",
+            completed=True,
+        )
+        assert sig.slice_id == "slice-1"
+        assert sig.leaf_task_id == "task-L1"
+        assert sig.stage_name == "execute"
+        assert sig.completed is True
+
+    def test_slice_progress_signal_immutable(self) -> None:
+        """SliceProgressSignal must be immutable (frozen dataclass)."""
+        sig = SliceProgressSignal(
+            slice_id="slice-1",
+            leaf_task_id="task-L1",
+            stage_name="execute",
+            completed=True,
+        )
+        with pytest.raises((AttributeError, TypeError)):
+            sig.completed = False  # type: ignore[misc]
+
+    def test_slice_progress_signal_completed_false(self) -> None:
+        """SliceProgressSignal completed=False is valid for in-progress events."""
+        sig = SliceProgressSignal(
+            slice_id="slice-2",
+            leaf_task_id="task-L2",
+            stage_name="types",
+            completed=False,
+        )
+        assert sig.completed is False
+
+
+# ─── EpochWorkflow Slice Signal/Query Tests ────────────────────────────────────
+
+
+class TestEpochWorkflowSliceProgressSignals:
+    """EpochWorkflow.slice_progress signal and slice_progress_state query.
+
+    Tests decorator presence and runtime behavior without a Temporal server.
+    """
+
+    def test_slice_progress_is_signal(self) -> None:
+        """EpochWorkflow.slice_progress must be decorated with @workflow.signal."""
+        assert hasattr(EpochWorkflow.slice_progress, "__temporal_signal_definition")
+
+    def test_slice_progress_state_is_query(self) -> None:
+        """EpochWorkflow.slice_progress_state must be decorated with @workflow.query."""
+        assert hasattr(EpochWorkflow.slice_progress_state, "__temporal_query_definition")
+
+    def test_slice_progress_log_starts_empty(self) -> None:
+        """EpochWorkflow._slice_progress_log is empty on init."""
+        wf = EpochWorkflow()
+        assert wf._slice_progress_log == []
+
+    def test_slice_progress_signal_appends_to_log(self) -> None:
+        """slice_progress signal appends SliceProgressSignal to _slice_progress_log."""
+        wf = EpochWorkflow()
+        sig = SliceProgressSignal(
+            slice_id="slice-1",
+            leaf_task_id="slice-1",
+            stage_name="execute",
+            completed=True,
+        )
+        wf.slice_progress(sig)
+        assert len(wf._slice_progress_log) == 1
+        assert wf._slice_progress_log[0] is sig
+
+    def test_slice_progress_multiple_signals_ordered(self) -> None:
+        """Multiple slice_progress signals are appended in order."""
+        wf = EpochWorkflow()
+        sig_a = SliceProgressSignal(slice_id="slice-1", leaf_task_id="slice-1", stage_name="execute", completed=True)
+        sig_b = SliceProgressSignal(slice_id="slice-2", leaf_task_id="slice-2", stage_name="execute", completed=True)
+        wf.slice_progress(sig_a)
+        wf.slice_progress(sig_b)
+        assert len(wf._slice_progress_log) == 2
+        assert wf._slice_progress_log[0] is sig_a
+        assert wf._slice_progress_log[1] is sig_b
+
+
+# ─── ReviewPhaseWorkflow _votes Type Tests ─────────────────────────────────────
+
+
+class TestReviewPhaseWorkflowVotesType:
+    """Verify ReviewPhaseWorkflow._votes uses ReviewAxis keys and VoteType values.
+
+    AC: Given ReviewPhaseWorkflow when votes then _votes uses ReviewAxis keys
+        and VoteType values — use ReviewAxis.CORRECTNESS (not .value).
+    """
+
+    def test_votes_keys_are_review_axis(self) -> None:
+        """_votes keys must be ReviewAxis instances, not plain strings."""
+        wf = ReviewPhaseWorkflow()
+        import asyncio as _asyncio
+        loop = _asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                wf.submit_vote(
+                    ReviewVoteSignal(
+                        axis=ReviewAxis.CORRECTNESS,
+                        vote=VoteType.ACCEPT,
+                        reviewer_id="r-type-check",
+                    )
+                )
+            )
+        finally:
+            loop.close()
+
+        # Key must be ReviewAxis, not raw str (though StrEnum == str by value)
+        keys = list(wf._votes.keys())
+        assert len(keys) == 1
+        assert isinstance(keys[0], ReviewAxis)
+        assert keys[0] == ReviewAxis.CORRECTNESS
+
+    def test_votes_values_are_vote_type(self) -> None:
+        """_votes values must be VoteType instances, not plain strings."""
+        wf = ReviewPhaseWorkflow()
+        import asyncio as _asyncio
+        loop = _asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                wf.submit_vote(
+                    ReviewVoteSignal(
+                        axis=ReviewAxis.TEST_QUALITY,
+                        vote=VoteType.REVISE,
+                        reviewer_id="r-value-check",
+                    )
+                )
+            )
+        finally:
+            loop.close()
+
+        vals = list(wf._votes.values())
+        assert len(vals) == 1
+        assert isinstance(vals[0], VoteType)
+        assert vals[0] == VoteType.REVISE
