@@ -447,20 +447,27 @@ class TestConstraintViolationAxis:
             assert "description" in entry, f"{constraint_id}: missing description"
             assert entry["description"], f"{constraint_id}: description is empty"
 
-    def test_runnable_entries_have_violation_state(self, fixture: ProtocolFixture) -> None:
+    def test_runnable_entries_have_violation_data(self, fixture: ProtocolFixture) -> None:
+        """Each runnable entry has either violation_state or violation_transition."""
         for constraint_id, entry in fixture.constraint_violations.items():
             if not entry.get("skip_reason"):
-                assert "violation_state" in entry, (
-                    f"{constraint_id}: runnable entry missing violation_state"
+                has_state = "violation_state" in entry
+                has_transition = "violation_transition" in entry
+                assert has_state or has_transition, (
+                    f"{constraint_id}: runnable entry must have violation_state "
+                    "or violation_transition"
                 )
 
-    def test_skipped_entries_have_no_violation_state(
+    def test_skipped_entries_have_no_violation_data(
         self, fixture: ProtocolFixture
     ) -> None:
         for constraint_id, entry in fixture.constraint_violations.items():
             if entry.get("skip_reason"):
                 assert "violation_state" not in entry, (
                     f"{constraint_id}: skipped entry should not have violation_state"
+                )
+                assert "violation_transition" not in entry, (
+                    f"{constraint_id}: skipped entry should not have violation_transition"
                 )
 
 
@@ -519,13 +526,41 @@ class TestConstraintViolationTestCaseGenerator:
         for tc in cases:
             assert tc.description, f"{tc.id}: description must be non-empty"
 
-    def test_runnable_cases_have_epoch_state(
+    def test_runnable_cases_have_at_least_one_violation_field(
         self, runnable: list[ConstraintViolationTestCase]
     ) -> None:
+        """Each runnable case has either violation_state or both violation phase fields."""
         assert len(runnable) > 0, "Need at least one runnable case"
         for tc in runnable:
+            has_state = tc.violation_state is not None
+            has_transition = (
+                tc.violation_from_phase is not None
+                and tc.violation_to_phase is not None
+            )
+            assert has_state or has_transition, (
+                f"{tc.id}: runnable case must have violation_state OR "
+                "violation_from_phase+violation_to_phase"
+            )
+
+    def test_runnable_state_cases_have_epoch_state(
+        self, runnable: list[ConstraintViolationTestCase]
+    ) -> None:
+        state_cases = [tc for tc in runnable if tc.violation_state is not None]
+        for tc in state_cases:
             assert isinstance(tc.violation_state, EpochState), (
                 f"{tc.id}: violation_state must be EpochState, got {type(tc.violation_state)}"
+            )
+
+    def test_runnable_transition_cases_have_phase_ids(
+        self, runnable: list[ConstraintViolationTestCase]
+    ) -> None:
+        transition_cases = [tc for tc in runnable if tc.violation_from_phase is not None]
+        for tc in transition_cases:
+            assert isinstance(tc.violation_from_phase, PhaseId), (
+                f"{tc.id}: violation_from_phase must be PhaseId"
+            )
+            assert isinstance(tc.violation_to_phase, PhaseId), (
+                f"{tc.id}: violation_to_phase must be PhaseId"
             )
 
     def test_runnable_cases_have_no_skip_reason(
@@ -563,15 +598,26 @@ class TestConstraintViolationTestCaseGenerator:
     def test_runnable_constraint_ids_are_expected(
         self, runnable: list[ConstraintViolationTestCase]
     ) -> None:
-        """The 5 runnable constraints are the state-checkable ones."""
+        """The 5 runnable constraints: 4 state-based + 1 transition-based."""
         expected = {
             "C-review-consensus",
             "C-severity-not-plan",
             "C-severity-eager",
             "C-worker-gates",
-            "C-audit-never-delete",
+            "C-handoff-skill-invocation",
         }
         actual = {tc.constraint_id for tc in runnable}
         assert actual == expected, (
             f"Runnable constraint IDs mismatch.\nExpected: {expected}\nActual:   {actual}"
         )
+
+    def test_handoff_case_is_transition_based(
+        self, runnable: list[ConstraintViolationTestCase]
+    ) -> None:
+        """C-handoff-skill-invocation uses violation_from_phase/violation_to_phase."""
+        handoff_cases = [tc for tc in runnable if tc.constraint_id == "C-handoff-skill-invocation"]
+        assert len(handoff_cases) == 1
+        tc = handoff_cases[0]
+        assert tc.violation_state is None
+        assert tc.violation_from_phase is not None
+        assert tc.violation_to_phase is not None
