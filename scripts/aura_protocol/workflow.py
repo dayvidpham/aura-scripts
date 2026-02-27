@@ -604,6 +604,14 @@ class SliceWorkflow:
     EpochWorkflow._run_p9_slices() uses workflow.wait(FIRST_EXCEPTION) to
     fail-fast: if any slice raises, remaining slices are cancelled.
 
+    Parent signaling:
+        On completion, SliceWorkflow signals the parent EpochWorkflow via
+        EpochWorkflow.slice_progress using input.parent_workflow_id. The signal
+        uses get_external_workflow_handle() so the parent can be reached even
+        from a concurrent child context. Signal delivery is best-effort: if the
+        parent has already completed, the exception is caught and logged rather
+        than propagated (signal delivery failure must never fail the slice).
+
     R12 stub: actual slice execution (running the worker agent, checking output,
     parsing results) is future work. This stub returns success immediately so
     that the EpochWorkflow topology and fail-fast wiring can be tested end-to-end
@@ -615,7 +623,9 @@ class SliceWorkflow:
         """Execute a single implementation slice.
 
         Args:
-            input: SliceInput with epoch_id, slice_id, and phase_spec.
+            input: SliceInput with epoch_id, slice_id, phase_spec, and
+                parent_workflow_id. parent_workflow_id is the workflow ID of
+                the EpochWorkflow parent; used to signal slice progress.
 
         Returns:
             SliceResult indicating success or failure.
@@ -630,16 +640,29 @@ class SliceWorkflow:
         # Signal parent EpochWorkflow with completion progress.
         # Uses input.parent_workflow_id (explicit) rather than
         # workflow.info().parent.workflow_id (implicit) for testability.
-        parent_handle = workflow.get_external_workflow_handle(input.parent_workflow_id)
-        await parent_handle.signal(
-            EpochWorkflow.slice_progress,
-            SliceProgressSignal(
-                slice_id=input.slice_id,
-                leaf_task_id=input.slice_id,
-                stage_name="execute",
-                completed=True,
-            ),
-        )
+        # Wrapped in try/except: if the parent EpochWorkflow has already
+        # completed before this signal is delivered (race condition), the
+        # exception is caught and logged. Signal delivery failure must never
+        # cause the slice itself to fail — the SliceResult is still returned.
+        try:
+            parent_handle = workflow.get_external_workflow_handle(input.parent_workflow_id)
+            await parent_handle.signal(
+                EpochWorkflow.slice_progress,
+                SliceProgressSignal(
+                    slice_id=input.slice_id,
+                    leaf_task_id=input.slice_id,
+                    stage_name="execute",
+                    completed=True,
+                ),
+            )
+        except Exception as e:  # noqa: BLE001
+            # Parent may have completed before signal arrived — non-fatal.
+            workflow.logger.warning(
+                "SliceWorkflow(%s): parent signal delivery failed (parent_id=%s): %s",
+                input.slice_id,
+                input.parent_workflow_id,
+                e,
+            )
 
         return SliceResult(slice_id=input.slice_id, success=True)
 
