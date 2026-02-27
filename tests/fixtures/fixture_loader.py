@@ -5,6 +5,7 @@ Loads protocol.yaml and provides structured access to protocol fixture axes:
 - epoch_states: pre-built EpochState snapshots
 - vote_combinations: vote dictionaries for consensus/revise testing
 - audit_events: sample AuditEvent objects
+- constraint_violations: all 26 C-* constraints (5 runnable, 21 skipped)
 
 Generators produce TestCase objects suitable for pytest.param() parametrization
 with readable IDs.
@@ -31,11 +32,13 @@ from typing import Iterator
 
 import yaml
 
+from aura_protocol.state_machine import EpochState
 from aura_protocol.types import (
     AuditEvent,
     PhaseId,
     ReviewAxis,
     RoleId,
+    SeverityLevel,
     VoteType,
 )
 
@@ -108,17 +111,54 @@ class AuditEventTestCase:
     id: str
 
 
+@dataclass(frozen=True)
+class ConstraintViolationTestCase:
+    """Generated test case for runtime constraint violation checks.
+
+    Each case covers one C-* constraint from CONSTRAINT_SPECS. Cases with
+    skip_reason are skipped at collection time via pytest.mark.skip; the
+    remaining 5 runnable cases verify that the appropriate RuntimeConstraintChecker
+    method fires the expected constraint_id.
+
+    Two check kinds (exactly one is set for runnable cases):
+    - State-based (violation_state set): call check_state(violation_state).
+    - Transition-based (violation_from_phase + violation_to_phase set): call
+      check_handoff_required(from_phase, to_phase).
+
+    Fields:
+        constraint_id: The C-* constraint under test (e.g. "C-review-consensus").
+        description: Human-readable description of the violation scenario.
+        violation_state: EpochState that violates the constraint. Set for state-based
+            runnable cases; None for transition-based and skipped cases.
+        violation_from_phase: Source PhaseId for transition-based checks. Set only
+            for C-handoff-skill-invocation; None otherwise.
+        violation_to_phase: Target PhaseId for transition-based checks. Set only
+            for C-handoff-skill-invocation; None otherwise.
+        skip_reason: If set, this case is skipped; both violation fields are None.
+        id: Pytest-friendly identifier (used in pytest.param(id=...)).
+    """
+
+    constraint_id: str
+    description: str
+    violation_state: EpochState | None
+    violation_from_phase: PhaseId | None
+    violation_to_phase: PhaseId | None
+    skip_reason: str | None
+    id: str
+
+
 # ─── ProtocolFixture ──────────────────────────────────────────────────────────
 
 
 class ProtocolFixture:
     """Load and generate combinatorial test cases from protocol.yaml.
 
-    The fixture file defines four axes:
+    The fixture file defines five axes:
     - phase_specs: Canonical PHASE_SPECS entries (12 phases).
     - epoch_states: Pre-built epoch state snapshots.
     - vote_combinations: Review vote combinations for consensus testing.
     - audit_events: Sample AuditEvent objects for audit trail testing.
+    - constraint_violations: All 26 C-* constraints (5 runnable, 21 skipped).
 
     This class provides properties for each axis and generator methods that
     yield pytest-friendly TestCase objects.
@@ -169,6 +209,16 @@ class ProtocolFixture:
     def transition_matrix(self) -> dict:
         """Predefined transition expectation matrix from YAML."""
         return self._data.get("transition_matrix", {})
+
+    @property
+    def constraint_violations(self) -> dict:
+        """Raw constraint_violations axis from YAML (keyed by constraint_id).
+
+        Each entry is either:
+        - A runnable case: has violation_state dict + no skip_reason.
+        - A skipped case: has skip_reason string + no violation_state.
+        """
+        return self._data.get("constraint_violations", {})
 
     # ─── Generators ───────────────────────────────────────────────────────────
 
@@ -295,6 +345,102 @@ class ProtocolFixture:
                 event_type=event_type,
                 description=description,
                 id=f"audit:{event_name}",
+            )
+
+    def generate_constraint_violation_test_cases(
+        self,
+    ) -> Iterator[ConstraintViolationTestCase]:
+        """Generate constraint violation test cases from the constraint_violations axis.
+
+        Yields one ConstraintViolationTestCase per entry in constraint_violations.
+        Two kinds of runnable cases:
+        - State-based: violation_state dict present → EpochState constructed,
+          test calls check_state(state).
+        - Transition-based: violation_transition dict present → from/to PhaseIds
+          extracted, test calls check_handoff_required(from_phase, to_phase).
+        Skipped cases (skip_reason set) have all violation fields as None.
+
+        YAML violation_state fields (for state-based runnable cases):
+            current_phase: PhaseId string value (required).
+            review_votes: dict mapping axis letters (A/B/C) to VoteType values.
+                Defaults to {}.
+            blocker_count: int. Defaults to 0.
+            severity_groups_present: bool. If True, populate all 3 SeverityLevel
+                groups with empty sets. Defaults to False (empty severity_groups).
+
+        YAML violation_transition fields (for transition-based runnable cases):
+            from_phase: PhaseId string for the source phase.
+            to_phase: PhaseId string for the target phase.
+
+        Yields:
+            ConstraintViolationTestCase: Each generated test case.
+        """
+        for constraint_id, entry in self.constraint_violations.items():
+            description = entry.get("description", constraint_id)
+            skip_reason: str | None = entry.get("skip_reason")
+
+            if skip_reason:
+                yield ConstraintViolationTestCase(
+                    constraint_id=constraint_id,
+                    description=description,
+                    violation_state=None,
+                    violation_from_phase=None,
+                    violation_to_phase=None,
+                    skip_reason=skip_reason,
+                    id=f"constraint:{constraint_id}",
+                )
+                continue
+
+            # Transition-based check (e.g. C-handoff-skill-invocation)
+            if "violation_transition" in entry:
+                vt = entry["violation_transition"]
+                from_phase = PhaseId(vt["from_phase"])
+                to_phase = PhaseId(vt["to_phase"])
+                yield ConstraintViolationTestCase(
+                    constraint_id=constraint_id,
+                    description=description,
+                    violation_state=None,
+                    violation_from_phase=from_phase,
+                    violation_to_phase=to_phase,
+                    skip_reason=None,
+                    id=f"constraint:{constraint_id}",
+                )
+                continue
+
+            # State-based check: build EpochState from violation_state dict
+            vs = entry.get("violation_state", {})
+            phase_str = vs.get("current_phase", "p1")
+            current_phase = PhaseId(phase_str)
+
+            raw_votes: dict[str, str] = vs.get("review_votes", {})
+            review_votes = {k: VoteType(v) for k, v in raw_votes.items()}
+
+            blocker_count: int = vs.get("blocker_count", 0)
+
+            severity_groups: dict[SeverityLevel, set[str]] = {}
+            if vs.get("severity_groups_present", False):
+                severity_groups = {
+                    SeverityLevel.BLOCKER: set(),
+                    SeverityLevel.IMPORTANT: set(),
+                    SeverityLevel.MINOR: set(),
+                }
+
+            state = EpochState(
+                epoch_id=f"test-constraint-{constraint_id}",
+                current_phase=current_phase,
+                review_votes=review_votes,
+                blocker_count=blocker_count,
+                severity_groups=severity_groups,
+            )
+
+            yield ConstraintViolationTestCase(
+                constraint_id=constraint_id,
+                description=description,
+                violation_state=state,
+                violation_from_phase=None,
+                violation_to_phase=None,
+                skip_reason=None,
+                id=f"constraint:{constraint_id}",
             )
 
     def build_vote_dict(self, combo_name: str) -> dict[ReviewAxis, VoteType]:

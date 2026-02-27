@@ -18,6 +18,7 @@ Key types (all frozen dataclasses):
     ReviewVoteSignal    — submit_vote signal payload
     SliceInput          — SliceWorkflow run() input
     SliceResult         — SliceWorkflow run() return value
+    SliceProgressSignal — signal from SliceWorkflow → EpochWorkflow per leaf-task
     ReviewInput         — ReviewPhaseWorkflow run() input
     ReviewPhaseResult   — ReviewPhaseWorkflow run() return value
 
@@ -140,17 +141,43 @@ class ReviewVoteSignal:
 
 
 @dataclass(frozen=True)
+class SliceProgressSignal:
+    """Signal from SliceWorkflow → EpochWorkflow reporting per-leaf-task progress.
+
+    Sent by SliceWorkflow once per leaf-task completion so EpochWorkflow can
+    track real-time slice execution state without polling child handles.
+
+    slice_id: which slice emitted this progress event (e.g. "slice-1")
+    leaf_task_id: specific leaf task that completed within the slice
+    stage_name: human-readable name of the completed stage (e.g. "execute")
+    completed: True when this leaf task finished, False for in-progress events
+
+    R12 stub: SliceWorkflow currently emits a single signal on completion.
+    Future implementation will emit one signal per leaf task (types, tests, impl).
+    """
+
+    slice_id: str
+    leaf_task_id: str
+    stage_name: str
+    completed: bool
+
+
+@dataclass(frozen=True)
 class SliceInput:
     """Input for SliceWorkflow.run().
 
     epoch_id: the parent epoch this slice belongs to
     slice_id: unique identifier for this slice within the epoch (e.g. "slice-1")
     phase_spec: serializable specification of the phase to execute
+    parent_workflow_id: workflow ID of the parent EpochWorkflow; used to signal
+        slice progress back to the parent via get_external_workflow_handle().
+        Prefer explicit over workflow.info().parent.workflow_id for testability.
     """
 
     epoch_id: str
     slice_id: str
     phase_spec: str  # R12: SerializablePhaseSpec integration is future work
+    parent_workflow_id: str
 
 
 @dataclass(frozen=True)
@@ -185,12 +212,14 @@ class ReviewPhaseResult:
 
     phase_id: the review phase that completed
     success: True if the review reached consensus (all axes voted)
-    vote_result: mapping of ReviewAxis -> VoteType for the final votes
+    vote_result: mapping of ReviewAxis → VoteType for the final votes.
+        Keys are ReviewAxis StrEnum members; values are VoteType StrEnum members.
+        StrEnum keys are safe for Temporal JSONPlainPayloadConverter round-trips.
     """
 
     phase_id: str
     success: bool
-    vote_result: dict[str, str] = field(default_factory=dict)
+    vote_result: dict[ReviewAxis, VoteType] = field(default_factory=dict)
 
 
 # ─── Activities ───────────────────────────────────────────────────────────────
@@ -254,12 +283,14 @@ class EpochWorkflow:
         5. When current_phase reaches COMPLETE, run() returns EpochResult.
 
     Signals:
-        advance_phase(PhaseAdvanceSignal) — request a phase transition
-        submit_vote(ReviewVoteSignal)     — record a reviewer vote
+        advance_phase(PhaseAdvanceSignal)       — request a phase transition
+        submit_vote(ReviewVoteSignal)           — record a reviewer vote
+        slice_progress(SliceProgressSignal)    — receive progress from a child SliceWorkflow
 
     Queries:
-        current_state() -> EpochState    — snapshot of epoch runtime state
+        current_state() -> EpochState           — snapshot of epoch runtime state
         available_transitions() -> list[Transition] — valid next transitions
+        slice_progress_state() -> list[SliceProgressSignal] — accumulated slice progress log
 
     Design invariants:
         - No datetime.now() in workflow code (use workflow.now() instead)
@@ -277,6 +308,9 @@ class EpochWorkflow:
         self._total_violations: int = 0
         # State machine — initialized in run().
         self._sm: EpochStateMachine | None = None
+        # Slice progress log — appended by slice_progress signal handler.
+        # R12 stub: log is in-memory only; v2 will persist to beads/audit store.
+        self._slice_progress_log: list[SliceProgressSignal] = []
 
     # ── Run ───────────────────────────────────────────────────────────────────
 
@@ -424,6 +458,17 @@ class EpochWorkflow:
         """
         self._pending_votes.append(signal)
 
+    @workflow.signal
+    def slice_progress(self, signal: SliceProgressSignal) -> None:
+        """Signal: receive a progress update from a child SliceWorkflow.
+
+        Appends the signal to _slice_progress_log for real-time tracking.
+        The log is queryable via slice_progress_state().
+
+        R12 stub: log is in-memory only; v2 will persist to beads/audit store.
+        """
+        self._slice_progress_log.append(signal)
+
     # ── Queries ───────────────────────────────────────────────────────────────
 
     @workflow.query
@@ -448,6 +493,18 @@ class EpochWorkflow:
         if self._sm is None:
             return []
         return self._sm.available_transitions
+
+    @workflow.query
+    def slice_progress_state(self) -> list[SliceProgressSignal]:
+        """Query: return all accumulated slice progress signals so far.
+
+        Returns the ordered list of SliceProgressSignal events received from
+        child SliceWorkflows. Callers can use this to track which leaf tasks
+        have completed and in what order without polling child handles.
+
+        R12 stub: log is in-memory; empty until SliceWorkflow children signal.
+        """
+        return list(self._slice_progress_log)
 
     # ── P9 Slice Execution ────────────────────────────────────────────────────
 
@@ -569,6 +626,21 @@ class SliceWorkflow:
         """
         # R12 stub: slice execution via activities is future work.
         # When implemented: execute_activity(run_slice_agent, input, ...) etc.
+
+        # Signal parent EpochWorkflow with completion progress.
+        # Uses input.parent_workflow_id (explicit) rather than
+        # workflow.info().parent.workflow_id (implicit) for testability.
+        parent_handle = workflow.get_external_workflow_handle(input.parent_workflow_id)
+        await parent_handle.signal(
+            EpochWorkflow.slice_progress,
+            SliceProgressSignal(
+                slice_id=input.slice_id,
+                leaf_task_id=input.slice_id,
+                stage_name="execute",
+                completed=True,
+            ),
+        )
+
         return SliceResult(slice_id=input.slice_id, success=True)
 
 
@@ -588,10 +660,10 @@ class ReviewPhaseWorkflow:
     """
 
     def __init__(self) -> None:
-        # Votes keyed by ReviewAxis value (str) for JSON-serialization safety.
-        # Using ReviewAxis.value (str) rather than ReviewAxis enum directly
-        # ensures deterministic Temporal serialization round-trips.
-        self._votes: dict[str, str] = {}
+        # Votes keyed by ReviewAxis StrEnum for type safety.
+        # ReviewAxis is a StrEnum, so its members are also valid str keys and
+        # are safely round-tripped by Temporal's JSONPlainPayloadConverter.
+        self._votes: dict[ReviewAxis, VoteType] = {}
 
     @workflow.signal
     async def submit_vote(self, signal: ReviewVoteSignal) -> None:
@@ -603,7 +675,7 @@ class ReviewPhaseWorkflow:
         Args:
             signal: ReviewVoteSignal with axis, vote, and reviewer_id.
         """
-        self._votes[signal.axis.value] = signal.vote.value
+        self._votes[signal.axis] = signal.vote
 
     @workflow.run
     async def run(self, input: ReviewInput) -> ReviewPhaseResult:
@@ -620,7 +692,7 @@ class ReviewPhaseWorkflow:
             ReviewPhaseResult with success=True and the complete vote mapping.
         """
         # Wait until all 3 ReviewAxis members have voted.
-        all_axes = {axis.value for axis in ReviewAxis}
+        all_axes = set(ReviewAxis)
         await workflow.wait_condition(
             lambda: set(self._votes.keys()) >= all_axes
         )

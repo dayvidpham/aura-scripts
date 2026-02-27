@@ -4,11 +4,12 @@ Uses the ProtocolFixture class (tests/fixtures/fixture_loader.py) to load
 protocol.yaml and generate comprehensive parametrized test cases without
 manually enumerating hundreds of combinations.
 
-The fixture defines 4 axes:
-    1. phase_specs       — 12-phase PHASE_SPECS entries
-    2. epoch_states      — pre-built epoch state snapshots
-    3. vote_combinations — review vote combinations for consensus testing
-    4. audit_events      — sample AuditEvent objects
+The fixture defines 5 axes:
+    1. phase_specs          — 12-phase PHASE_SPECS entries
+    2. epoch_states         — pre-built epoch state snapshots
+    3. vote_combinations    — review vote combinations for consensus testing
+    4. audit_events         — sample AuditEvent objects
+    5. constraint_violations — all 26 C-* constraints (5 runnable, 21 skipped)
 
 Generators yield TestCase objects with a consistent `id` field used in
 pytest.param(id=...) for readable test names.
@@ -21,6 +22,7 @@ Test classes:
     TestForwardPathCombinatorial    — every forward-path pair passes (with gates met)
     TestVoteCombinatorial           — vote combinations drive consensus/revise correctly
     TestAuditEventCombinatorial     — AuditEvent objects are well-formed
+    TestConstraintViolationCombinatorial — constraint violations fire for violation states
     TestFixtureStatistics           — coverage summary (printed, not gating)
 """
 
@@ -28,8 +30,10 @@ from __future__ import annotations
 
 import pytest
 
+from aura_protocol.constraints import RuntimeConstraintChecker
 from aura_protocol.state_machine import EpochStateMachine, TransitionError
 from aura_protocol.types import (
+    CONSTRAINT_SPECS,
     PHASE_SPECS,
     AuditEvent,
     Domain,
@@ -44,6 +48,7 @@ from aura_protocol.types import (
 from conftest import _PROTOCOL_FIXTURE, _advance_to
 from fixtures.fixture_loader import (
     AuditEventTestCase,
+    ConstraintViolationTestCase,
     ProtocolFixture,
     TransitionTestCase,
     VoteTestCase,
@@ -56,6 +61,7 @@ _TRANSITION_CASES = list(_PROTOCOL_FIXTURE.generate_transition_test_cases())
 _FORWARD_PATH_CASES = list(_PROTOCOL_FIXTURE.generate_forward_path_transition_cases())
 _VOTE_CASES = list(_PROTOCOL_FIXTURE.generate_vote_test_cases())
 _AUDIT_CASES = list(_PROTOCOL_FIXTURE.generate_audit_event_test_cases())
+_CONSTRAINT_CASES = list(_PROTOCOL_FIXTURE.generate_constraint_violation_test_cases())
 
 
 # ─── TestFixtureLoading ────────────────────────────────────────────────────────
@@ -99,6 +105,12 @@ class TestFixtureLoading:
         assert "valid_forward" in matrix
         assert "valid_backward" in matrix
         assert "invalid_skips" in matrix
+
+    def test_constraint_violations_axis_populated(
+        self, protocol_fixture: ProtocolFixture
+    ) -> None:
+        """constraint_violations axis covers all constraints in CONSTRAINT_SPECS."""
+        assert len(protocol_fixture.constraint_violations) == len(CONSTRAINT_SPECS)
 
     def test_phase_specs_have_required_fields(self, protocol_fixture: ProtocolFixture) -> None:
         """Each phase_spec entry has phase_id, domain, owner_roles, transitions."""
@@ -176,6 +188,21 @@ class TestFixtureLoaderGenerators:
         """Each audit case carries a proper AuditEvent object."""
         for case in _AUDIT_CASES:
             assert isinstance(case.event, AuditEvent)
+
+    def test_constraint_cases_generated(self) -> None:
+        """generate_constraint_violation_test_cases() yields one case per CONSTRAINT_SPECS entry."""
+        assert len(_CONSTRAINT_CASES) == len(CONSTRAINT_SPECS)
+
+    def test_constraint_cases_have_ids(self) -> None:
+        """All constraint cases have non-empty, unique IDs."""
+        ids = [tc.id for tc in _CONSTRAINT_CASES]
+        assert len(ids) == len(set(ids)), "Constraint case IDs must be unique"
+        assert all(ids), "All IDs must be non-empty"
+
+    def test_constraint_cases_have_five_runnable(self) -> None:
+        """Exactly 5 constraint cases are runnable (violation_state is set)."""
+        runnable = [tc for tc in _CONSTRAINT_CASES if tc.skip_reason is None]
+        assert len(runnable) == 5
 
     def test_build_vote_dict_all_accept(self) -> None:
         """build_vote_dict('all_accept') returns typed ReviewAxis → VoteType dict."""
@@ -464,6 +491,80 @@ class TestAuditEventCombinatorial:
         assert rid == tc.event.role
 
 
+# ─── TestConstraintViolationCombinatorial ─────────────────────────────────────
+
+
+_CHECKER = RuntimeConstraintChecker()
+
+# Runnable and skipped partitions — computed at collection time from module-level cases.
+_RUNNABLE_CONSTRAINT_CASES = [tc for tc in _CONSTRAINT_CASES if tc.skip_reason is None]
+_SKIPPED_CONSTRAINT_CASES = [tc for tc in _CONSTRAINT_CASES if tc.skip_reason is not None]
+
+
+class TestConstraintViolationCombinatorial:
+    """Parametrized tests: constraint violation states fire the expected C-* constraint.
+
+    5 runnable cases: check_state() on the violation EpochState must include the
+    expected constraint_id in its violations list.
+
+    21 skipped cases: pytest.mark.skip applied — constraints require non-EpochState
+    data (task hierarchies, commit strings, document content) not representable
+    as static YAML state dicts.
+    """
+
+    @pytest.mark.parametrize(
+        "tc",
+        [pytest.param(tc, id=tc.id) for tc in _RUNNABLE_CONSTRAINT_CASES],
+    )
+    def test_runnable_violation_fires_expected_constraint(
+        self, tc: ConstraintViolationTestCase
+    ) -> None:
+        """Runnable violation case fires the expected constraint_id.
+
+        - State-based (violation_state set): calls check_state(state).
+        - Transition-based (violation_from/to_phase set): calls check_handoff_required.
+        Both assert the expected constraint_id appears in the returned violations.
+        """
+        if tc.violation_state is not None:
+            violations = _CHECKER.check_state(tc.violation_state)
+        else:
+            assert tc.violation_from_phase is not None
+            assert tc.violation_to_phase is not None
+            violations = _CHECKER.check_handoff_required(
+                tc.violation_from_phase, tc.violation_to_phase
+            )
+        constraint_ids = {v.constraint_id for v in violations}
+        assert tc.constraint_id in constraint_ids, (
+            f"{tc.id}: expected '{tc.constraint_id}' in violations, got: {sorted(constraint_ids)}"
+        )
+
+    @pytest.mark.parametrize(
+        "tc",
+        [
+            pytest.param(
+                tc,
+                id=tc.id,
+                marks=pytest.mark.skip(reason=tc.skip_reason),
+            )
+            for tc in _SKIPPED_CONSTRAINT_CASES
+        ],
+    )
+    def test_skipped_constraint_not_yet_state_testable(
+        self, tc: ConstraintViolationTestCase
+    ) -> None:
+        """Placeholder for constraints that require non-EpochState data.
+
+        Each skipped case documents WHY the constraint cannot be verified via
+        check_state() alone: it needs task trees, commit strings, document
+        content, or other data outside EpochState.
+
+        When a constraint gains a state-based check, move it to the runnable
+        partition by adding a violation_state to protocol.yaml.
+        """
+        # This body is never reached — pytest.mark.skip fires at collection time.
+        pytest.fail(f"Skipped test body reached for {tc.constraint_id}")  # pragma: no cover
+
+
 # ─── TestFixtureStatistics ────────────────────────────────────────────────────
 
 
@@ -477,9 +578,10 @@ class TestFixtureStatistics:
             + len(_FORWARD_PATH_CASES)
             + len(_VOTE_CASES)
             + len(_AUDIT_CASES)
+            + len(_CONSTRAINT_CASES)
         )
-        assert total >= 40, (
-            f"Expected at least 40 total test cases, got {total}. "
+        assert total >= 60, (
+            f"Expected at least 60 total test cases, got {total}. "
             "Add more entries to protocol.yaml axes."
         )
 
@@ -507,17 +609,29 @@ class TestFixtureStatistics:
 
     def test_coverage_summary(self, capsys) -> None:
         """Print fixture coverage summary (informational, not a gate)."""
+        runnable = [tc for tc in _CONSTRAINT_CASES if tc.skip_reason is None]
+        skipped = [tc for tc in _CONSTRAINT_CASES if tc.skip_reason is not None]
         print("\nProtocol Fixture Coverage Summary:")
-        print(f"  phase_specs entries:       {len(_PROTOCOL_FIXTURE.phase_specs)}")
-        print(f"  epoch_states entries:      {len(_PROTOCOL_FIXTURE.epoch_states)}")
-        print(f"  vote_combinations entries: {len(_PROTOCOL_FIXTURE.vote_combinations)}")
-        print(f"  audit_events entries:      {len(_PROTOCOL_FIXTURE.audit_events)}")
+        print(f"  phase_specs entries:              {len(_PROTOCOL_FIXTURE.phase_specs)}")
+        print(f"  epoch_states entries:             {len(_PROTOCOL_FIXTURE.epoch_states)}")
+        print(f"  vote_combinations entries:        {len(_PROTOCOL_FIXTURE.vote_combinations)}")
+        print(f"  audit_events entries:             {len(_PROTOCOL_FIXTURE.audit_events)}")
+        print(f"  constraint_violations entries:    {len(_PROTOCOL_FIXTURE.constraint_violations)}")
+        print(f"    ↳ runnable:                     {len(runnable)}")
+        print(f"    ↳ skipped (need external data): {len(skipped)}")
         print(f"")
         print(f"  Transition test cases:     {len(_TRANSITION_CASES)}")
         print(f"  Forward path cases:        {len(_FORWARD_PATH_CASES)}")
         print(f"  Vote test cases:           {len(_VOTE_CASES)}")
         print(f"  Audit event cases:         {len(_AUDIT_CASES)}")
-        total = len(_TRANSITION_CASES) + len(_FORWARD_PATH_CASES) + len(_VOTE_CASES) + len(_AUDIT_CASES)
+        print(f"  Constraint cases:          {len(_CONSTRAINT_CASES)}")
+        total = (
+            len(_TRANSITION_CASES)
+            + len(_FORWARD_PATH_CASES)
+            + len(_VOTE_CASES)
+            + len(_AUDIT_CASES)
+            + len(_CONSTRAINT_CASES)
+        )
         print(f"  Total generated cases:     {total}")
         # This test always passes — it just prints
         assert total > 0

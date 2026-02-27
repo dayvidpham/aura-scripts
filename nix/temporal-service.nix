@@ -33,13 +33,18 @@ let
   );
 
   # ExecStartPre script: resolve XDG path and write to env file (only when dbPath="").
-  # The env file is sourced by systemd via EnvironmentFile at runtime.
+  # The env file is loaded by systemd via EnvironmentFile at runtime.
+  #
+  # $RUNTIME_DIRECTORY is set by systemd when RuntimeDirectory = "temporal-dev-server"
+  # is declared in the Service block. It expands to /run/user/<uid>/temporal-dev-server/.
+  # We must NOT use the systemd specifier %t inside this bash script — %t is only
+  # expanded in systemd unit file fields, not in shell scripts.
   xdgResolveScript = pkgs.writeShellScript "temporal-xdg-resolve" ''
     set -euo pipefail
-    XDG_DATA_HOME="''${XDG_DATA_HOME:-$HOME/.local/share}"
-    TEMPORAL_DB_DIR="$XDG_DATA_HOME/aura/plugin"
-    mkdir -p "$TEMPORAL_DB_DIR"
-    echo "TEMPORAL_DB_PATH=$TEMPORAL_DB_DIR/temporal.db" > "%t/temporal-dev-server-db.env"
+    xdg_data_home="''${XDG_DATA_HOME:-''${HOME}/.local/share}"
+    db_dir="$xdg_data_home/aura/plugin"
+    mkdir -p "$db_dir"
+    printf 'TEMPORAL_DB_PATH=%s/temporal.db\n' "$db_dir" > "$RUNTIME_DIRECTORY/db.env"
   '';
 
 in
@@ -69,7 +74,7 @@ in
       default     = "default";
       description = ''
         Temporal namespace to create and serve.
-        Must match TEMPORAL_NAMESPACE used by bin/worker.py.
+        Must match TEMPORAL_NAMESPACE used by bin/aurad.py.
       '';
       example     = "aura";
     };
@@ -144,10 +149,14 @@ in
         })
 
         # When dbPath is empty: resolve XDG path at runtime via ExecStartPre.
+        # RuntimeDirectory creates /run/user/<uid>/temporal-dev-server/ and sets
+        # $RUNTIME_DIRECTORY in ExecStartPre so the script can write db.env there.
+        # EnvironmentFile uses the %t specifier (expanded by systemd, not shell).
         (lib.mkIf (cfg.dbPath == "") {
-          ExecStartPre = "${xdgResolveScript}";
-          EnvironmentFile = "%t/temporal-dev-server-db.env";
-          ExecStart = "${cfg.package}/bin/temporal server start-dev --port ${toString cfg.port} --ui-port ${toString cfg.uiPort} --namespace ${cfg.namespace} --db-filename \${TEMPORAL_DB_PATH}";
+          RuntimeDirectory  = "temporal-dev-server";
+          ExecStartPre      = "${xdgResolveScript}";
+          EnvironmentFile   = "%t/temporal-dev-server/db.env";
+          ExecStart         = "${cfg.package}/bin/temporal server start-dev --port ${toString cfg.port} --ui-port ${toString cfg.uiPort} --namespace ${cfg.namespace} --db-filename \${TEMPORAL_DB_PATH}";
         })
       ];
 
