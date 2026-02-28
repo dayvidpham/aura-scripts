@@ -809,21 +809,28 @@ aura-plugins/
 ├── pyproject.toml             Python project metadata
 ├── scripts/                   Python packages
 │   ├── aura_protocol/         Protocol engine (types, state machine, constraints, workflow)
-│   │   ├── types.py           Typed enums, frozen dataclass specs, canonical dicts
+│   │   ├── types.py           Typed enums (StrEnum), frozen dataclass specs, canonical dicts
 │   │   ├── state_machine.py   12-phase EpochStateMachine with consensus/blocker gates
-│   │   ├── constraints.py     RuntimeConstraintChecker — all 23 C-* validators
+│   │   ├── constraints.py     RuntimeConstraintChecker — all 26 C-* validators
+│   │   ├── context_injection.py  Role/phase context builders + prompt renderers
+│   │   ├── schema_parser.py   XML → Python spec parser (SchemaParseError)
+│   │   ├── gen_schema.py      Python → schema.xml generator (diff mode)
+│   │   ├── gen_skills.py      SKILL.md header generator (Jinja2, diff mode)
+│   │   ├── gen_types.py       Bootstrap codegen for types.py
+│   │   ├── audit_activities.py   Temporal search attribute definitions
 │   │   ├── workflow.py        Temporal workflow wrapper (signals, queries, search attributes)
 │   │   ├── interfaces.py      Protocol interfaces (runtime_checkable) + A2A content types
 │   │   └── __init__.py        Public API re-exports
 │   └── validate_schema.py     3-layer schema.xml validation (structural, referential, semantic)
-├── tests/                     Test suite (554+ tests)
+├── tests/                     Test suite (1370+ tests)
 │   ├── test_aura_types.py     Enum completeness, frozen dataclass immutability, dict coverage
 │   ├── test_schema_types_sync.py  Field-level Python ↔ schema.xml sync verification
 │   ├── test_state_machine.py  State machine transitions, consensus gates, blocker gates
-│   ├── test_constraints.py    All 23 C-* runtime validators (BDD-style, class-per-constraint)
+│   ├── test_constraints.py    All 26 C-* runtime validators (BDD-style, class-per-constraint)
 │   ├── test_workflow.py       Temporal sandbox: signals, queries, search attributes
 │   ├── test_interfaces.py     Protocol satisfaction, A2A types, ModelId parsing
 │   ├── test_validate_schema.py  CLI validation, schema mutation testing
+│   ├── test_gen_skills.py     SKILL.md generator: marker parsing, rendering, init mode
 │   └── conftest.py            Shared fixtures (_advance_to, _make_state, sm, sm_at_p4)
 ├── agents/                    Custom agent definitions
 │   └── tester.md              BDD test writer agent
@@ -844,8 +851,8 @@ execution.
 
 | Version | Scope | Status |
 |---------|-------|--------|
-| v1 (v0.4.3) | State machine + Temporal workflow + 23 C-* constraint validators | Done |
-| v2 | Schema-driven code generation + runtime context injection | In progress |
+| v1 (v0.4.3) | State machine + Temporal workflow + 26 C-* constraint validators | Done |
+| v2 | Schema-driven code generation + runtime context injection | Done |
 | v3 | Full Temporal workflow engine (phases as workflows, handoffs as signals) | Future |
 
 ### Architecture (v1)
@@ -872,15 +879,32 @@ types.py (enums, specs, canonical dicts)
 ### Running Tests
 
 ```bash
-# Run full test suite (554+ tests)
-.venv/bin/pytest tests/ --tb=short -q
+# Run full test suite (1370+ tests)
+uv run pytest tests/ --tb=short -q
 
 # Run specific module
-.venv/bin/pytest tests/test_state_machine.py -v
+uv run pytest tests/test_state_machine.py -v
 
 # Run schema validation
-python scripts/validate_schema.py skills/protocol/schema.xml
+PYTHONPATH=scripts uv run python scripts/validate_schema.py skills/protocol/schema.xml
 ```
+
+### Regenerating Skill Headers
+
+Role SKILL.md files (`supervisor`, `worker`, `reviewer`, `architect`) have a
+generated header section delimited by `<!-- BEGIN GENERATED FROM aura schema -->`
+/ `<!-- END GENERATED FROM aura schema -->` markers. After changing
+`types.py`, `context_injection.py`, or `skills/templates/skill_header.j2`:
+
+```bash
+# Regenerate all role SKILL.md headers (prints diff, writes in-place)
+PYTHONPATH=scripts uv run python -m aura_protocol.gen_skills
+
+# Regenerate schema.xml from types.py (prints diff, writes in-place)
+PYTHONPATH=scripts uv run python -m aura_protocol.gen_schema
+```
+
+Hand-authored body content (below the END marker) is preserved on every run.
 
 ## Validation
 
@@ -900,7 +924,7 @@ nix run .#aura-parallel -- --help
 bin/aura-release --check
 
 # Run protocol engine tests
-.venv/bin/pytest tests/ --tb=short -q
+uv run pytest tests/ --tb=short -q
 ```
 
 ## License

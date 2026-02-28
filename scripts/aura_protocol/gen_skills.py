@@ -97,6 +97,32 @@ def _commands_for_role(role_id: RoleId) -> list[CommandSpec]:
     ]
 
 
+def _skill_names_for_role(role_id: RoleId) -> list[str]:
+    """Return skill invocation names for a role's sub-commands.
+
+    Converts command names to skill directory names: `aura:a:b` → `aura:a-b`.
+    Skips the main role command (e.g., `aura:worker` for the worker role).
+
+    What went wrong if list is empty: no sub-commands defined for this role.
+    Why: COMMAND_SPECS only has the main role entry and no sub-commands.
+    Where: types.py COMMAND_SPECS dict.
+    How to fix: add CommandSpec entries with role_ref matching role_id.
+    """
+    main_cmd = f"aura:{role_id.value}"
+    result = []
+    for cmd in _commands_for_role(role_id):
+        if cmd.name == main_cmd:
+            continue
+        parts = cmd.name.split(":")
+        # aura:a:b → aura:a-b  (join first two with ':', rest with '-')
+        if len(parts) >= 3:
+            skill_name = f"{parts[0]}:{parts[1]}-{'-'.join(parts[2:])}"
+        else:
+            skill_name = cmd.name
+        result.append(skill_name)
+    return result
+
+
 def _constraints_for_role(role_id: RoleId) -> list[ConstraintContext]:
     """Return ConstraintContext objects relevant to a given role.
 
@@ -253,6 +279,7 @@ def _render_header(
         "phases_detail": _owned_phase_details(role_spec),
         "steps": list(PROCEDURE_STEPS.get(role_id, [])),
         "phase_slug": phase_slug,
+        "sub_skills": _skill_names_for_role(role_id),
     }
 
     return template.render(**context)
@@ -347,11 +374,11 @@ def generate_skill(
     body_lines = old_lines[end_idx + 1 :]
     body = "".join(body_lines)
 
-    # Assemble new content: everything before BEGIN + new header + body
-    prefix_lines = old_lines[:begin_idx]
-    prefix = "".join(prefix_lines)
-
-    new_content = prefix + rendered_header + body
+    # Assemble new content: generated header (includes frontmatter + heading +
+    # BEGIN…END block) followed by the hand-authored body.  The prefix
+    # (everything before the BEGIN marker in the old file) is intentionally
+    # dropped — frontmatter and the role heading are owned by the template.
+    new_content = rendered_header + body
 
     # Print unified diff if requested and content changed
     if diff and new_content != old_content:

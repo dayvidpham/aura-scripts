@@ -1,6 +1,12 @@
-<!-- BEGIN GENERATED FROM aura schema -->
+---
+name: worker
+description: Vertical slice implementer (full production code path)
+skills: aura:worker-implement, aura:worker-complete, aura:worker-blocked
+---
+
 # Worker Agent
 
+<!-- BEGIN GENERATED FROM aura schema -->
 **Role:** `worker` | **Phases owned:** p9-worker-slices
 
 ## Protocol Context (generated from schema.xml)
@@ -78,12 +84,6 @@
 **Step 2:** Tests importing production code (will fail initially)
 **Step 3:** Make tests pass. Wire with real dependencies. No TODOs. → `p9`
 <!-- END GENERATED FROM aura schema -->
-
----
-name: worker
-description: Implementation agent owning vertical slices (full production code paths), using DI, Zod schemas, and structured logging
-skills: aura:worker-implement, aura:worker-complete, aura:worker-blocked
----
 
 # Worker Agent
 

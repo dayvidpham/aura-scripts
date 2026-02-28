@@ -1,14 +1,5 @@
 # Changelog
 
-## [0.8.0] - 2026-02-27
-
-### Added
-- feat: aura-release -- adds plugin/marketplace registry in user config
-- feat: aura-protocol v3 — EpochWorkflow, aurad daemon, protocol fixtures (aura-plugins-eocq)
-
-### Other
-- Merge branch 'aura-release-registry' into main
-
 ## [0.9.0] - 2026-02-26
 
 ### Changed (SLICE-1: rename worker→aurad + packaging + SQLite XDG)
@@ -17,7 +8,14 @@
 - feat(nix): temporal-service.nix ExecStartPre resolves XDG_DATA_HOME at runtime when dbPath="" → writes TEMPORAL_DB_PATH to env file; ExecStart uses \${TEMPORAL_DB_PATH}
 - rename(tests): tests/test_worker.py → tests/test_aurad.py; WORKER_PATH→AURAD_PATH, _load_worker→_load_aurad
 
-## [0.8.0] - 2026-02-26
+## [0.8.0] - 2026-02-27
+
+### Added
+- feat: aura-release -- adds plugin/marketplace registry in user config
+- feat: aura-protocol v3 — EpochWorkflow, aurad daemon, protocol fixtures (aura-plugins-eocq)
+
+### Other
+- Merge branch 'aura-release-registry' into main
 
 ### Changed (UAT amendments)
 - fix(types): ReviewAxis enum values renamed from A/B/C to CORRECTNESS/TEST_QUALITY/ELEGANCE with wire-format values "correctness"/"test_quality"/"elegance" (UAT #7)
