@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Multi-agent orchestration toolkit for structured software development using the Aura 12-phase protocol",
-    "version": "0.8.0"
+    "version": "0.8.2"
   },
   "plugins": [
     {

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.2] - 2026-02-28
+
+### Fixed
+- fix(gen-skills): template-owned frontmatter + v2 docs complete
+
+### Other
+- Merge commit 'aura-protocol'
+
 ## [0.9.0] - 2026-02-26
 
 ### Changed (SLICE-1: rename worker→aurad + packaging + SQLite XDG)
