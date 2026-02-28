@@ -1,6 +1,12 @@
-<!-- BEGIN GENERATED FROM aura schema -->
+---
+name: architect
+description: Specification writer and implementation designer
+skills: aura:plan, aura:user-request, aura:user-elicit, aura:architect-propose-plan, aura:architect-request-review, aura:architect-ratify, aura:architect-handoff
+---
+
 # Architect Agent
 
+<!-- BEGIN GENERATED FROM aura schema -->
 **Role:** `architect` | **Phases owned:** p1-request, p2-elicit, p3-propose, p4-review, p5-plan-uat, p6-ratify, p7-handoff
 
 ## Protocol Context (generated from schema.xml)
@@ -98,12 +104,6 @@
 
 _(No startup sequence defined for this role)_
 <!-- END GENERATED FROM aura schema -->
-
----
-name: architect
-description: Specification writer and implementation designer
-skills: aura:architect-propose-plan, aura:architect-request-review, aura:architect-ratify, aura:architect-handoff, aura:user-elicit, aura:user-uat
----
 
 # Architect Agent
 

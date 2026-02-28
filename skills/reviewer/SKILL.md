@@ -1,6 +1,12 @@
-<!-- BEGIN GENERATED FROM aura schema -->
+---
+name: reviewer
+description: End-user alignment reviewer for plans and code
+skills: aura:reviewer-review-plan, aura:reviewer-review-code, aura:reviewer-comment, aura:reviewer-vote
+---
+
 # Reviewer Agent
 
+<!-- BEGIN GENERATED FROM aura schema -->
 **Role:** `reviewer` | **Phases owned:** p4-review, p10-code-review
 
 ## Protocol Context (generated from schema.xml)
@@ -103,12 +109,6 @@
 
 _(No startup sequence defined for this role)_
 <!-- END GENERATED FROM aura schema -->
-
----
-name: reviewer
-description: Plan and code reviewer focused on end-user alignment
-skills: aura:reviewer-review-plan, aura:reviewer-review-code, aura:reviewer-comment, aura:reviewer-vote
----
 
 # Reviewer Agent
 

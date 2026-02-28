@@ -100,7 +100,7 @@ class TestHeaderUpdatedBodyPreserved:
         self,
         tmp_path: pathlib.Path,
     ) -> None:
-        """Generated section should mention the role name."""
+        """Generated section should mention the role id value."""
         content = _minimal_with_markers()
         skill_path = _make_skill_file(tmp_path, content)
 
@@ -112,8 +112,8 @@ class TestHeaderUpdatedBodyPreserved:
             write=False,
         )
 
-        assert "Worker" in result, (
-            "Generated header should contain role name 'Worker'."
+        assert RoleId.WORKER.value in result, (
+            f"Generated header should contain role id '{RoleId.WORKER.value}'."
         )
 
     def test_markers_present_in_output(

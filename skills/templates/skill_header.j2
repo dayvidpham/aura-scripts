@@ -1,6 +1,12 @@
-<!-- BEGIN GENERATED FROM aura schema -->
+---
+name: {{ role.id.value }}
+description: {{ role.description }}
+{% if sub_skills %}skills: {{ sub_skills | join(', ') }}
+{% endif %}---
+
 # {{ role.name }} Agent
 
+<!-- BEGIN GENERATED FROM aura schema -->
 **Role:** `{{ role.id.value }}` | **Phases owned:** {% for p in owned_phases %}{{ phase_slug[p] }}{% if not loop.last %}, {% endif %}{% endfor %}
 
 

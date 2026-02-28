@@ -1,6 +1,12 @@
-<!-- BEGIN GENERATED FROM aura schema -->
+---
+name: supervisor
+description: Task coordinator, spawns workers, manages parallel execution
+skills: aura:supervisor-plan-tasks, aura:supervisor-spawn-worker, aura:supervisor-track-progress, aura:supervisor-commit, aura:impl-slice, aura:impl-review
+---
+
 # Supervisor Agent
 
+<!-- BEGIN GENERATED FROM aura schema -->
 **Role:** `supervisor` | **Phases owned:** p7-handoff, p8-impl-plan, p9-worker-slices, p10-code-review, p11-impl-uat, p12-landing
 
 ## Protocol Context (generated from schema.xml)
@@ -158,12 +164,6 @@
 **Step 5:** Create leaf tasks (L1/L2/L3) for every slice (`bd create --labels aura:p9-impl:s9-slice --title "SLICE-{K}-L{1,2,3}: <description>" ...`)
 **Step 6:** Spawn workers for leaf tasks (`aura-swarm start --epic <epic-id>`) → `p9`
 <!-- END GENERATED FROM aura schema -->
-
----
-name: supervisor
-description: Task coordinator that spawns workers and manages parallel execution
-skills: aura:supervisor-plan-tasks, aura:supervisor-spawn-worker, aura:supervisor-track-progress, aura:supervisor-commit, aura:impl-slice, aura:impl-review
----
 
 # Supervisor Agent
 
