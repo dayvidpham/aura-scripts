@@ -21,30 +21,29 @@
 let
   cfg = config.services.temporal-dev-server;
 
-  # Base args shared by both ExecStart variants (dbPath set and dbPath empty).
-  baseArgs = lib.concatStringsSep " " [
+  # Common CLI args (port/ui-port are numeric, safe to interpolate unquoted).
+  portArgs = [
     "server" "start-dev"
     "--port"     (toString cfg.port)
     "--ui-port"  (toString cfg.uiPort)
-    "--namespace" cfg.namespace
   ];
 
-  # Full args when dbPath is explicitly set (appends --db-filename directly).
-  startDevArgs = "${baseArgs} --db-filename ${cfg.dbPath}";
-
-  # ExecStartPre script: resolve XDG path and write to env file (only when dbPath="").
-  # The env file is loaded by systemd via EnvironmentFile at runtime.
+  # Wrapper script: resolve XDG path at runtime and exec temporal (only when dbPath="").
   #
-  # $RUNTIME_DIRECTORY is set by systemd when RuntimeDirectory = "temporal-dev-server"
-  # is declared in the Service block. It expands to /run/user/<uid>/temporal-dev-server/.
-  # We must NOT use the systemd specifier %t inside this bash script — %t is only
-  # expanded in systemd unit file fields, not in shell scripts.
-  xdgResolveScript = pkgs.writeShellScript "temporal-xdg-resolve" ''
+  # Previous approach used ExecStartPre to write an env file + EnvironmentFile to load it,
+  # but systemd evaluates EnvironmentFile BEFORE running ExecStartPre, creating a
+  # chicken-and-egg failure on every start (the env file lives in RuntimeDirectory tmpfs).
+  # Instead, resolve the path inline and exec directly.
+  xdgStartScript = pkgs.writeShellScript "temporal-dev-server-start" ''
     set -euo pipefail
+    : "''${HOME:?HOME must be set and non-empty}"
     xdg_data_home="''${XDG_DATA_HOME:-''${HOME}/.local/share}"
     db_dir="$xdg_data_home/aura/plugin"
     mkdir -p "$db_dir"
-    printf 'TEMPORAL_DB_PATH=%s/temporal.db\n' "$db_dir" > "$RUNTIME_DIRECTORY/db.env"
+    exec ${cfg.package}/bin/temporal \
+      ${lib.concatStringsSep " " portArgs} \
+      --namespace ${lib.escapeShellArg cfg.namespace} \
+      --db-filename "$db_dir/temporal.db"
   '';
 
 in
@@ -86,7 +85,7 @@ in
         Path to SQLite database file for persistence across restarts.
         Empty string (default) auto-resolves to
         ''${XDG_DATA_HOME:-$HOME/.local/share}/aura/plugin/temporal.db
-        at service start via ExecStartPre (persistent across restarts).
+        at service start via a wrapper script (persistent across restarts).
         Set to an explicit path to override the XDG default.
       '';
       example     = "/home/user/.local/share/temporal/temporal.db";
@@ -126,13 +125,16 @@ in
       Unit = {
         Description     = "Temporal dev server (${cfg.namespace}:${toString cfg.port})";
         Documentation   = "https://docs.temporal.io/cli/server";
-        After           = [ "network.target" ];
+        After                 = [ "network.target" ];
+        StartLimitBurst       = 5;
+        StartLimitIntervalSec = 30;
       };
 
       Service = lib.mkMerge [
         # Base service config (always applied).
         {
-          Restart   = "on-failure";
+          Restart    = "on-failure";
+          RestartSec = 3;
 
           # Environment hardening for user service.
           Environment = [
@@ -146,19 +148,22 @@ in
         }
 
         # When dbPath is set: use it directly, no XDG resolution.
+        # Quoting ensures paths with spaces are handled correctly by systemd's
+        # ExecStart= argument parser.
         (lib.mkIf (cfg.dbPath != "") {
-          ExecStart = "${cfg.package}/bin/temporal ${startDevArgs}";
+          ExecStart = lib.concatStringsSep " " (
+            [ "${cfg.package}/bin/temporal" ]
+            ++ portArgs
+            ++ [ "--namespace" (lib.escapeShellArg cfg.namespace) ]
+            ++ [ "--db-filename" (lib.escapeShellArg cfg.dbPath) ]
+          );
         })
 
-        # When dbPath is empty: resolve XDG path at runtime via ExecStartPre.
-        # RuntimeDirectory creates /run/user/<uid>/temporal-dev-server/ and sets
-        # $RUNTIME_DIRECTORY in ExecStartPre so the script can write db.env there.
-        # EnvironmentFile uses the %t specifier (expanded by systemd, not shell).
+        # When dbPath is empty: resolve XDG path at runtime via wrapper script.
+        # The wrapper resolves XDG_DATA_HOME, ensures the db directory exists,
+        # then exec's the temporal binary with the resolved path.
         (lib.mkIf (cfg.dbPath == "") {
-          RuntimeDirectory  = "temporal-dev-server";
-          ExecStartPre      = "${xdgResolveScript}";
-          EnvironmentFile   = "%t/temporal-dev-server/db.env";
-          ExecStart         = "${cfg.package}/bin/temporal ${baseArgs} --db-filename \${TEMPORAL_DB_PATH}";
+          ExecStart = "${xdgStartScript}";
         })
       ];
 
