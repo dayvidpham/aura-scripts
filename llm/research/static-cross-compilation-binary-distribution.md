@@ -49,7 +49,7 @@ The security filter is 38 hardcoded patterns with regex matching, operation-awar
 **Transpiler:** Bidirectional schema <-> types codegen
 **Distribution:** Nix flake + Home Manager module + Claude Code plugin marketplace
 
-**Cross-compilation relevance:** The CLI tools (`aura-swarm`, `aura-parallel`, `aura-release`) are pure Python with no external dependencies. They don't benefit from static compilation. However, the **config parser and constraint checker** could be compiled if performance becomes an issue (currently not a bottleneck).
+**Cross-compilation relevance:** The CLI tools (`aura-swarm`, `aura-release`) are pure Python with no external dependencies. They don't benefit from static compilation. However, the **config parser and constraint checker** could be compiled if performance becomes an issue (currently not a bottleneck).
 
 ### 1.4 dotfiles / nix-openclaw-vm (Nix infrastructure)
 

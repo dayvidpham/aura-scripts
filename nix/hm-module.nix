@@ -93,7 +93,7 @@ in
       enable = mkOption {
         type = types.bool;
         default = true;
-        description = "Install aura-parallel, aura-swarm, and aura-release CLI tools";
+        description = "Install aura-swarm (unified agent orchestration), aura-parallel (deprecated wrapper), and aura-release CLI tools";
       };
     };
 

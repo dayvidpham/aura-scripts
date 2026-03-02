@@ -12,7 +12,7 @@ Plan ratified and user has approved proceeding with implementation.
 
 **Given** ratified PROPOSAL-N task **when** handing off **then** create handoff document and HANDOFF task **should never** hand off without linking to ratified proposal
 
-**Given** handoff **when** spawning supervisor **then** use `aura-parallel --role supervisor` or `aura-swarm start --epic <id>` **should never** spawn supervisor as Task tool subagent
+**Given** handoff **when** spawning supervisor **then** use `aura-swarm start --swarm-mode intree --role supervisor` or `aura-swarm start --epic <id>` **should never** spawn supervisor as Task tool subagent
 
 **Given** implementation planning **when** handing off **then** let supervisor create vertical slice tasks **should never** create implementation tasks as architect
 
@@ -77,10 +77,10 @@ Storage: `.git/.aura/handoff/{request-task-id}/architect-to-supervisor.md`
 
 3. Launch supervisor:
    ```bash
-   # Using aura-parallel (for long-running supervisor in tmux session)
-   aura-parallel --role supervisor -n 1 --prompt "..."
+   # In-place mode (long-running supervisor in tmux session)
+   aura-swarm start --swarm-mode intree --role supervisor -n 1 --prompt "..."
 
-   # Or using aura-swarm (for epic-based worktree workflow)
+   # Or worktree mode (epic-based workflow)
    aura-swarm start --epic <id>
    ```
 
@@ -89,8 +89,8 @@ Storage: `.git/.aura/handoff/{request-task-id}/architect-to-supervisor.md`
    # Check beads status
    bd list --status=in_progress
 
-   # Or attach to supervisor session (if using aura-parallel)
-   tmux attach -t supervisor--1-<hex4>
+   # Attach to supervisor session
+   aura-swarm attach <epic-id-or-session-id>
    ```
 
 ## Example Prompt
@@ -128,7 +128,7 @@ Implement the ratified plan for <feature name>.
 Pass the prompt to the script:
 
 ```bash
-aura-parallel --role supervisor -n 1 --prompt "$(cat <<'EOF'
+aura-swarm start --swarm-mode intree --role supervisor -n 1 --prompt "$(cat <<'EOF'
 Start by calling Skill(/aura:supervisor) to load your role instructions.
 
 Implement the ratified plan for User Authentication.
@@ -163,14 +163,14 @@ EOF
 ## Script Options
 
 ```bash
-aura-parallel --role supervisor -n 1 --prompt "..."             # Launch supervisor
-aura-parallel --role supervisor -n 1 --prompt "..." --dry-run   # Preview without launching
-aura-parallel --role supervisor -n 1 --prompt-file prompt.md    # Read prompt from file
+aura-swarm start --swarm-mode intree --role supervisor -n 1 --prompt "..."             # Launch supervisor
+aura-swarm start --swarm-mode intree --role supervisor -n 1 --prompt "..." --dry-run   # Preview without launching
+aura-swarm start --swarm-mode intree --role supervisor -n 1 --prompt-file prompt.md    # Read prompt from file
 ```
 
 ## IMPORTANT
 
-- **DO NOT** spawn supervisor as a Task tool subagent - use `aura-parallel` or `aura-swarm`
+- **DO NOT** spawn supervisor as a Task tool subagent - use `aura-swarm start`
 - **DO NOT** create implementation tasks yourself - the supervisor creates vertical slice tasks
 - **DO NOT** implement the plan yourself - your role is handoff and monitoring
 - The supervisor reads the ratified plan and determines vertical slice structure
