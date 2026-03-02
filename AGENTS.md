@@ -74,9 +74,9 @@ bd dep add ure-id --blocked-by request-id
 ```
 aura-plugins/
 ├── bin/                    # Operational tooling (add to PATH)
-│   ├── aura-parallel       # Parallel agent launcher for tmux sessions (Python)
+│   ├── aura-parallel       # Deprecated wrapper → aura-swarm start --swarm-mode intree
 │   ├── aura-release        # Version bump, changelog, and git tag (Python)
-│   └── aura-swarm          # Epic-based worktree agent launcher (Python)
+│   └── aura-swarm          # Unified agent orchestration (worktree + intree modes)
 ├── scripts/                # Python packages
 │   ├── aura_protocol/      # Protocol engine (see Protocol Engine section below)
 │   │   ├── types.py        # Typed enums, frozen dataclass specs, canonical dicts
@@ -187,13 +187,11 @@ Before committing changes to this project:
 # Ensure Nix flake evaluates cleanly
 nix flake check --no-build 2>&1
 
-# Build the packages (aura-parallel, aura-swarm)
-nix build .#aura-parallel --no-link
+# Build the packages
 nix build .#aura-swarm --no-link
 
 # Test CLI help output
 nix run .#aura-swarm -- --help
-nix run .#aura-parallel -- --help
 
 # Check version consistency across manifests
 bin/aura-release --check
@@ -247,21 +245,21 @@ main
        └── agent/<task-id-3>
 ```
 
-### aura-parallel — Supervisor/Architect launches
+### aura-swarm intree mode — Supervisor/Architect launches
 
-Launches parallel Claude agents in tmux sessions with role-based instructions.
+Launches parallel Claude agents in tmux sessions with role-based instructions (replaces `aura-parallel`).
 
 **Use for:** Spawning a separate supervisor or architect to plan and coordinate a new epic. These are long-running agents that need their own tmux session and persistent context.
 
 ```bash
 # Launch supervisor to coordinate an epic
-aura-parallel --role supervisor -n 1 --prompt "Coordinate implementation of..."
+aura-swarm start --swarm-mode intree --role supervisor -n 1 --prompt "Coordinate implementation of..."
 
 # Launch architect to propose a plan
-aura-parallel --role architect -n 1 --prompt "Propose plan for..."
+aura-swarm start --swarm-mode intree --role architect -n 1 --prompt "Propose plan for..."
 
 # Dry run (show commands without executing)
-aura-parallel --role supervisor -n 1 --prompt "..." --dry-run
+aura-swarm start --swarm-mode intree --role supervisor -n 1 --prompt "..." --dry-run
 ```
 
 **DO NOT use for reviewer rounds.** Reviewers are short-lived and should use subagents or TeamCreate instead.
@@ -295,7 +293,7 @@ Task(subagent_type: "reviewer", prompt: "Review PROPOSAL-1...")
 | Scenario | Tool | Why |
 |----------|------|-----|
 | Epic implementation with worktree isolation | `aura-swarm` | Needs isolated branch + worktree |
-| New supervisor/architect for epic planning | `aura-parallel` | Long-running, needs own tmux session |
+| New supervisor/architect for epic planning | `aura-swarm start --swarm-mode intree` | Long-running, needs own tmux session |
 | Plan review (3 reviewers) | `general-purpose` subagents | Short-lived, invoke `/aura:reviewer` skill |
 | Code review (3 reviewers) | `general-purpose` subagents | Short-lived, invoke `/aura:reviewer` skill |
 | Ad-hoc research or exploration | Task tool (Explore agent) | Quick, no orchestration needed |

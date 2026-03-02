@@ -93,11 +93,11 @@ Options:
 # Current (broken): writeScriptBin with shebang replace only
 # Proposed: writeShellApplication with runtimeInputs = [ python3 tmux git ]
 ```
-**Motivating example:** aura-parallel fails at runtime because tmux not in PATH.
+**Motivating example:** aura-swarm fails at runtime because tmux not in PATH.
 
-**Q1: aura-parallel needs tmux and git at runtime. aura-swarm needs git, bd (beads CLI), and claude. Should ALL runtime deps be baked into the Nix wrapper, or should some be expected from the user's PATH?**
+**Q1: aura-swarm needs tmux and git at runtime (plus bd and claude for worktree mode). Should ALL runtime deps be baked into the Nix wrapper, or should some be expected from the user's PATH?**
 Options:
-- Bake all in (hermetic) — writeShellApplication with all runtimeInputs. aura-parallel gets python3+tmux+git. aura-swarm gets python3+git+bd+claude. Fully reproducible.
+- Bake all in (hermetic) — writeShellApplication with all runtimeInputs. aura-swarm gets python3+tmux+git+bd+claude. Fully reproducible.
 - Bake tmux+python, expect claude+bd from PATH — claude and bd are user-managed tools (not in nixpkgs or custom). Wrap what Nix can provide, leave the rest to PATH.
 - Expect all from PATH — Only patch the shebang. User is responsible for having tmux, git, claude, bd available. Lightest wrapper.
 **User response:** "Bake all in (hermetic)"

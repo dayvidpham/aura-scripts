@@ -72,9 +72,9 @@ Then reference the packages:
 
 ```nix
 # In your system or home-manager config:
-aura-plugins.packages.${system}.aura-parallel
-aura-plugins.packages.${system}.aura-swarm
-aura-plugins.packages.${system}.default  # both tools
+aura-plugins.packages.${system}.aura-swarm     # unified agent orchestration
+aura-plugins.packages.${system}.aura-parallel  # deprecated wrapper
+aura-plugins.packages.${system}.default        # all tools
 ```
 
 ### Home Manager Module
@@ -118,7 +118,7 @@ Both scripts are standalone Python 3.10+ with no external dependencies:
 ```bash
 git clone https://github.com/dayvidpham/aura-plugins
 cd aura-plugins
-chmod +x bin/aura-swarm bin/aura-parallel bin/aura-release
+chmod +x bin/aura-swarm bin/aura-release
 # Add bin/ to PATH or symlink into a PATH directory
 ```
 
@@ -423,127 +423,46 @@ git push && git push --tags
 
 ---
 
-## aura-parallel
+## aura-swarm intree mode (replaces aura-parallel)
 
-Launches one or more Claude agents in parallel tmux sessions with role-based
-system prompts. Designed for long-running supervisor and architect agents that
-need persistent context in their own sessions.
-
-### Usage
+The intree mode (`--swarm-mode intree`) launches agents in-place without
+creating worktrees. It replaces the deprecated `aura-parallel` command.
 
 ```bash
-aura-parallel --role <role> -n <count> --prompt <text> [options]
+aura-swarm start --swarm-mode intree --role <role> -n <count> --prompt <text> [options]
 ```
 
-### Arguments
+See `aura-swarm start --help` for the full list of options. Key intree-specific
+flags:
 
-| Argument            | Default          | Description                                         |
-|---------------------|------------------|-----------------------------------------------------|
-| `--role`            | *(required)*     | `architect`, `supervisor`, `reviewer`, `worker`     |
-| `-n`, `--njobs`     | *(required)*     | Number of parallel instances (>= 1)                 |
-| `--prompt`          | &mdash;          | Prompt text (mutually exclusive with `--prompt-file`) |
-| `--prompt-file`     | &mdash;          | Read prompt from file                               |
-| `--model`           | `sonnet`         | `sonnet`, `opus`, `haiku`                           |
-| `--skill`           | &mdash;          | Skill to invoke at start (auto-prefixes `aura:` if needed) |
-| `--task-id`         | &mdash;          | Beads task ID (repeatable, see distribution below)  |
-| `--working-dir`     | git root or cwd  | Working directory for all sessions                  |
-| `--permission-mode` | `acceptEdits`    | `default`, `acceptEdits`, `bypassPermissions`, `plan` |
-| `--session-name`    | *(auto-generated)* | Override session name (suffixed with `--N` when n>1) |
-| `--attach`          | `false`          | Attach to first session after launch                |
-| `--dry-run`         | `false`          | Preview commands without executing                  |
-
-One of `--prompt` or `--prompt-file` is required.
-
-### Task distribution
-
-How `--task-id` values are distributed depends on `--njobs`:
-
-| Scenario           | Behavior                         | Example                        |
-|--------------------|----------------------------------|--------------------------------|
-| `-n 1`, 3 task IDs | All task IDs go to one agent     | Agent sees all 3 in its prompt |
-| `-n 3`, 3 task IDs | 1:1 &mdash; each agent gets one  | Agent 1 &rarr; task 1, etc.   |
-| `-n 3`, 2 task IDs | Partial &mdash; last agent has none | Agent 3 gets no task ID     |
-
-### Prompt construction
-
-The final prompt sent to each agent is assembled in order:
-
-1. **Skill invocation** (if `--skill` is set): `1. Use Skill(/aura:<skill>)\n`
-2. **Base prompt** from `--prompt` or `--prompt-file`
-3. **Task context**: `Task ID: <id>` (single) or a bulleted list (multiple)
-
-### Role instructions
-
-Instructions are loaded from `skills/<role>/SKILL.md`:
-
-1. First checks `<working-dir>/skills/<role>/SKILL.md`
-2. Falls back to `~/skills/<role>/SKILL.md`
-
-The script exits with an error if no instructions file is found at either
-location, printing both paths that were checked.
-
-Instructions are injected via `claude --append-system-prompt`, which preserves
-the default Claude system prompt (including Task tool access for subagent
-spawning).
-
-### Tmux session naming
-
-Format: `<role>--<num>--<hex4>[--<task-id>]`
-
-```
-supervisor--1--a7f2
-reviewer--1--c3e1--proposal-123
-worker--2--d9b4--impl-001
-```
-
-Retries up to 3 times on name collision.
+| Flag | Description |
+|------|-------------|
+| `--prompt` / `--prompt-file` | Required for intree mode |
+| `--task-id` | Beads task IDs (1:1 distribution across agents) |
+| `--skill` | Skill to invoke at session start |
+| `-n` | Number of parallel agents |
 
 ### Examples
 
 ```bash
 # Launch a supervisor to coordinate an epic
-aura-parallel --role supervisor -n 1 \
+aura-swarm start --swarm-mode intree --role supervisor -n 1 \
   --prompt "Read ratified plan aura-xyz and decompose into vertical slices"
 
-# Launch an architect with the opus model
-aura-parallel --role architect -n 1 --model opus \
-  --prompt "Propose a plan for the authentication feature"
-
 # Distribute 3 tasks across 3 workers
-aura-parallel --role worker -n 3 \
+aura-swarm start --swarm-mode intree --role worker -n 3 \
   --task-id impl-001 --task-id impl-002 --task-id impl-003 \
   --prompt "Implement your assigned vertical slice"
 
-# Launch reviewers with a skill invocation
-aura-parallel --role reviewer -n 3 \
-  --skill aura:reviewer:review-plan \
-  --prompt "Review proposal-123 for end-user alignment"
-
-# Dry run: inspect generated commands and prompts
-aura-parallel --role supervisor -n 1 \
+# Dry run
+aura-swarm start --swarm-mode intree --role supervisor -n 1 \
   --prompt "Coordinate implementation" --dry-run
-
-# Launch and immediately attach to the session
-aura-parallel --role supervisor -n 1 \
-  --prompt "Start supervision" --attach
-
-# Custom working directory
-aura-parallel --role supervisor -n 1 \
-  --working-dir /path/to/project \
-  --prompt "Supervise implementation in this repo"
 ```
 
-### Security
+### Migration from aura-parallel
 
-The `dangerously-skip-permissions` mode is explicitly forbidden. The script
-rejects any `--permission-mode` value containing "dangerously" or "skip" and
-exits with a security error.
-
-### Signal handling
-
-`Ctrl-C` (SIGINT) sets a flag that completes the current session launch and
-skips all remaining sessions, rather than terminating immediately. This prevents
-half-initialized tmux sessions.
+`aura-parallel` is deprecated and delegates to `aura-swarm start --swarm-mode intree`.
+All existing `aura-parallel` commands continue to work but print a deprecation warning.
 
 ---
 
@@ -619,13 +538,13 @@ bd dep add ure-id --blocked-by request-id
 | Scenario                                | Tool                       | Why                                                |
 |-----------------------------------------|----------------------------|----------------------------------------------------|
 | Epic with multiple slices               | `aura-swarm start`         | Needs isolated worktree + automatic task discovery  |
-| New supervisor/architect for planning    | `aura-parallel`            | Long-running, needs its own tmux session            |
+| New supervisor/architect for planning    | `aura-swarm start --swarm-mode intree` | Long-running, needs its own tmux session |
 | Plan review (3 reviewers)               | `general-purpose` subagents | Short-lived, results collected in-session           |
 | Code review (3 reviewers)               | `general-purpose` subagents | Short-lived, results collected in-session           |
 | Ad-hoc research or exploration          | Task tool (Explore agent)  | Quick, no orchestration needed                      |
 
 **Rule of thumb:** if the agent needs its own persistent tmux session and
-long-running context, use `aura-swarm` or `aura-parallel`. If the agent is
+long-running context, use `aura-swarm start`. If the agent is
 short-lived and you need to collect its result, use `general-purpose` subagents
 (Task tool) or TeamCreate.
 
@@ -636,7 +555,7 @@ differently:
 
 | Launch method | Role instruction loading | When to use |
 |---------------|--------------------------|-------------|
-| `aura-swarm` / `aura-parallel` | Injected automatically via `--append-system-prompt` from `skills/<role>/SKILL.md` | Long-running agents needing tmux sessions |
+| `aura-swarm start` | Injected automatically via `--append-system-prompt` from `skills/<role>/SKILL.md` | Long-running agents needing tmux sessions |
 | Task tool subagent | Agent invokes `/aura:<role>` skill (Skill tool) as its first action | Short-lived in-session agents (reviewers, research) |
 | TeamCreate | Same as Task tool &mdash; each teammate invokes the relevant skill | Coordinated multi-agent work within a session |
 
@@ -708,9 +627,9 @@ workflows, and constraints.
 
 Skills serve two purposes depending on the launch method:
 
-- **CLI tools** (`aura-swarm`, `aura-parallel`): Role instructions are injected
-  automatically via `--append-system-prompt`. The `--skill` flag can invoke an
-  additional skill at startup.
+- **CLI tool** (`aura-swarm`): Role instructions are injected automatically via
+  `--append-system-prompt`. The `--skill` flag can invoke an additional skill
+  at startup.
 - **Task tool subagents**: The agent must invoke the skill itself (e.g.
   `/aura:reviewer`) as its first action to load role instructions.
 
@@ -786,9 +705,9 @@ aura-plugins/
 │   ├── marketplace.json
 │   └── plugin.json
 ├── bin/                       Operational tooling (add to PATH)
-│   ├── aura-parallel          Parallel tmux session launcher
+│   ├── aura-parallel          Deprecated wrapper → aura-swarm start --swarm-mode intree
 │   ├── aura-release           Version bump, changelog, and git tag
-│   └── aura-swarm             Epic-based worktree agent launcher
+│   └── aura-swarm             Unified agent orchestration (worktree + intree modes)
 ├── skills/                    Plugin skills (SKILL.md per directory)
 │   ├── architect/             Architect orchestrator
 │   ├── epoch/                 Master orchestrator
@@ -912,13 +831,11 @@ Hand-authored body content (below the END marker) is preserved on every run.
 # Verify Nix flake evaluates cleanly
 nix flake check --no-build 2>&1
 
-# Build both packages
-nix build .#aura-parallel --no-link
+# Build packages
 nix build .#aura-swarm --no-link
 
 # Test CLI help output
 nix run .#aura-swarm -- --help
-nix run .#aura-parallel -- --help
 
 # Check version consistency across manifests
 bin/aura-release --check

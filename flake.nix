@@ -38,19 +38,22 @@
     {
       # ── Packages ──────────────────────────────────────────────
       packages = forAllSystems ({ pkgs, system }: {
-        aura-parallel = pkgs.writeScriptBin "aura-parallel" (
-          builtins.replaceStrings
-            [ "#!/usr/bin/env python3" "__AURA_PACKAGE_SKILLS_DIR__" ]
-            [ "#!${pkgs.python3}/bin/python3" "${self}/skills" ]
-            (builtins.readFile ./bin/aura-parallel)
-        );
+        aura-parallel = pkgs.writeShellApplication {
+          name = "aura-parallel";
+          runtimeInputs = [ pkgs.python3 ];
+          text = ''
+            exec python3 "${self}/bin/aura-parallel" "$@"
+          '';
+        };
 
-        aura-swarm = pkgs.writeScriptBin "aura-swarm" (
-          builtins.replaceStrings
-            [ "#!/usr/bin/env python3" "__AURA_PACKAGE_SKILLS_DIR__" ]
-            [ "#!${pkgs.python3}/bin/python3" "${self}/skills" ]
-            (builtins.readFile ./bin/aura-swarm)
-        );
+        aura-swarm = pkgs.writeShellApplication {
+          name = "aura-swarm";
+          runtimeInputs = [ pkgs.python3 ];
+          text = ''
+            export AURA_PACKAGE_SKILLS_DIR="${self}/skills"
+            PYTHONPATH="${self}/scripts" exec python3 "${self}/bin/aura-swarm" "$@"
+          '';
+        };
 
         aura-release = pkgs.writeScriptBin "aura-release" (
           builtins.replaceStrings

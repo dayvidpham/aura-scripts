@@ -345,7 +345,7 @@ Skill(skill: "aura:architect-handoff")
 
 The handoff skill guides you through:
 1. Creating the handoff document at `.git/.aura/handoff/{request-task-id}/architect-to-supervisor.md`
-2. Launching supervisor via `aura-parallel --role supervisor -n 1` or `aura-swarm start --epic <id>`
+2. Launching supervisor via `aura-swarm start --swarm-mode intree --role supervisor -n 1` or `aura-swarm start --epic <id>`
 
 **CRITICAL:** The supervisor launch prompt MUST:
 1. **Start with `Skill(/aura:supervisor)`** — this loads the supervisor's role instructions, including leaf task creation and explore team setup

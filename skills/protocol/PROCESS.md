@@ -201,7 +201,7 @@ See: [../architect-propose-plan/SKILL.md](../architect-propose-plan/SKILL.md)
 
 Architect spawns **3 independent reviewers** in parallel (not sequentially).
 
-Spawn reviewers as `general-purpose` subagents (via the Task tool, `subagent_type: "general-purpose"`) and instruct each to invoke the `/aura:reviewer` skill to load its role instructions. `/aura:reviewer` is a **Skill** (invoked via the Skill tool), not a subagent type — it provides the reviewer's workflow, severity tree, and voting procedures. Reviewers are short-lived — keep them in-session for direct result collection. Do NOT use `aura-parallel` for reviewer rounds.
+Spawn reviewers as `general-purpose` subagents (via the Task tool, `subagent_type: "general-purpose"`) and instruct each to invoke the `/aura:reviewer` skill to load its role instructions. `/aura:reviewer` is a **Skill** (invoked via the Skill tool), not a subagent type — it provides the reviewer's workflow, severity tree, and voting procedures. Reviewers are short-lived — keep them in-session for direct result collection. Do NOT use `aura-swarm start` for reviewer rounds.
 
 > **CRITICAL: No Fake Reviews**
 >
@@ -1170,13 +1170,13 @@ Create handoff document if actor transition occurs (see [HANDOFF_TEMPLATE.md](HA
 
 **Agent launching:**
 ```bash
-# Launch supervisor/architect via aura-parallel (long-running, needs own tmux session)
-aura-parallel --role supervisor -n 1 --prompt "..."
+# Launch supervisor/architect in-place (long-running, needs own tmux session)
+aura-swarm start --swarm-mode intree --role supervisor -n 1 --prompt "..."
 
-# Or use aura-swarm for epic-based worktree workflow
+# Or use worktree mode for epic-based workflow
 aura-swarm start --epic <id>
 
-# For reviewers: use general-purpose subagents (Task tool) with /aura:reviewer skill — NOT aura-parallel
+# For reviewers: use general-purpose subagents (Task tool) with /aura:reviewer skill — NOT aura-swarm start
 ```
 
 ### Worker Tools & Skills

@@ -8,6 +8,9 @@ dolt-config.log
 dolt-server.activity
 dolt-server.lock
 dolt-server.log
+dolt-monitor.pid
+dolt-server.pid
+dolt-server.port
 
 # Ephemeral/wisp storage (local-only, regenerated at runtime)
 ephemeral.sqlite3
