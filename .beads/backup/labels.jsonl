@@ -45,6 +45,7 @@
 {"issue_id":"aura-plugins-17pm","label":"aura:p9-impl:s9-slice"}
 {"issue_id":"aura-plugins-181t","label":"aura:p10-impl:s10-review"}
 {"issue_id":"aura-plugins-181t","label":"aura:severity:important"}
+{"issue_id":"aura-plugins-18zp","label":"aura:p1-user:s1_1-classify"}
 {"issue_id":"aura-plugins-192h","label":"aura:p10-impl:s10-review"}
 {"issue_id":"aura-plugins-192h","label":"aura:severity:minor"}
 {"issue_id":"aura-plugins-199","label":"aura:p7-plan:s7-handoff"}
@@ -706,6 +707,7 @@
 {"issue_id":"aura-plugins-ipj","label":"aura:severity:important"}
 {"issue_id":"aura-plugins-iq0p","label":"aura:p10-impl:s10-review"}
 {"issue_id":"aura-plugins-iq0p","label":"aura:severity:minor"}
+{"issue_id":"aura-plugins-iv5j","label":"aura:p2-user:s2_1-elicit"}
 {"issue_id":"aura-plugins-ivl1","label":"aura:p10-impl:s10-review"}
 {"issue_id":"aura-plugins-ivl1","label":"aura:severity:minor"}
 {"issue_id":"aura-plugins-iw89","label":"aura:p3-plan:s3-propose"}
@@ -822,6 +824,7 @@
 {"issue_id":"aura-plugins-ltvf","label":"aura:severity:minor"}
 {"issue_id":"aura-plugins-lvm7","label":"aura:p10-impl:s10-review"}
 {"issue_id":"aura-plugins-lvm7","label":"aura:severity:blocker"}
+{"issue_id":"aura-plugins-m0gg","label":"aura:p4-plan:s4-review"}
 {"issue_id":"aura-plugins-m4i3","label":"dolt"}
 {"issue_id":"aura-plugins-m4i3","label":"infrastructure"}
 {"issue_id":"aura-plugins-m4mq","label":"aura:p10-impl:s10-review"}
@@ -871,6 +874,7 @@
 {"issue_id":"aura-plugins-nfr","label":"aura:p11-user:s11-uat"}
 {"issue_id":"aura-plugins-ngd","label":"aura:p10-impl:s10-review"}
 {"issue_id":"aura-plugins-ngd","label":"aura:severity:important"}
+{"issue_id":"aura-plugins-nkx7","label":"aura:p3-plan:s3-propose"}
 {"issue_id":"aura-plugins-nlip","label":"aura:p10-impl:s10-review"}
 {"issue_id":"aura-plugins-nlip","label":"aura:severity:important"}
 {"issue_id":"aura-plugins-nno9","label":"aura:p10-impl:s10-review"}
@@ -901,6 +905,8 @@
 {"issue_id":"aura-plugins-o5kg","label":"aura:severity:blocker"}
 {"issue_id":"aura-plugins-o5ol","label":"aura:p10-impl:s10-review"}
 {"issue_id":"aura-plugins-o5ol","label":"aura:severity:blocker"}
+{"issue_id":"aura-plugins-o7i9","label":"aura:p2-user:s2_2-urd"}
+{"issue_id":"aura-plugins-o7i9","label":"aura:urd"}
 {"issue_id":"aura-plugins-o7m","label":"aura:p10-impl:s10-review"}
 {"issue_id":"aura-plugins-o7m","label":"aura:severity:important"}
 {"issue_id":"aura-plugins-o7xw","label":"aura:p10-impl:s10-review"}
