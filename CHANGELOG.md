@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.3] - 2026-03-02
+
+### Fixed
+- fix(nix): temporal-dev-server startup ordering + aurad dependency hardening
+- fix(gen-skills): template-owned frontmatter + v2 docs complete
+
+### Other
+- chore: ignores annoying ass bd dolt shit
+- bd: backup 2026-03-02 06:44
+- Merge branch 'aura-protocol'
+- chore: updates marketplace.json
+- chore: release aura v0.8.2
+- Merge commit 'aura-protocol'
+
 ## [0.8.2] - 2026-02-28
 
 ### Fixed
