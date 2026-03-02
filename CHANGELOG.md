@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.0] - 2026-03-02
+
+### Added
+- feat: unify aura-parallel into aura-swarm with dual-mode orchestration
+
+### Other
+- Merge branch 'refactor-parallel-swarm'
+- bd: backup 2026-03-02 07:11
+
 ## [0.8.3] - 2026-03-02
 
 ### Fixed
