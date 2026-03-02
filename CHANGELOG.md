@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.1] - 2026-03-02
+
+### Fixed
+- fix: intree window mode uses current tmux session instead of creating new one
+- fix: beads backups, disable auto-push, data dir, nightmare
+
+### Other
+- chore: beads backup
+- Merge branch 'refactor-parallel-swarm'
+- bd: backup 2026-03-02 19:59
+- bd: backup 2026-03-02 19:19
+- bd: backup 2026-03-02 18:32
+- bd: backup 2026-03-02 08:49
+
 ## [0.9.0] - 2026-03-02
 
 ### Added
