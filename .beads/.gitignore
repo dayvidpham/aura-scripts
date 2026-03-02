@@ -4,6 +4,10 @@
 *.db-journal
 *.db-wal
 *.db-shm
+dolt-config.log
+dolt-server.activity
+dolt-server.lock
+dolt-server.log
 
 # Ephemeral/wisp storage (local-only, regenerated at runtime)
 ephemeral.sqlite3
