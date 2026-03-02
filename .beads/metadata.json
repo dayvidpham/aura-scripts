@@ -3,7 +3,7 @@
   "backend": "dolt",
   "dolt_mode": "server",
   "dolt_server_host": "127.0.0.1",
-  "dolt_server_port": 14078,
-  "dolt_database": "beads_aura",
+  "dolt_server_port": 3307,
+  "dolt_database": "beads_aura-plugins",
   "last_bd_version": "0.49.6"
 }
