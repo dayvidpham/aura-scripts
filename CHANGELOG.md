@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.1] - 2026-03-03
+
+### Added
+- feat(schema): extend schema to fully generate SKILL.md content (R1-R10)
+
+### Other
+- Merge branch 'aura-protocol'
+- test: un-skip 24 tests — Temporal sandbox + constraint violation combinatorial
+- Merge branch 'mvp-fully-schematize-skills'
+- update: aura plugin
+- chore: beads backup
+
 ## [0.9.0] - 2026-03-02
 
 ### Added
