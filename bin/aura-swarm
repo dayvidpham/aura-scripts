@@ -136,20 +136,6 @@ def get_git_root() -> Path | None:
     return None
 
 
-def get_current_tmux_session() -> str | None:
-    """Return the name of the tmux session we are currently inside, or None."""
-    if not os.environ.get("TMUX"):
-        return None
-    result = run_command(
-        ["tmux", "display-message", "-p", "#{session_name}"],
-        capture=True,
-    )
-    if result.returncode != 0:
-        return None
-    name = result.stdout.strip()
-    return name or None
-
-
 def check_tmux_session_exists(session_name: str) -> bool:
     result = run_command(["tmux", "has-session", "-t", session_name], capture=True)
     return result.returncode == 0
@@ -694,9 +680,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         return 1
 
     swarm_mode: str = args.swarm_mode
-    tmux_dest: str = args.tmux_dest if args.tmux_dest is not None else (
-        TmuxDest.WINDOW if swarm_mode == SwarmMode.INTREE else TmuxDest.SESSION
-    )
+    tmux_dest: str = args.tmux_dest
     epic_id: str | None = args.epic
     role: str = args.role
     model: str = args.model
@@ -999,9 +983,7 @@ def _start_intree(
         if session_name_override:
             session_name = session_name_override if njobs == 1 else f"{session_name_override}--{i + 1}"
         elif tmux_dest == TmuxDest.WINDOW:
-            # Use the current tmux session so the window is added there
-            current = get_current_tmux_session()
-            session_name = current if current else f"swarm-{epic_suffix}"
+            session_name = f"swarm-{epic_suffix}"
         else:
             try:
                 session_name = generate_session_name(role, epic_suffix, i + 1, session_task_id)
@@ -1096,9 +1078,8 @@ def _start_intree(
         if successful > 0:
             print()
             if tmux_dest == TmuxDest.WINDOW:
-                target_session = first_session_name or f"swarm-{epic_suffix}"
-                print(f"  All agents in tmux session: {target_session}")
-                print(f"  Attach: tmux attach -t {target_session}")
+                print(f"  All agents in tmux session: swarm-{epic_suffix}")
+                print(f"  Attach: tmux attach -t swarm-{epic_suffix}")
             else:
                 print("Commands:")
                 print(f"  List:    tmux list-sessions | grep {role}")
@@ -1713,7 +1694,7 @@ def build_parser() -> argparse.ArgumentParser:
     start_p = subparsers.add_parser("start", parents=[shared], help="Launch Claude agent(s) in worktree or intree mode")
     start_p.add_argument("--epic", default=None, help="Epic beads ID (required for worktree mode, optional for intree)")
     start_p.add_argument("--swarm-mode", default=SwarmMode.WORKTREE, choices=[SwarmMode.WORKTREE, SwarmMode.INTREE], help="Operation mode (default: worktree)")
-    start_p.add_argument("--tmux-dest", default=None, choices=[TmuxDest.SESSION, TmuxDest.WINDOW], help="Tmux launch target (default: session for worktree, window for intree)")
+    start_p.add_argument("--tmux-dest", default=TmuxDest.SESSION, choices=[TmuxDest.SESSION, TmuxDest.WINDOW], help="Tmux launch target (default: session)")
     start_p.add_argument("-n", "--njobs", type=int, default=1, help="Number of parallel agents (default: 1)")
     start_p.add_argument("--role", default=DEFAULT_ROLE, choices=sorted(VALID_ROLES), help=f"Agent role (default: {DEFAULT_ROLE})")
     start_p.add_argument("--model", default=DEFAULT_MODEL, choices=sorted(VALID_MODELS), help=f"Model to use (default: {DEFAULT_MODEL})")

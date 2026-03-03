@@ -45,6 +45,16 @@ _(No commands assigned to this role)_
 - When: {{ c.when }}
 - Then: {{ c.then }}
 - Should not: {{ c.should_not }}
+{% if c.examples %}
+{% for ex in c.examples %}
+
+```{{ ex.lang.value }}
+{{ ex.code }}
+```
+_Example ({{ ex.label.value }})_{% if ex.also_illustrates %} — also illustrates: {{ ex.also_illustrates }}{% endif %}
+
+{% endfor %}
+{% endif %}
 
 {% endfor %}
 {% else %}
@@ -71,5 +81,84 @@ _(No handoffs for this role)_
 {% endfor %}
 {% else %}
 _(No startup sequence defined for this role)_
+{% endif %}
+{% if introduction %}
+
+### Introduction
+
+{{ introduction }}
+{% endif %}
+{% if ownership_narrative %}
+
+### What You Own
+
+{{ ownership_narrative }}
+{% endif %}
+{% if behaviors %}
+
+### Role Behaviors (Given/When/Then/Should Not)
+
+{% for b in behaviors %}
+**Given** {{ b.given }} **when** {{ b.when }} **then** {{ b.then }} **should never** {{ b.should_not }}
+
+{% endfor %}
+{% endif %}
+{% if checklists %}
+
+### Completion Checklist
+
+{% for cl in checklists %}
+{% for item in cl.items %}
+- [ ] {{ item.text }}
+{% endfor %}
+{% endfor %}
+{% endif %}
+{% if coordination_commands %}
+
+### Inter-Agent Coordination
+
+Agents coordinate through **beads** tasks and comments:
+
+| Action | Command |
+|--------|---------|
+{% for cmd in coordination_commands %}
+| {{ cmd.action }} | `{{ cmd.template }}` |
+{% endfor %}
+{% endif %}
+{% if workflows %}
+
+### Workflows
+
+{% for wf in workflows %}
+#### {{ wf.name }}
+
+{{ wf.description }}
+
+{% for stage in wf.stages %}
+**Stage {{ stage.order }}: {{ stage.name }}** _({{ stage.execution.value }})_
+
+{% for action in stage.actions %}
+- {{ action.instruction }}{% if action.command %} (`{{ action.command }}`){% endif %}
+
+{% endfor %}
+{% if stage.exit_conditions %}
+Exit conditions:
+{% for ec in stage.exit_conditions %}
+- **{{ ec.type.value }}**: {{ ec.condition }}
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+{% endfor %}
+{% endif %}
+{% if review_axes %}
+
+### Review Axes
+
+| Axis | Name | Short | Key Questions |
+|------|------|-------|---------------|
+{% for ax in review_axes %}
+| {{ ax.letter.value }} | {{ ax.name }} | {{ ax.short }} | {% for q in ax.key_questions %}{{ q }}{% if not loop.last %}; {% endif %}{% endfor %} |
+{% endfor %}
 {% endif %}
 <!-- END GENERATED FROM aura schema -->

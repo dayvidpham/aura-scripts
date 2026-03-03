@@ -36,6 +36,16 @@ from aura_protocol import (
     Transition,
     VoteType,
 )
+from aura_protocol.types import (
+    CHECKLIST_SPECS,
+    COORDINATION_COMMANDS,
+    WORKFLOW_SPECS,
+    ExampleLabel,
+    ExampleLang,
+    ExitConditionType,
+    GateType,
+    WorkflowExecution,
+)
 
 # ─── Schema Path ──────────────────────────────────────────────────────────────
 
@@ -725,3 +735,353 @@ class TestProcedureStepsMatchSchema:
         assert step3.next_state == PhaseId.P9_SLICE, (
             f"Worker step 3 next_state expected P9_SLICE, got {step3.next_state!r}"
         )
+
+
+# ─── New enum sync tests (R10) ────────────────────────────────────────────────
+
+
+class TestNewEnumsSyncVsSchema:
+    """Sync tests for new enums: ExampleLabel, ExampleLang, GateType,
+    WorkflowExecution, ExitConditionType vs schema.xml usage."""
+
+    def test_gate_type_values_match_schema_checklist_attrs(
+        self, schema_root: ET.Element
+    ) -> None:
+        """Every gate= attribute on <checklist> elements must be a valid GateType value."""
+        schema_gate_values = {
+            cl.get("gate")
+            for cl in schema_root.iter("checklist")
+            if cl.get("gate")
+        }
+        python_gate_values = {g.value for g in GateType}
+        assert schema_gate_values <= python_gate_values, (
+            f"schema.xml uses gate values not in GateType.\n"
+            f"In schema only: {schema_gate_values - python_gate_values}"
+        )
+
+    def test_workflow_execution_values_match_schema_stage_attrs(
+        self, schema_root: ET.Element
+    ) -> None:
+        """Every execution= attribute on <stage> elements must be a valid WorkflowExecution."""
+        schema_execution_values = {
+            s.get("execution")
+            for s in schema_root.iter("stage")
+            if s.get("execution")
+        }
+        python_execution_values = {e.value for e in WorkflowExecution}
+        assert schema_execution_values <= python_execution_values, (
+            f"schema.xml uses execution values not in WorkflowExecution.\n"
+            f"In schema only: {schema_execution_values - python_execution_values}"
+        )
+
+    def test_exit_condition_type_values_match_schema_attrs(
+        self, schema_root: ET.Element
+    ) -> None:
+        """Every type= attribute on <exit-condition> elements must be in ExitConditionType."""
+        schema_type_values = {
+            ec.get("type")
+            for ec in schema_root.iter("exit-condition")
+            if ec.get("type")
+        }
+        python_type_values = {t.value for t in ExitConditionType}
+        assert schema_type_values <= python_type_values, (
+            f"schema.xml uses exit-condition types not in ExitConditionType.\n"
+            f"In schema only: {schema_type_values - python_type_values}"
+        )
+
+    def test_example_label_has_expected_values(self) -> None:
+        """ExampleLabel enum has all expected values: correct, anti-pattern, context, template."""
+        expected = {"correct", "anti-pattern", "context", "template"}
+        python_values = {v.value for v in ExampleLabel}
+        assert expected == python_values, (
+            f"ExampleLabel mismatch.\n"
+            f"Expected: {expected}\nGot: {python_values}"
+        )
+
+    def test_example_lang_has_expected_values(self) -> None:
+        """ExampleLang enum has all expected values: bash, go, python, pseudo, xml, json, markdown."""
+        expected = {"bash", "go", "python", "pseudo", "xml", "json", "markdown"}
+        python_values = {v.value for v in ExampleLang}
+        assert expected == python_values, (
+            f"ExampleLang mismatch.\n"
+            f"Expected: {expected}\nGot: {python_values}"
+        )
+
+
+# ─── CHECKLIST_SPECS sync tests ───────────────────────────────────────────────
+
+
+class TestChecklistSpecsMatchSchema:
+    """CHECKLIST_SPECS must cover all <checklist> elements in schema.xml."""
+
+    def test_all_schema_checklists_in_python(self, schema_root: ET.Element) -> None:
+        checklists_el = schema_root.find("checklists")
+        if checklists_el is None:
+            pytest.skip("No <checklists> section in schema.xml")
+        schema_checklist_ids = {
+            cl.get("id") for cl in checklists_el.findall("checklist") if cl.get("id")
+        }
+        python_checklist_ids = set(CHECKLIST_SPECS.keys())
+        assert python_checklist_ids == schema_checklist_ids, (
+            f"Checklist mismatch.\n"
+            f"In Python only: {python_checklist_ids - schema_checklist_ids}\n"
+            f"In schema only: {schema_checklist_ids - python_checklist_ids}"
+        )
+
+    def test_checklist_role_refs_match_schema(self, schema_root: ET.Element) -> None:
+        checklists_el = schema_root.find("checklists")
+        if checklists_el is None:
+            return
+        for cl in checklists_el.findall("checklist"):
+            cl_id = cl.get("id")
+            if not cl_id or cl_id not in CHECKLIST_SPECS:
+                continue
+            spec = CHECKLIST_SPECS[cl_id]
+            assert spec.role_ref.value == cl.get("role-ref"), (
+                f"Checklist {cl_id} role_ref mismatch: "
+                f"Python={spec.role_ref.value!r}, schema={cl.get('role-ref')!r}"
+            )
+
+    def test_checklist_gate_matches_schema(self, schema_root: ET.Element) -> None:
+        checklists_el = schema_root.find("checklists")
+        if checklists_el is None:
+            return
+        for cl in checklists_el.findall("checklist"):
+            cl_id = cl.get("id")
+            if not cl_id or cl_id not in CHECKLIST_SPECS:
+                continue
+            spec = CHECKLIST_SPECS[cl_id]
+            assert spec.gate.value == cl.get("gate"), (
+                f"Checklist {cl_id} gate mismatch: "
+                f"Python={spec.gate.value!r}, schema={cl.get('gate')!r}"
+            )
+
+    def test_checklist_item_counts_match_schema(self, schema_root: ET.Element) -> None:
+        checklists_el = schema_root.find("checklists")
+        if checklists_el is None:
+            return
+        for cl in checklists_el.findall("checklist"):
+            cl_id = cl.get("id")
+            if not cl_id or cl_id not in CHECKLIST_SPECS:
+                continue
+            schema_count = len(cl.findall("item"))
+            python_count = len(CHECKLIST_SPECS[cl_id].items)
+            assert python_count == schema_count, (
+                f"Checklist {cl_id} item count mismatch: "
+                f"Python={python_count}, schema={schema_count}"
+            )
+
+
+# ─── COORDINATION_COMMANDS sync tests ─────────────────────────────────────────
+
+
+class TestCoordinationCommandsMatchSchema:
+    """COORDINATION_COMMANDS must cover all <coord-cmd> elements in schema.xml."""
+
+    def test_all_schema_coord_cmds_in_python(self, schema_root: ET.Element) -> None:
+        coord_el = schema_root.find("coordination-commands")
+        if coord_el is None:
+            pytest.skip("No <coordination-commands> section in schema.xml")
+        schema_cmd_ids = {
+            cmd.get("id") for cmd in coord_el.findall("coord-cmd") if cmd.get("id")
+        }
+        python_cmd_ids = set(COORDINATION_COMMANDS.keys())
+        assert python_cmd_ids == schema_cmd_ids, (
+            f"Coordination command mismatch.\n"
+            f"In Python only: {python_cmd_ids - schema_cmd_ids}\n"
+            f"In schema only: {schema_cmd_ids - python_cmd_ids}"
+        )
+
+    def test_shared_flag_matches_schema(self, schema_root: ET.Element) -> None:
+        coord_el = schema_root.find("coordination-commands")
+        if coord_el is None:
+            return
+        for cmd in coord_el.findall("coord-cmd"):
+            cid = cmd.get("id")
+            if not cid or cid not in COORDINATION_COMMANDS:
+                continue
+            spec = COORDINATION_COMMANDS[cid]
+            schema_shared = cmd.get("shared", "false").lower() == "true"
+            assert spec.shared == schema_shared, (
+                f"Coordination command {cid} shared flag mismatch: "
+                f"Python={spec.shared!r}, schema={schema_shared!r}"
+            )
+
+    def test_action_matches_schema(self, schema_root: ET.Element) -> None:
+        coord_el = schema_root.find("coordination-commands")
+        if coord_el is None:
+            return
+        for cmd in coord_el.findall("coord-cmd"):
+            cid = cmd.get("id")
+            if not cid or cid not in COORDINATION_COMMANDS:
+                continue
+            spec = COORDINATION_COMMANDS[cid]
+            assert spec.action == cmd.get("action"), (
+                f"Coordination command {cid} action mismatch: "
+                f"Python={spec.action!r}, schema={cmd.get('action')!r}"
+            )
+
+
+# ─── WORKFLOW_SPECS sync tests ─────────────────────────────────────────────────
+
+
+class TestWorkflowSpecsMatchSchema:
+    """WORKFLOW_SPECS must cover all <workflow> elements in schema.xml."""
+
+    def test_all_schema_workflows_in_python(self, schema_root: ET.Element) -> None:
+        workflows_el = schema_root.find("workflows")
+        if workflows_el is None:
+            pytest.skip("No <workflows> section in schema.xml")
+        schema_wf_ids = {
+            wf.get("id") for wf in workflows_el.findall("workflow") if wf.get("id")
+        }
+        python_wf_ids = set(WORKFLOW_SPECS.keys())
+        assert python_wf_ids == schema_wf_ids, (
+            f"Workflow mismatch.\n"
+            f"In Python only: {python_wf_ids - schema_wf_ids}\n"
+            f"In schema only: {schema_wf_ids - python_wf_ids}"
+        )
+
+    def test_workflow_role_refs_match_schema(self, schema_root: ET.Element) -> None:
+        workflows_el = schema_root.find("workflows")
+        if workflows_el is None:
+            return
+        for wf in workflows_el.findall("workflow"):
+            wid = wf.get("id")
+            if not wid or wid not in WORKFLOW_SPECS:
+                continue
+            spec = WORKFLOW_SPECS[wid]
+            assert spec.role_ref.value == wf.get("role-ref"), (
+                f"Workflow {wid} role_ref mismatch: "
+                f"Python={spec.role_ref.value!r}, schema={wf.get('role-ref')!r}"
+            )
+
+    def test_workflow_stage_counts_match_schema(self, schema_root: ET.Element) -> None:
+        workflows_el = schema_root.find("workflows")
+        if workflows_el is None:
+            return
+        for wf in workflows_el.findall("workflow"):
+            wid = wf.get("id")
+            if not wid or wid not in WORKFLOW_SPECS:
+                continue
+            schema_stage_count = len(wf.findall("stage"))
+            python_stage_count = len(WORKFLOW_SPECS[wid].stages)
+            assert python_stage_count == schema_stage_count, (
+                f"Workflow {wid} stage count mismatch: "
+                f"Python={python_stage_count}, schema={schema_stage_count}"
+            )
+
+
+# ─── ConstraintSpec.command sync tests ────────────────────────────────────────
+
+
+class TestConstraintSpecCommandSync:
+    """ConstraintSpec.command field must match schema.xml constraint command= attribute."""
+
+    def test_constraints_with_command_match_schema(
+        self, schema_root: ET.Element
+    ) -> None:
+        """For constraints with command= attribute in schema.xml, verify Python has it."""
+        for c in schema_root.iter("constraint"):
+            cid = c.get("id")
+            schema_command = c.get("command")
+            if not cid or cid not in CONSTRAINT_SPECS:
+                continue
+            spec = CONSTRAINT_SPECS[cid]
+            assert spec.command == schema_command, (
+                f"Constraint {cid} command mismatch: "
+                f"Python={spec.command!r}, schema={schema_command!r}"
+            )
+
+    def test_constraint_without_command_is_none(
+        self, schema_root: ET.Element
+    ) -> None:
+        """Constraints without command= attribute in schema.xml have command=None."""
+        for c in schema_root.iter("constraint"):
+            cid = c.get("id")
+            if not cid or c.get("command") is not None:
+                continue
+            if cid not in CONSTRAINT_SPECS:
+                continue
+            spec = CONSTRAINT_SPECS[cid]
+            assert spec.command is None, (
+                f"Constraint {cid} should have command=None "
+                f"(no command= in schema.xml), got {spec.command!r}"
+            )
+
+
+# ─── RoleSpec new fields sync tests ───────────────────────────────────────────
+
+
+class TestRoleSpecNewFieldsSync:
+    """RoleSpec.introduction, ownership_narrative, and behaviors must match schema.xml."""
+
+    def test_roles_with_introduction_have_text(self) -> None:
+        """All 5 roles should have introduction text set (non-None, non-empty)."""
+        roles_without = [
+            role_id
+            for role_id, spec in ROLE_SPECS.items()
+            if not spec.introduction
+        ]
+        assert not roles_without, (
+            f"These roles are missing introduction text: {roles_without}"
+        )
+
+    def test_roles_with_ownership_narrative(self) -> None:
+        """All 5 roles should have ownership_narrative set."""
+        roles_without = [
+            role_id
+            for role_id, spec in ROLE_SPECS.items()
+            if not spec.ownership_narrative
+        ]
+        assert not roles_without, (
+            f"These roles are missing ownership_narrative: {roles_without}"
+        )
+
+    def test_role_introduction_matches_schema(
+        self, schema_root: ET.Element
+    ) -> None:
+        """RoleSpec.introduction matches <introduction> child element text in schema.xml."""
+        for role in schema_root.find("roles").findall("role"):  # type: ignore[union-attr]
+            rid_str = role.get("id")
+            if not rid_str:
+                continue
+            try:
+                rid = RoleId(rid_str)
+            except ValueError:
+                continue
+            if rid not in ROLE_SPECS:
+                continue
+            intro_el = role.find("introduction")
+            schema_intro = intro_el.text.strip() if intro_el is not None and intro_el.text else None
+            spec = ROLE_SPECS[rid]
+            assert spec.introduction == schema_intro, (
+                f"Role {rid_str} introduction mismatch: "
+                f"Python={spec.introduction!r}, schema={schema_intro!r}"
+            )
+
+    def test_role_behaviors_count_matches_schema(
+        self, schema_root: ET.Element
+    ) -> None:
+        """RoleSpec.behaviors count matches number of <behavior> children in schema.xml."""
+        for role in schema_root.find("roles").findall("role"):  # type: ignore[union-attr]
+            rid_str = role.get("id")
+            if not rid_str:
+                continue
+            try:
+                rid = RoleId(rid_str)
+            except ValueError:
+                continue
+            if rid not in ROLE_SPECS:
+                continue
+            behaviors_el = role.find("behaviors")
+            schema_count = (
+                len(behaviors_el.findall("behavior"))
+                if behaviors_el is not None
+                else 0
+            )
+            python_count = len(ROLE_SPECS[rid].behaviors)
+            assert python_count == schema_count, (
+                f"Role {rid_str} behaviors count mismatch: "
+                f"Python={python_count}, schema={schema_count}"
+            )

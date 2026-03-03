@@ -960,3 +960,455 @@ class TestProcedureStepFormatting:
             "Expected at least one em-dash italic context pattern ( — _..._) in "
             "generate_skill() output for the supervisor role."
         )
+
+
+# ─── SLICE-3: New template sections ───────────────────────────────────────────
+
+
+class TestIntroductionSection:
+    """### Introduction section rendered for roles that have introduction text."""
+
+    @pytest.mark.parametrize("role_id", ALL_ROLES)
+    def test_introduction_section_present_when_role_has_intro(
+        self,
+        role_id: RoleId,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Introduction section must appear when role has introduction text."""
+        from aura_protocol.types import ROLE_SPECS
+        role_spec = ROLE_SPECS[role_id]
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content, filename=f"SKILL_{role_id.value}.md")
+
+        result = generate_skill(
+            role_id,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        if role_spec.introduction is not None:
+            assert "### Introduction" in result, (
+                f"Role {role_id} has introduction but '### Introduction' not found in output."
+            )
+            assert role_spec.introduction in result, (
+                f"Introduction text not found in output for role {role_id}."
+            )
+        else:
+            assert "### Introduction" not in result, (
+                f"Role {role_id} has no introduction but '### Introduction' found in output."
+            )
+
+    def test_worker_has_introduction_section(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Worker must render an Introduction section (worker has introduction text)."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Introduction" in result
+
+
+class TestWhatYouOwnSection:
+    """### What You Own section rendered for roles that have ownership_narrative."""
+
+    @pytest.mark.parametrize("role_id", ALL_ROLES)
+    def test_what_you_own_present_when_role_has_narrative(
+        self,
+        role_id: RoleId,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """What You Own section must appear when role has ownership_narrative."""
+        from aura_protocol.types import ROLE_SPECS
+        role_spec = ROLE_SPECS[role_id]
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content, filename=f"SKILL_{role_id.value}.md")
+
+        result = generate_skill(
+            role_id,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        if role_spec.ownership_narrative is not None:
+            assert "### What You Own" in result, (
+                f"Role {role_id} has ownership_narrative but '### What You Own' not found."
+            )
+        else:
+            assert "### What You Own" not in result, (
+                f"Role {role_id} has no ownership_narrative but '### What You Own' found."
+            )
+
+
+class TestRoleBehaviorsSection:
+    """### Role Behaviors section rendered with GWT format."""
+
+    @pytest.mark.parametrize("role_id", ALL_ROLES)
+    def test_behaviors_section_present_when_role_has_behaviors(
+        self,
+        role_id: RoleId,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Role Behaviors section must appear when role has behavior specs."""
+        from aura_protocol.types import ROLE_SPECS
+        role_spec = ROLE_SPECS[role_id]
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content, filename=f"SKILL_{role_id.value}.md")
+
+        result = generate_skill(
+            role_id,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        if role_spec.behaviors:
+            assert "### Role Behaviors" in result, (
+                f"Role {role_id} has behaviors but '### Role Behaviors' not found."
+            )
+            # Each behavior has given/when/then/should_not fields
+            assert "Given:" in result or "- Given:" in result, (
+                f"Behavior GWT format not found for role {role_id}."
+            )
+        else:
+            assert "### Role Behaviors" not in result, (
+                f"Role {role_id} has no behaviors but '### Role Behaviors' found."
+            )
+
+    def test_worker_has_behaviors_section(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Worker role must render a Role Behaviors section."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Role Behaviors" in result
+
+
+class TestCompletionChecklistSection:
+    """### Completion Checklist section rendered from CHECKLIST_SPECS."""
+
+    def test_worker_has_completion_checklist(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Worker must render a Completion Checklist section."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Completion Checklist" in result, (
+            "Worker must have '### Completion Checklist' section."
+        )
+
+    def test_supervisor_has_completion_checklist(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Supervisor must render a Completion Checklist section."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Completion Checklist" in result, (
+            "Supervisor must have '### Completion Checklist' section."
+        )
+
+    def test_checklist_items_use_checkbox_format(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Checklist items must use markdown checkbox format `- [ ]`."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "- [ ]" in result, (
+            "Completion checklist items must use '- [ ]' checkbox format."
+        )
+
+
+class TestInterAgentCoordinationSection:
+    """### Inter-Agent Coordination section rendered as table from COORDINATION_COMMANDS."""
+
+    @pytest.mark.parametrize("role_id", ALL_ROLES)
+    def test_coordination_section_present_for_all_roles(
+        self,
+        role_id: RoleId,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """All roles must have an Inter-Agent Coordination section (all have shared commands)."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content, filename=f"SKILL_{role_id.value}.md")
+
+        result = generate_skill(
+            role_id,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Inter-Agent Coordination" in result, (
+            f"Role {role_id} must have '### Inter-Agent Coordination' section."
+        )
+
+    def test_coordination_section_is_table(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Coordination section must render as a markdown table with header row."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        # Table must have | Action | Command | header
+        assert "| Action |" in result or "| Action|" in result, (
+            "Coordination table must have 'Action' column header."
+        )
+
+    def test_worker_coordination_includes_shared_commands(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Worker coordination table must include shared commands (bd show, bd update, etc.)."""
+        from aura_protocol.types import COORDINATION_COMMANDS
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        shared_commands = [cmd for cmd in COORDINATION_COMMANDS.values() if cmd.shared]
+        for cmd in shared_commands:
+            assert cmd.action in result, (
+                f"Shared command '{cmd.action}' not found in worker coordination section."
+            )
+
+
+class TestWorkflowsSection:
+    """### Workflows section rendered from WORKFLOW_SPECS."""
+
+    def test_supervisor_has_workflows_section(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Supervisor must render a Workflows section (has Ride the Wave)."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Workflows" in result, (
+            "Supervisor must have '### Workflows' section."
+        )
+
+    def test_worker_has_workflows_section(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Worker must render a Workflows section (has Layer Cake)."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Workflows" in result, (
+            "Worker must have '### Workflows' section."
+        )
+
+    def test_supervisor_workflow_contains_stages(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Supervisor workflow must render stage names."""
+        from aura_protocol.types import WORKFLOW_SPECS
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        supervisor_workflows = [
+            wf for wf in WORKFLOW_SPECS.values()
+            if wf.role_ref.value == "supervisor"
+        ]
+        for wf in supervisor_workflows:
+            for stage in wf.stages:
+                assert stage.name in result, (
+                    f"Stage '{stage.name}' from workflow '{wf.name}' not found in output."
+                )
+
+
+class TestReviewAxesSection:
+    """### Review Axes section rendered for reviewer only."""
+
+    def test_reviewer_has_review_axes_section(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Reviewer must render a Review Axes section."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.REVIEWER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Review Axes" in result, (
+            "Reviewer must have '### Review Axes' section."
+        )
+
+    @pytest.mark.parametrize("role_id", [RoleId.WORKER, RoleId.SUPERVISOR, RoleId.ARCHITECT])
+    def test_non_reviewer_roles_have_no_review_axes_section(
+        self,
+        role_id: RoleId,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Non-reviewer roles must NOT have a Review Axes section."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content, filename=f"SKILL_{role_id.value}.md")
+
+        result = generate_skill(
+            role_id,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Review Axes" not in result, (
+            f"Role {role_id} must NOT have '### Review Axes' section."
+        )
+
+    def test_review_axes_section_has_table(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Reviewer Review Axes section must render as a markdown table."""
+        from aura_protocol.types import REVIEW_AXIS_SPECS
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.REVIEWER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        for axis_spec in REVIEW_AXIS_SPECS.values():
+            assert axis_spec.name in result, (
+                f"Review axis '{axis_spec.name}' not found in reviewer output."
+            )
+
+
+class TestConstraintCodeExamplesSection:
+    """Constraint code examples rendered inline under each constraint."""
+
+    def test_constraint_with_examples_renders_code_fence(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """A constraint with examples must render a code fence block."""
+        from aura_protocol.types import CONSTRAINT_SPECS
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        # Check if any role has constraints with examples
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        # Find worker constraints with examples
+        worker_constraints_with_examples = [
+            spec for spec in CONSTRAINT_SPECS.values()
+            if spec.examples
+        ]
+
+        if worker_constraints_with_examples:
+            # Code fences must appear
+            assert "```" in result, (
+                "Code fence must appear when a constraint has examples."
+            )

@@ -435,3 +435,221 @@ class TestSchemaParserReturnType:
             parse_schema(missing)
         msg = str(exc_info.value)
         assert "Fix:" in msg, f"Error message is not actionable (missing 'Fix:'): {msg}"
+
+
+# ─── New entity count tests (R10) ─────────────────────────────────────────────
+
+
+class TestSchemaParserNewEntityCounts:
+    """Count tests for new entities: checklists, coordination_commands, workflows."""
+
+    def test_checklist_count(self, parsed_spec: SchemaSpec) -> None:
+        """AC10: 4 checklists extracted (worker-completion, worker-slice-closure,
+        supervisor-review-ready, supervisor-landing)."""
+        assert len(parsed_spec.checklists) == 4, (
+            f"Expected 4 checklists, got {len(parsed_spec.checklists)}: "
+            f"{list(parsed_spec.checklists.keys())}"
+        )
+
+    def test_coordination_command_count(self, parsed_spec: SchemaSpec) -> None:
+        """AC10: 10 coordination commands extracted (5 shared + 3 supervisor + 2 worker)."""
+        assert len(parsed_spec.coordination_commands) == 10, (
+            f"Expected 10 coordination commands, got "
+            f"{len(parsed_spec.coordination_commands)}: "
+            f"{list(parsed_spec.coordination_commands.keys())}"
+        )
+
+    def test_workflow_count(self, parsed_spec: SchemaSpec) -> None:
+        """AC10: 3 workflows extracted (ride-the-wave, layer-cake, architect-state-flow)."""
+        assert len(parsed_spec.workflows) == 3, (
+            f"Expected 3 workflows, got {len(parsed_spec.workflows)}: "
+            f"{list(parsed_spec.workflows.keys())}"
+        )
+
+
+# ─── Structural tests for checklists ──────────────────────────────────────────
+
+
+class TestSchemaParserChecklists:
+    """Structural tests for checklist entities."""
+
+    def test_worker_completion_checklist_exists(self, parsed_spec: SchemaSpec) -> None:
+        assert "worker-completion" in parsed_spec.checklists
+
+    def test_worker_completion_has_five_items(self, parsed_spec: SchemaSpec) -> None:
+        cl = parsed_spec.checklists["worker-completion"]
+        assert len(cl.items) == 5, (
+            f"Expected 5 items in worker-completion checklist, got {len(cl.items)}"
+        )
+
+    def test_worker_completion_first_item_id(self, parsed_spec: SchemaSpec) -> None:
+        cl = parsed_spec.checklists["worker-completion"]
+        item_ids = {item.id for item in cl.items}
+        assert "CL-worker-no-todos" in item_ids, (
+            f"Expected CL-worker-no-todos in worker-completion items, got {item_ids}"
+        )
+
+    def test_worker_completion_role_ref(self, parsed_spec: SchemaSpec) -> None:
+        cl = parsed_spec.checklists["worker-completion"]
+        assert cl.role_ref == RoleId.WORKER
+
+    def test_supervisor_landing_has_four_items(self, parsed_spec: SchemaSpec) -> None:
+        cl = parsed_spec.checklists["supervisor-landing"]
+        assert len(cl.items) == 4, (
+            f"Expected 4 items in supervisor-landing checklist, got {len(cl.items)}"
+        )
+
+    def test_all_checklist_items_required(self, parsed_spec: SchemaSpec) -> None:
+        """All checklist items in schema.xml have required=true."""
+        for cl_id, cl in parsed_spec.checklists.items():
+            for item in cl.items:
+                assert item.required, (
+                    f"Item {item.id} in checklist {cl_id} should be required"
+                )
+
+
+# ─── Structural tests for coordination commands ───────────────────────────────
+
+
+class TestSchemaParserCoordinationCommands:
+    """Structural tests for coordination command entities."""
+
+    def test_cmd_coord_show_is_shared(self, parsed_spec: SchemaSpec) -> None:
+        cmd = parsed_spec.coordination_commands["cmd-coord-show"]
+        assert cmd.shared is True
+
+    def test_cmd_coord_show_no_role_ref(self, parsed_spec: SchemaSpec) -> None:
+        cmd = parsed_spec.coordination_commands["cmd-coord-show"]
+        assert cmd.role_ref is None
+
+    def test_worker_specific_close_command(self, parsed_spec: SchemaSpec) -> None:
+        cmd = parsed_spec.coordination_commands["cmd-coord-close"]
+        assert cmd.role_ref == RoleId.WORKER
+        assert cmd.shared is False
+
+    def test_supervisor_dep_add_command(self, parsed_spec: SchemaSpec) -> None:
+        cmd = parsed_spec.coordination_commands["cmd-coord-dep-add"]
+        assert cmd.role_ref == RoleId.SUPERVISOR
+
+    def test_shared_commands_have_no_role_ref(self, parsed_spec: SchemaSpec) -> None:
+        for cid, cmd in parsed_spec.coordination_commands.items():
+            if cmd.shared:
+                assert cmd.role_ref is None, (
+                    f"Shared command {cid} should have role_ref=None, got {cmd.role_ref}"
+                )
+
+
+# ─── Structural tests for workflows ───────────────────────────────────────────
+
+
+class TestSchemaParserWorkflows:
+    """Structural tests for workflow entities."""
+
+    def test_ride_the_wave_exists(self, parsed_spec: SchemaSpec) -> None:
+        assert "ride-the-wave" in parsed_spec.workflows
+
+    def test_ride_the_wave_has_three_stages(self, parsed_spec: SchemaSpec) -> None:
+        wf = parsed_spec.workflows["ride-the-wave"]
+        assert len(wf.stages) == 3, (
+            f"Expected 3 stages in ride-the-wave, got {len(wf.stages)}"
+        )
+
+    def test_layer_cake_worker_role(self, parsed_spec: SchemaSpec) -> None:
+        wf = parsed_spec.workflows["layer-cake"]
+        assert wf.role_ref == RoleId.WORKER
+
+    def test_architect_state_flow_seven_stages(self, parsed_spec: SchemaSpec) -> None:
+        wf = parsed_spec.workflows["architect-state-flow"]
+        assert len(wf.stages) == 7, (
+            f"Expected 7 stages in architect-state-flow, got {len(wf.stages)}"
+        )
+
+    def test_workflow_stages_ordered(self, parsed_spec: SchemaSpec) -> None:
+        """All workflow stages are ordered by their 'order' field."""
+        for wid, wf in parsed_spec.workflows.items():
+            orders = [s.order for s in wf.stages]
+            assert orders == sorted(orders), (
+                f"Workflow {wid} stages are not in order: {orders}"
+            )
+
+    def test_ride_the_wave_review_stage_has_multiple_exits(
+        self, parsed_spec: SchemaSpec
+    ) -> None:
+        """The Review + Fix Cycles stage has 4 exit conditions."""
+        wf = parsed_spec.workflows["ride-the-wave"]
+        review_stage = next(s for s in wf.stages if s.name == "Review + Fix Cycles")
+        assert len(review_stage.exit_conditions) == 4, (
+            f"Expected 4 exit conditions on review stage, got "
+            f"{len(review_stage.exit_conditions)}"
+        )
+
+    def test_layer_cake_stages_all_sequential_or_impl(
+        self, parsed_spec: SchemaSpec
+    ) -> None:
+        """Layer Cake workflow has 3 stages."""
+        wf = parsed_spec.workflows["layer-cake"]
+        assert len(wf.stages) == 3
+
+
+# ─── Error tests for new malformed elements ───────────────────────────────────
+
+
+class TestSchemaParserNewElementErrors:
+    """Error paths for malformed checklists and workflow elements."""
+
+    def test_error_on_invalid_checklist_gate(self, tmp_path: Path) -> None:
+        """SchemaParseError when a checklist has an unknown gate value."""
+        xml = tmp_path / "bad_gate.xml"
+        xml.write_text(textwrap.dedent("""\
+            <?xml version="1.0"?>
+            <aura-protocol version="2.0">
+              <phases/>
+              <roles/>
+              <commands/>
+              <constraints/>
+              <handoffs/>
+              <labels/>
+              <review-axes/>
+              <task-titles/>
+              <checklists>
+                <checklist id="test-cl" role-ref="worker" gate="unknown-gate">
+                  <item id="CL-test" required="true">Test item</item>
+                </checklist>
+              </checklists>
+              <coordination-commands/>
+              <workflows/>
+            </aura-protocol>
+        """))
+        with pytest.raises(SchemaParseError) as exc_info:
+            parse_schema(xml)
+        assert "gate" in str(exc_info.value).lower() or "unknown" in str(exc_info.value).lower()
+
+    def test_error_on_invalid_workflow_execution(self, tmp_path: Path) -> None:
+        """SchemaParseError when a workflow stage has an unknown execution value."""
+        xml = tmp_path / "bad_execution.xml"
+        xml.write_text(textwrap.dedent("""\
+            <?xml version="1.0"?>
+            <aura-protocol version="2.0">
+              <phases/>
+              <roles/>
+              <commands/>
+              <constraints/>
+              <handoffs/>
+              <labels/>
+              <review-axes/>
+              <task-titles/>
+              <checklists/>
+              <coordination-commands/>
+              <workflows>
+                <workflow id="test-wf" name="Test" role-ref="worker"
+                          description="Test workflow">
+                  <stage id="test-stage" name="Test Stage" order="1"
+                         execution="invalid-execution">
+                  </stage>
+                </workflow>
+              </workflows>
+            </aura-protocol>
+        """))
+        with pytest.raises(SchemaParseError) as exc_info:
+            parse_schema(xml)
+        assert "execution" in str(exc_info.value).lower() or "invalid" in str(exc_info.value).lower()

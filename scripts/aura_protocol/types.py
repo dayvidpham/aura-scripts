@@ -136,6 +136,69 @@ class SubstepType(StrEnum):
     LANDING = "landing"
 
 
+class ExampleLabel(StrEnum):
+    """Label type for a code example.
+
+    Values match schema.xml <example label="..."> attributes.
+    """
+
+    CORRECT = "correct"
+    ANTI_PATTERN = "anti-pattern"
+    CONTEXT = "context"
+    TEMPLATE = "template"
+
+
+class ExampleLang(StrEnum):
+    """Programming language / format for a code example.
+
+    Values match schema.xml <example lang="..."> attributes.
+    """
+
+    BASH = "bash"
+    GO = "go"
+    PYTHON = "python"
+    PSEUDO = "pseudo"
+    XML = "xml"
+    JSON = "json"
+    MARKDOWN = "markdown"
+
+
+class GateType(StrEnum):
+    """Quality gate type for a completion checklist.
+
+    Values match schema.xml <checklist gate="..."> attributes.
+    """
+
+    COMPLETION = "completion"
+    SLICE_CLOSURE = "slice-closure"
+    REVIEW_READY = "review-ready"
+    LANDING = "landing"
+
+
+class WorkflowExecution(StrEnum):
+    """Execution mode for a workflow stage.
+
+    Values match schema.xml <stage execution="..."> attributes.
+    """
+
+    SEQUENTIAL = "sequential"
+    PARALLEL = "parallel"
+    CONDITIONAL_LOOP = "conditional-loop"
+
+
+class ExitConditionType(StrEnum):
+    """Exit condition outcome classification for a workflow stage.
+
+    Values match schema.xml <exit-condition type="..."> attributes.
+    Closed enum — known set of exit outcomes; use ExitConditionType not str.
+    """
+
+    SUCCESS = "success"
+    CONTINUE = "continue"
+    ESCALATE = "escalate"
+    PROCEED = "proceed"
+
+
 # ─── Step Slug + Skill Ref Namespaces ─────────────────────────────────────────
 
 
@@ -290,6 +353,8 @@ class ConstraintSpec:
     """A single protocol constraint in Given/When/Then/Should-not format.
 
     Derived from schema.xml <constraint> elements.
+    command: optional primary command to run for this constraint (e.g. 'git agent-commit -m ...').
+    examples: optional code examples illustrating correct / anti-pattern usage.
     """
 
     id: str
@@ -297,6 +362,8 @@ class ConstraintSpec:
     when: str
     then: str
     should_not: str
+    command: str | None = None
+    examples: tuple[CodeExample, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -337,12 +404,18 @@ class RoleSpec:
 
     Derived from schema.xml <role> elements.
     owned_phases uses frozenset for hashability.
+    introduction: 1-2 sentence opener describing the role's purpose.
+    ownership_narrative: prose description of what the role owns (the "What You Own" section).
+    behaviors: tactical Given/When/Then guidance specific to this role (not formal protocol constraints).
     """
 
     id: RoleId
     name: str
     description: str
     owned_phases: frozenset[PhaseId]
+    introduction: str | None = None
+    ownership_narrative: str | None = None
+    behaviors: tuple[BehaviorSpec, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -430,6 +503,7 @@ class ProcedureStep:
         command:     Optional exact shell/bd command to run (e.g. 'bd dep add ...').
         context:     Optional situational context (e.g. 'only if working on a follow-up').
         next_state:  Phase this step transitions to, if any.
+        examples:    Optional code examples illustrating how to execute this step.
     """
 
     id: str
@@ -438,6 +512,7 @@ class ProcedureStep:
     command: str | None = None
     context: str | None = None
     next_state: PhaseId | None = None
+    examples: tuple[CodeExample, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -521,6 +596,143 @@ class PermissionDecision:
 
     allowed: bool
     reason: str | None = None
+
+
+# ─── Schema Extension Dataclasses ─────────────────────────────────────────────
+# New types for R1-R7: code examples on constraints/steps, role behaviors,
+# completion checklists, coordination commands, and workflow specifications.
+# Placement: before canonical dicts so instances can be created in dict literals.
+
+
+@dataclass(frozen=True)
+class CodeExample:
+    """A labeled code example for a constraint or procedure step.
+
+    Derived from schema.xml <example> child elements under <constraint> or <step>.
+    also_illustrates: optional cross-reference to another constraint or concept.
+    """
+
+    id: str
+    lang: ExampleLang
+    label: ExampleLabel
+    code: str
+    also_illustrates: str | None = None
+
+
+@dataclass(frozen=True)
+class BehaviorSpec:
+    """A role-tactical behavior in Given/When/Then/Should-not format.
+
+    Distinct from ConstraintSpec: behaviors are role-specific guidance that are NOT
+    formal protocol constraints — they are best-practice patterns captured from
+    hand-written SKILL.md sections.
+    Derived from schema.xml <behavior> child elements under <role>.
+    """
+
+    id: str
+    given: str
+    when: str
+    then: str
+    should_not: str
+
+
+@dataclass(frozen=True)
+class ChecklistItem:
+    """A single item in a completion checklist.
+
+    Derived from schema.xml <item> child elements under <checklist>.
+    required: whether this item is mandatory (True) or optional (False).
+    """
+
+    id: str
+    text: str
+    required: bool = True
+
+
+@dataclass(frozen=True)
+class Checklist:
+    """A completion checklist for a role at a specific quality gate.
+
+    Derived from schema.xml <checklist> elements within <checklists>.
+    Keyed in CHECKLIST_SPECS by "{role}-{gate}".
+    """
+
+    role_ref: RoleId
+    gate: GateType
+    items: tuple[ChecklistItem, ...]
+
+
+@dataclass(frozen=True)
+class CoordinationCommand:
+    """A coordination command for inter-agent communication via Beads.
+
+    Derived from schema.xml <coordination-command> elements.
+    role_ref: None means the command is shared across all roles.
+    shared: True when the command appears in every role's coordination table.
+    """
+
+    id: str
+    action: str
+    template: str
+    role_ref: RoleId | None = None
+    shared: bool = False
+
+
+@dataclass(frozen=True)
+class WorkflowAction:
+    """A single action within a workflow stage.
+
+    Derived from schema.xml <action> child elements under <stage>.
+    command: optional concrete shell/tool command to run for this action.
+    """
+
+    id: str
+    instruction: str
+    command: str | None = None
+
+
+@dataclass(frozen=True)
+class ExitCondition:
+    """An exit condition for a workflow stage.
+
+    Derived from schema.xml <exit-condition> child elements under <stage>.
+    type: MUST be ExitConditionType (closed enum), NOT str.
+    """
+
+    type: ExitConditionType
+    condition: str
+
+
+@dataclass(frozen=True)
+class WorkflowStage:
+    """A single stage in an agent workflow.
+
+    Derived from schema.xml <stage> child elements under <workflow>.
+    phase_ref: optional phase this stage maps to in the 12-phase lifecycle.
+    """
+
+    id: str
+    name: str
+    order: int
+    execution: WorkflowExecution
+    phase_ref: PhaseId | None = None
+    actions: tuple[WorkflowAction, ...] = ()
+    exit_conditions: tuple[ExitCondition, ...] = ()
+
+
+@dataclass(frozen=True)
+class Workflow:
+    """A complete workflow specification for an agent role.
+
+    Derived from schema.xml <workflow> elements within <workflows>.
+    Keyed in WORKFLOW_SPECS by workflow id.
+    """
+
+    id: str
+    name: str
+    role_ref: RoleId
+    description: str
+    stages: tuple[WorkflowStage, ...]
 
 
 # ─── Phase-Domain Mapping ─────────────────────────────────────────────────────
@@ -741,6 +953,7 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         when="creating new task",
         then="chain dependency: bd dep add parent --blocked-by child",
         should_not="skip dependency chaining or invert direction",
+        command="bd dep add <parent> --blocked-by <child>",
     ),
     "C-review-consensus": ConstraintSpec(
         id="C-review-consensus",
@@ -868,6 +1081,7 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
             "create slices without leaf tasks — "
             "a slice with no children is undecomposed and cannot be tracked"
         ),
+        command="bd dep add <slice-id> --blocked-by <leaf-task-id>",
     ),
     "C-handoff-skill-invocation": ConstraintSpec(
         id="C-handoff-skill-invocation",
@@ -888,6 +1102,7 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         when="determining direction",
         then="parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first",
         should_not="invert (child blocked-by parent)",
+        command="bd dep add <stays-open> --blocked-by <must-finish-first>",
     ),
     "C-frontmatter-refs": ConstraintSpec(
         id="C-frontmatter-refs",
@@ -902,6 +1117,7 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         when="committing",
         then="use git agent-commit -m ...",
         should_not="use git commit -m ...",
+        command="git agent-commit -m ...",
     ),
     "C-proposal-naming": ConstraintSpec(
         id="C-proposal-naming",
@@ -1055,6 +1271,17 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
             PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE,
             PhaseId.P10_CODE_REVIEW, PhaseId.P11_IMPL_UAT, PhaseId.P12_LANDING,
         }),
+        introduction=(
+            "You are the master orchestrator for the full 12-phase epoch lifecycle. "
+            "You delegate planning phases (1-7) to the architect and implementation phases (7-12) "
+            "to the supervisor."
+        ),
+        ownership_narrative=(
+            "You own the full 12-phase lifecycle from Request to Landing. "
+            "You delegate phases 1-7 to the architect and phases 7-12 to the supervisor. "
+            "The epoch role coordinates the complete workflow end-to-end and is the only role "
+            "that spans all phases."
+        ),
     ),
     RoleId.ARCHITECT: RoleSpec(
         id=RoleId.ARCHITECT,
@@ -1065,12 +1292,104 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
             PhaseId.P4_REVIEW, PhaseId.P5_UAT, PhaseId.P6_RATIFY,
             PhaseId.P7_HANDOFF,
         }),
+        introduction=(
+            "You design specifications and coordinate the planning phases of epochs. "
+            "See the project's AGENTS.md and ~/.claude/CLAUDE.md for coding standards and constraints."
+        ),
+        ownership_narrative=(
+            "You own Phases 1-7 of the epoch: "
+            "capture and classify user request (p1), "
+            "run requirements elicitation URE survey (p2), "
+            "create PROPOSAL-N with full technical plan (p3), "
+            "spawn 3 axis-specific reviewers and loop until consensus (p4), "
+            "present plan to user for acceptance test (p5), "
+            "add ratify label to accepted PROPOSAL-N (p6), "
+            "create handoff document and transfer to supervisor (p7)."
+        ),
+        behaviors=(
+            BehaviorSpec(
+                id="B-arch-elicit",
+                given="user request captured",
+                when="starting",
+                then="run /aura:user-elicit for URE survey",
+                should_not="skip elicitation phase",
+            ),
+            BehaviorSpec(
+                id="B-arch-bdd",
+                given="a feature request",
+                when="writing plan",
+                then="use BDD Given/When/Then format with acceptance criteria",
+                should_not="write vague requirements",
+            ),
+            BehaviorSpec(
+                id="B-arch-reviewers",
+                given="plan ready",
+                when="requesting review",
+                then="spawn 3 axis-specific reviewers (A=Correctness, B=Test quality, C=Elegance)",
+                should_not="spawn reviewers without axis assignment",
+            ),
+            BehaviorSpec(
+                id="B-arch-uat",
+                given="consensus reached (all 3 ACCEPT)",
+                when="proceeding",
+                then="run /aura:user-uat before ratifying",
+                should_not="skip user acceptance test",
+            ),
+            BehaviorSpec(
+                id="B-arch-ratify",
+                given="UAT passed",
+                when="ratifying",
+                then="add aura:p6-plan:s6-ratify label to PROPOSAL-N",
+                should_not="close or delete the proposal task",
+            ),
+        ),
     ),
     RoleId.REVIEWER: RoleSpec(
         id=RoleId.REVIEWER,
         name="Reviewer",
         description="End-user alignment reviewer for plans and code",
         owned_phases=frozenset({PhaseId.P4_REVIEW, PhaseId.P10_CODE_REVIEW}),
+        introduction=(
+            "You review from an end-user alignment perspective. "
+            "See the project's protocol/CONSTRAINTS.md for coding standards."
+        ),
+        ownership_narrative=(
+            "You participate in two phases: "
+            "Phase 4 (plan review) — evaluate PROPOSAL-N against one axis using binary ACCEPT/REVISE, "
+            "NO severity tree; "
+            "Phase 10 (code review) — review ALL implementation slices against your axis using "
+            "full severity tree (BLOCKER/IMPORTANT/MINOR), EAGER creation of all 3 severity groups."
+        ),
+        behaviors=(
+            BehaviorSpec(
+                id="B-rev-end-user",
+                given="a review assignment",
+                when="reviewing",
+                then="apply end-user alignment criteria",
+                should_not="focus only on technical details",
+            ),
+            BehaviorSpec(
+                id="B-rev-revise-feedback",
+                given="issues found",
+                when="voting",
+                then="vote REVISE with specific actionable feedback",
+                should_not="vote REVISE without suggestions",
+            ),
+            BehaviorSpec(
+                id="B-rev-accept",
+                given="all criteria met",
+                when="voting",
+                then="vote ACCEPT with brief rationale",
+                should_not="delay consensus unnecessarily",
+            ),
+            BehaviorSpec(
+                id="B-rev-all-slices",
+                given="impl review (Phase 10)",
+                when="assigned",
+                then="review ALL slices (not just one)",
+                should_not="skip any slice",
+            ),
+        ),
     ),
     RoleId.SUPERVISOR: RoleSpec(
         id=RoleId.SUPERVISOR,
@@ -1080,12 +1399,119 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
             PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE,
             PhaseId.P10_CODE_REVIEW, PhaseId.P11_IMPL_UAT, PhaseId.P12_LANDING,
         }),
+        introduction=(
+            "You coordinate parallel task execution. "
+            "See the project's AGENTS.md and ~/.claude/CLAUDE.md for coding standards and constraints."
+        ),
+        ownership_narrative=(
+            "You own Phases 7-12 of the epoch: "
+            "receive handoff from architect (p7), "
+            "create vertical slice decomposition IMPL_PLAN (p8), "
+            "spawn workers for parallel implementation SLICE-N (p9), "
+            "spawn 3 Cartographer/reviewers for ALL slices with severity tree (p10), "
+            "coordinate user acceptance test (p11), "
+            "commit, push, and hand off (p12). "
+            "You NEVER implement code directly — all implementation is delegated to workers."
+        ),
+        behaviors=(
+            BehaviorSpec(
+                id="B-sup-read-context",
+                given="handoff received",
+                when="starting",
+                then="read ratified plan, URD, UAT, and elicit tasks for full context",
+                should_not="start without reading all four",
+            ),
+            BehaviorSpec(
+                id="B-sup-model-trivial",
+                given="trivial changes (single-file edits, config tweaks, typo fixes)",
+                when="spawning a worker",
+                then="use model: haiku to minimize cost and latency",
+                should_not="use a heavyweight model for trivial work",
+            ),
+            BehaviorSpec(
+                id="B-sup-model-nontrivial",
+                given="non-trivial changes (multi-file, architectural, logic-heavy)",
+                when="spawning a worker",
+                then="prefer model: sonnet for the Task tool to ensure quality",
+                should_not="default to haiku for complex work",
+            ),
+            BehaviorSpec(
+                id="B-sup-cartographer-reuse",
+                given="standing explore team exists",
+                when="needing to understand a codebase area",
+                then=(
+                    "send a scoped query to the relevant explore agent via SendMessage; "
+                    "reuse the same agent for follow-up questions on the same topic"
+                ),
+                should_not="spawn a new explore agent for a topic that an existing agent already covers",
+            ),
+            BehaviorSpec(
+                id="B-sup-ride-the-wave",
+                given="Phase 8-10 execution",
+                when="starting implementation",
+                then=(
+                    "follow the Ride the Wave cycle: plan tasks with integration points, "
+                    "launch 3 Cartographers, launch the wave of workers, "
+                    "Cartographers review, workers fix, repeat max 3 cycles"
+                ),
+                should_not="skip any stage or shut down Cartographers/workers between stages",
+            ),
+        ),
     ),
     RoleId.WORKER: RoleSpec(
         id=RoleId.WORKER,
         name="Worker",
         description="Vertical slice implementer (full production code path)",
         owned_phases=frozenset({PhaseId.P9_SLICE}),
+        introduction=(
+            "You own a vertical slice (full production code path from CLI/API entry point "
+            "→ service → types). "
+            "See the project's AGENTS.md and ~/.claude/CLAUDE.md for coding standards and constraints."
+        ),
+        ownership_narrative=(
+            "NOT: A single file or horizontal layer (e.g., 'all types' or 'all tests'). "
+            "YES: A full vertical slice (complete production code path end-to-end). "
+            "You own the FEATURE end-to-end, not a layer or file. "
+            "Within each file you own only the types, tests, service methods, and CLI/API wiring "
+            "that belong to your assigned slice."
+        ),
+        behaviors=(
+            BehaviorSpec(
+                id="B-worker-vertical-ownership",
+                given="vertical slice assignment",
+                when="implementing",
+                then="own full production code path (types → tests → impl → wiring)",
+                should_not="implement only horizontal layer",
+            ),
+            BehaviorSpec(
+                id="B-worker-plan-backwards",
+                given="production code path",
+                when="planning",
+                then="plan backwards from end point to types",
+                should_not="start with types without knowing the end",
+            ),
+            BehaviorSpec(
+                id="B-worker-test-production-code",
+                given="tests",
+                when="writing",
+                then="import actual production code (CLI/API users will run)",
+                should_not="create test-only export or dual code paths",
+            ),
+            BehaviorSpec(
+                id="B-worker-verify-production",
+                given="implementation complete",
+                when="verifying",
+                then="run actual production code path manually",
+                should_not="rely only on unit tests passing",
+            ),
+            BehaviorSpec(
+                id="B-worker-blocker",
+                given="a blocker",
+                when="unable to proceed",
+                then="use /aura:worker-blocked with details",
+                should_not="guess or work around",
+            ),
+        ),
     ),
 }
 
@@ -1921,4 +2347,572 @@ SUBSTEP_DATA: dict[str, list[dict]] = {
             "description": "git agent-commit, bd sync, git push. Close upstream tasks.",
         },
     ],
+}
+
+
+# ─── Checklist Specs ──────────────────────────────────────────────────────────
+# Completion checklists keyed by "{role}-{gate}".
+# Integration test (test_schema_types_sync.py) verifies these match schema.xml.
+
+CHECKLIST_SPECS: dict[str, Checklist] = {
+    "worker-completion": Checklist(
+        role_ref=RoleId.WORKER,
+        gate=GateType.COMPLETION,
+        items=(
+            ChecklistItem(
+                id="CL-worker-no-todos",
+                text="No TODO placeholders in CLI/API actions",
+            ),
+            ChecklistItem(
+                id="CL-worker-real-deps",
+                text="Real dependencies wired (not mocks in production code)",
+            ),
+            ChecklistItem(
+                id="CL-worker-test-import",
+                text="Tests import production code (not test-only export)",
+            ),
+            ChecklistItem(
+                id="CL-worker-no-dual-export",
+                text="No dual-export anti-pattern (one code path for tests and production)",
+            ),
+            ChecklistItem(
+                id="CL-worker-quality-gates",
+                text="Quality gates pass (typecheck + tests)",
+            ),
+        ),
+    ),
+    "worker-slice-closure": Checklist(
+        role_ref=RoleId.WORKER,
+        gate=GateType.SLICE_CLOSURE,
+        items=(
+            ChecklistItem(
+                id="CL-worker-notified-supervisor",
+                text="Supervisor notified via bd comments add (not bd close)",
+            ),
+            ChecklistItem(
+                id="CL-worker-completion-done",
+                text="All completion-gate items passed",
+            ),
+        ),
+    ),
+    "supervisor-review-ready": Checklist(
+        role_ref=RoleId.SUPERVISOR,
+        gate=GateType.REVIEW_READY,
+        items=(
+            ChecklistItem(
+                id="CL-sup-all-slices-notified",
+                text="All workers have notified completion via bd comments add",
+            ),
+            ChecklistItem(
+                id="CL-sup-cartographers-assigned",
+                text="All 3 Cartographers assigned review of ALL slices",
+            ),
+            ChecklistItem(
+                id="CL-sup-severity-groups-created",
+                text="Severity groups (BLOCKER/IMPORTANT/MINOR) eagerly created per slice",
+            ),
+        ),
+    ),
+    "supervisor-landing": Checklist(
+        role_ref=RoleId.SUPERVISOR,
+        gate=GateType.LANDING,
+        items=(
+            ChecklistItem(
+                id="CL-sup-all-accept",
+                text="All 3 reviewers ACCEPT, no open BLOCKERs",
+            ),
+            ChecklistItem(
+                id="CL-sup-followup-created",
+                text="FOLLOWUP epic created if any IMPORTANT/MINOR findings exist",
+            ),
+            ChecklistItem(
+                id="CL-sup-agent-commit",
+                text="git agent-commit used (not git commit -m)",
+            ),
+            ChecklistItem(
+                id="CL-sup-tasks-closed",
+                text="All upstream tasks closed or dependency-resolved",
+            ),
+        ),
+    ),
+}
+
+
+# ─── Coordination Commands ────────────────────────────────────────────────────
+# Shared and role-specific Beads coordination commands.
+# role_ref=None means the command is available to all roles (shared=True).
+
+COORDINATION_COMMANDS: dict[str, CoordinationCommand] = {
+    # Shared commands (all roles)
+    "cmd-coord-show": CoordinationCommand(
+        id="cmd-coord-show",
+        action="Check task details",
+        template="bd show <task-id>",
+        role_ref=None,
+        shared=True,
+    ),
+    "cmd-coord-status": CoordinationCommand(
+        id="cmd-coord-status",
+        action="Update status",
+        template="bd update <task-id> --status=in_progress",
+        role_ref=None,
+        shared=True,
+    ),
+    "cmd-coord-comment": CoordinationCommand(
+        id="cmd-coord-comment",
+        action="Add progress note",
+        template="bd comments add <task-id> \"Progress: ...\"",
+        role_ref=None,
+        shared=True,
+    ),
+    "cmd-coord-list": CoordinationCommand(
+        id="cmd-coord-list",
+        action="List in-progress",
+        template="bd list --pretty --status=in_progress",
+        role_ref=None,
+        shared=True,
+    ),
+    "cmd-coord-blocked": CoordinationCommand(
+        id="cmd-coord-blocked",
+        action="List blocked",
+        template="bd blocked",
+        role_ref=None,
+        shared=True,
+    ),
+    # Supervisor-specific commands
+    "cmd-coord-assign": CoordinationCommand(
+        id="cmd-coord-assign",
+        action="Assign task",
+        template="bd update <task-id> --assignee \"<worker-name>\"",
+        role_ref=RoleId.SUPERVISOR,
+    ),
+    "cmd-coord-label": CoordinationCommand(
+        id="cmd-coord-label",
+        action="Label completed slice",
+        template="bd label add <slice-id> aura:p9-impl:slice-complete",
+        role_ref=RoleId.SUPERVISOR,
+    ),
+    "cmd-coord-dep-add": CoordinationCommand(
+        id="cmd-coord-dep-add",
+        action="Chain dependency",
+        template="bd dep add <parent> --blocked-by <child>",
+        role_ref=RoleId.SUPERVISOR,
+    ),
+    # Worker-specific commands
+    "cmd-coord-close": CoordinationCommand(
+        id="cmd-coord-close",
+        action="Report completion",
+        template="bd close <task-id>",
+        role_ref=RoleId.WORKER,
+    ),
+    "cmd-coord-worker-notes": CoordinationCommand(
+        id="cmd-coord-worker-notes",
+        action="Add completion notes",
+        template="bd update <task-id> --notes=\"Implementation complete. Production code verified.\"",
+        role_ref=RoleId.WORKER,
+    ),
+}
+
+
+# ─── Workflow Specs ───────────────────────────────────────────────────────────
+# Three named workflows covering supervisor (Ride the Wave), worker (Layer Cake),
+# and architect (Architect State Flow).
+
+WORKFLOW_SPECS: dict[str, Workflow] = {
+    "ride-the-wave": Workflow(
+        id="ride-the-wave",
+        name="Ride the Wave",
+        role_ref=RoleId.SUPERVISOR,
+        description=(
+            "Coordinated Phase 8-10 execution pattern. The supervisor orchestrates "
+            "the full cycle: plan slices, launch Cartographers, launch workers, "
+            "Cartographers review, workers fix, repeat max 3 cycles."
+        ),
+        stages=(
+            WorkflowStage(
+                id="rtw-plan",
+                name="Plan",
+                order=1,
+                execution=WorkflowExecution.SEQUENTIAL,
+                phase_ref=PhaseId.P8_IMPL_PLAN,
+                actions=(
+                    WorkflowAction(
+                        id="rtw-plan-read",
+                        instruction="Read RATIFIED_PLAN and URD via bd show",
+                        command="bd show <ratified-plan-id> && bd show <urd-id>",
+                    ),
+                    WorkflowAction(
+                        id="rtw-plan-cartographers",
+                        instruction="Spawn 3 Cartographers via TeamCreate with /aura:explore",
+                    ),
+                    WorkflowAction(
+                        id="rtw-plan-decompose",
+                        instruction="Query Cartographers to map codebase, then decompose into vertical slices with integration points",
+                    ),
+                    WorkflowAction(
+                        id="rtw-plan-leaf-tasks",
+                        instruction="Create leaf tasks (L1/L2/L3) for every slice",
+                        command="bd dep add <slice-id> --blocked-by <leaf-task-id>",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.PROCEED,
+                        condition="All slices created with leaf tasks, dependency-chained, assigned",
+                    ),
+                ),
+            ),
+            WorkflowStage(
+                id="rtw-build",
+                name="Build",
+                order=2,
+                execution=WorkflowExecution.PARALLEL,
+                phase_ref=PhaseId.P9_SLICE,
+                actions=(
+                    WorkflowAction(
+                        id="rtw-build-spawn",
+                        instruction="Spawn N workers into same team as Cartographers",
+                        command="aura-swarm start --epic <epic-id>",
+                    ),
+                    WorkflowAction(
+                        id="rtw-build-monitor",
+                        instruction="Monitor worker progress via bd list and bd show",
+                        command="bd list --labels=\"aura:p9-impl:s9-slice\" --status=in_progress",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.PROCEED,
+                        condition="All workers have notified completion via bd comments add",
+                    ),
+                ),
+            ),
+            WorkflowStage(
+                id="rtw-review-fix",
+                name="Review + Fix Cycles",
+                order=3,
+                execution=WorkflowExecution.CONDITIONAL_LOOP,
+                phase_ref=PhaseId.P10_CODE_REVIEW,
+                actions=(
+                    WorkflowAction(
+                        id="rtw-review-switch",
+                        instruction="Send Cartographers review assignment (switch to /aura:reviewer-review-code)",
+                    ),
+                    WorkflowAction(
+                        id="rtw-review-severity",
+                        instruction="Cartographers create severity groups (BLOCKER/IMPORTANT/MINOR) per slice",
+                    ),
+                    WorkflowAction(
+                        id="rtw-review-followup",
+                        instruction="Create FOLLOWUP epic if any IMPORTANT/MINOR findings exist",
+                    ),
+                    WorkflowAction(
+                        id="rtw-review-fix",
+                        instruction="Workers fix BLOCKERs and IMPORTANT findings",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.SUCCESS,
+                        condition="All reviewers ACCEPT, no open BLOCKERs — proceed to Phase 11 UAT",
+                    ),
+                    ExitCondition(
+                        type=ExitConditionType.CONTINUE,
+                        condition="BLOCKERs or IMPORTANT remain, cycles < 3 — workers fix, Cartographers re-review",
+                    ),
+                    ExitCondition(
+                        type=ExitConditionType.PROCEED,
+                        condition="3 cycles exhausted, IMPORTANT remain — track in FOLLOWUP, proceed to Phase 11",
+                    ),
+                    ExitCondition(
+                        type=ExitConditionType.ESCALATE,
+                        condition="3 cycles exhausted, BLOCKERs remain — stop and escalate to user",
+                    ),
+                ),
+            ),
+        ),
+    ),
+    "layer-cake": Workflow(
+        id="layer-cake",
+        name="Layer Cake",
+        role_ref=RoleId.WORKER,
+        description=(
+            "TDD layer-by-layer implementation within a vertical slice. "
+            "Worker implements types first, then tests (will fail), "
+            "then production code to make tests pass."
+        ),
+        stages=(
+            WorkflowStage(
+                id="lc-types",
+                name="Types",
+                order=1,
+                execution=WorkflowExecution.SEQUENTIAL,
+                phase_ref=PhaseId.P9_SLICE,
+                actions=(
+                    WorkflowAction(
+                        id="lc-types-read",
+                        instruction="Read slice task and identify required types",
+                        command="bd show <slice-task-id>",
+                    ),
+                    WorkflowAction(
+                        id="lc-types-define",
+                        instruction="Define types, interfaces, and schemas (no deps) — only types for YOUR slice",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.PROCEED,
+                        condition="All required types defined; file imports without error",
+                    ),
+                ),
+            ),
+            WorkflowStage(
+                id="lc-tests",
+                name="Tests",
+                order=2,
+                execution=WorkflowExecution.SEQUENTIAL,
+                phase_ref=PhaseId.P9_SLICE,
+                actions=(
+                    WorkflowAction(
+                        id="lc-tests-write",
+                        instruction="Write tests importing production code (CLI/API users will run) — tests WILL fail",
+                    ),
+                    WorkflowAction(
+                        id="lc-tests-verify-import",
+                        instruction="Verify tests import actual production code, not test-only export",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.PROCEED,
+                        condition="Tests written and import production code; typecheck passes; tests fail (expected)",
+                    ),
+                ),
+            ),
+            WorkflowStage(
+                id="lc-impl",
+                name="Implementation + Wiring",
+                order=3,
+                execution=WorkflowExecution.SEQUENTIAL,
+                phase_ref=PhaseId.P9_SLICE,
+                actions=(
+                    WorkflowAction(
+                        id="lc-impl-code",
+                        instruction="Implement production code to make Layer 2 tests pass",
+                    ),
+                    WorkflowAction(
+                        id="lc-impl-wire",
+                        instruction="Wire with real dependencies (not mocks in production code)",
+                    ),
+                    WorkflowAction(
+                        id="lc-impl-run-tests",
+                        instruction="Run tests — all Layer 2 tests must pass",
+                    ),
+                    WorkflowAction(
+                        id="lc-impl-commit",
+                        instruction="Commit completed work",
+                        command="git agent-commit -m ...",
+                    ),
+                    WorkflowAction(
+                        id="lc-impl-notify",
+                        instruction="Notify supervisor of completion via bd comments add",
+                        command="bd comments add <slice-id> \"Implementation complete\"",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.SUCCESS,
+                        condition=(
+                            "All tests pass; no TODO placeholders; real deps wired; "
+                            "production code path verified via code inspection"
+                        ),
+                    ),
+                    ExitCondition(
+                        type=ExitConditionType.ESCALATE,
+                        condition="Blocker encountered — use /aura:worker-blocked with details",
+                    ),
+                ),
+            ),
+        ),
+    ),
+    "architect-state-flow": Workflow(
+        id="architect-state-flow",
+        name="Architect State Flow",
+        role_ref=RoleId.ARCHITECT,
+        description=(
+            "Sequential planning phases 1-7. The architect captures requirements, "
+            "writes proposals, coordinates review consensus, and hands off to supervisor."
+        ),
+        stages=(
+            WorkflowStage(
+                id="asf-request",
+                name="Request",
+                order=1,
+                execution=WorkflowExecution.SEQUENTIAL,
+                phase_ref=PhaseId.P1_REQUEST,
+                actions=(
+                    WorkflowAction(
+                        id="asf-request-capture",
+                        instruction="Capture user request verbatim via /aura:user-request",
+                    ),
+                    WorkflowAction(
+                        id="asf-request-classify",
+                        instruction="Classify request along 4 axes: scope, complexity, risk, domain novelty",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.PROCEED,
+                        condition="Classification confirmed, research and explore complete",
+                    ),
+                ),
+            ),
+            WorkflowStage(
+                id="asf-elicit",
+                name="Elicit",
+                order=2,
+                execution=WorkflowExecution.SEQUENTIAL,
+                phase_ref=PhaseId.P2_ELICIT,
+                actions=(
+                    WorkflowAction(
+                        id="asf-elicit-ure",
+                        instruction="Run URE survey with user via /aura:user-elicit",
+                    ),
+                    WorkflowAction(
+                        id="asf-elicit-urd",
+                        instruction="Create URD as single source of truth for requirements",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.PROCEED,
+                        condition="URD created with structured requirements",
+                    ),
+                ),
+            ),
+            WorkflowStage(
+                id="asf-propose",
+                name="Propose",
+                order=3,
+                execution=WorkflowExecution.SEQUENTIAL,
+                phase_ref=PhaseId.P3_PROPOSE,
+                actions=(
+                    WorkflowAction(
+                        id="asf-propose-write",
+                        instruction="Write full technical proposal: interfaces, approach, validation checklist, BDD criteria",
+                    ),
+                    WorkflowAction(
+                        id="asf-propose-create",
+                        instruction="Create PROPOSAL-N task via /aura:architect:propose-plan",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.PROCEED,
+                        condition="Proposal created",
+                    ),
+                ),
+            ),
+            WorkflowStage(
+                id="asf-review",
+                name="Review",
+                order=4,
+                execution=WorkflowExecution.CONDITIONAL_LOOP,
+                phase_ref=PhaseId.P4_REVIEW,
+                actions=(
+                    WorkflowAction(
+                        id="asf-review-spawn",
+                        instruction="Spawn 3 axis-specific reviewers (A=Correctness, B=Test quality, C=Elegance)",
+                    ),
+                    WorkflowAction(
+                        id="asf-review-wait",
+                        instruction="Wait for all 3 reviewers to vote",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.PROCEED,
+                        condition="All 3 reviewers vote ACCEPT",
+                    ),
+                    ExitCondition(
+                        type=ExitConditionType.CONTINUE,
+                        condition="Any reviewer votes REVISE — create PROPOSAL-N+1, mark old as superseded, re-spawn reviewers",
+                    ),
+                ),
+            ),
+            WorkflowStage(
+                id="asf-uat",
+                name="Plan UAT",
+                order=5,
+                execution=WorkflowExecution.SEQUENTIAL,
+                phase_ref=PhaseId.P5_UAT,
+                actions=(
+                    WorkflowAction(
+                        id="asf-uat-present",
+                        instruction="Present plan to user with demonstrative examples via /aura:user-uat",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.PROCEED,
+                        condition="User accepts plan",
+                    ),
+                    ExitCondition(
+                        type=ExitConditionType.CONTINUE,
+                        condition="User requests changes — create PROPOSAL-N+1",
+                    ),
+                ),
+            ),
+            WorkflowStage(
+                id="asf-ratify",
+                name="Ratify",
+                order=6,
+                execution=WorkflowExecution.SEQUENTIAL,
+                phase_ref=PhaseId.P6_RATIFY,
+                actions=(
+                    WorkflowAction(
+                        id="asf-ratify-label",
+                        instruction="Add ratify label to accepted PROPOSAL-N",
+                    ),
+                    WorkflowAction(
+                        id="asf-ratify-supersede",
+                        instruction="Mark all prior proposals aura:superseded",
+                    ),
+                    WorkflowAction(
+                        id="asf-ratify-placeholder",
+                        instruction="Create placeholder IMPL_PLAN task",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.PROCEED,
+                        condition="Proposal ratified, IMPL_PLAN placeholder created",
+                    ),
+                ),
+            ),
+            WorkflowStage(
+                id="asf-handoff",
+                name="Handoff",
+                order=7,
+                execution=WorkflowExecution.SEQUENTIAL,
+                phase_ref=PhaseId.P7_HANDOFF,
+                actions=(
+                    WorkflowAction(
+                        id="asf-handoff-doc",
+                        instruction="Create handoff document with full inline provenance at .git/.aura/handoff/",
+                    ),
+                    WorkflowAction(
+                        id="asf-handoff-transfer",
+                        instruction="Transfer to supervisor via /aura:architect:handoff",
+                    ),
+                ),
+                exit_conditions=(
+                    ExitCondition(
+                        type=ExitConditionType.SUCCESS,
+                        condition="Handoff document stored at .git/.aura/handoff/, supervisor notified",
+                    ),
+                ),
+            ),
+        ),
+    ),
 }

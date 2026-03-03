@@ -35,15 +35,25 @@ from dataclasses import dataclass
 from xml.sax.saxutils import escape as xml_escape
 
 from aura_protocol.types import (
+    CHECKLIST_SPECS,
     COMMAND_SPECS,
     CONSTRAINT_SPECS,
+    COORDINATION_COMMANDS,
     HANDOFF_SPECS,
     LABEL_SPECS,
     PHASE_SPECS,
+    REVIEW_AXIS_SPECS,
+    ROLE_SPECS,
+    WORKFLOW_SPECS,
+    BehaviorSpec,
+    Checklist,
     ConstraintContext,
+    CoordinationCommand,
     PhaseId,
+    ReviewAxisSpec,
     RoleId,
     Transition,
+    Workflow,
 )
 
 
@@ -58,11 +68,18 @@ class RoleContext:
     to embed role-appropriate constraints, phases, commands, and handoffs.
 
     Fields:
-        role:        The agent role this context describes.
-        phases:      Phases this role operates in (from PHASE_SPECS owner_roles, inverted).
-        constraints: ConstraintContext objects relevant to this role.
-        commands:    Command names (aura:*) applicable to this role.
-        handoffs:    Handoff IDs where this role is source or target.
+        role:                  The agent role this context describes.
+        phases:                Phases this role operates in (from PHASE_SPECS owner_roles, inverted).
+        constraints:           ConstraintContext objects relevant to this role.
+        commands:              Command names (aura:*) applicable to this role.
+        handoffs:              Handoff IDs where this role is source or target.
+        introduction:          1-2 sentence opener from ROLE_SPECS[role].introduction.
+        ownership_narrative:   Prose "What You Own" from ROLE_SPECS[role].ownership_narrative.
+        behaviors:             Tactical GWT behaviors from ROLE_SPECS[role].behaviors.
+        checklists:            Completion checklists for this role from CHECKLIST_SPECS.
+        coordination_commands: Inter-agent commands (role-specific + shared) from COORDINATION_COMMANDS.
+        workflows:             Named workflows for this role from WORKFLOW_SPECS.
+        review_axes:           Review axes from REVIEW_AXIS_SPECS (reviewer only, empty for others).
     """
 
     role: RoleId
@@ -70,6 +87,13 @@ class RoleContext:
     constraints: frozenset[ConstraintContext]
     commands: tuple[str, ...]
     handoffs: tuple[str, ...]
+    introduction: str | None
+    ownership_narrative: str | None
+    behaviors: tuple[BehaviorSpec, ...]
+    checklists: tuple[Checklist, ...]
+    coordination_commands: tuple[CoordinationCommand, ...]
+    workflows: tuple[Workflow, ...]
+    review_axes: tuple[ReviewAxisSpec, ...]
 
 
 @dataclass(frozen=True)
@@ -421,12 +445,50 @@ def get_role_context(role: RoleId) -> RoleContext:
         )
     )
 
+    # Populate new schema extension fields from ROLE_SPECS and canonical dicts.
+    role_spec = ROLE_SPECS[role]
+
+    # Checklists filtered by role_ref matching this role.
+    checklists: tuple[Checklist, ...] = tuple(
+        spec
+        for spec in CHECKLIST_SPECS.values()
+        if spec.role_ref == role
+    )
+
+    # Coordination commands: role-specific (role_ref == role) OR shared (shared == True).
+    coord_commands: tuple[CoordinationCommand, ...] = tuple(
+        cmd
+        for cmd in COORDINATION_COMMANDS.values()
+        if cmd.role_ref == role or cmd.shared
+    )
+
+    # Workflows filtered by role_ref matching this role.
+    workflows: tuple[Workflow, ...] = tuple(
+        wf
+        for wf in WORKFLOW_SPECS.values()
+        if wf.role_ref == role
+    )
+
+    # Review axes only for reviewer role; empty for all others.
+    review_axes: tuple[ReviewAxisSpec, ...] = (
+        tuple(REVIEW_AXIS_SPECS.values())
+        if role == RoleId.REVIEWER
+        else ()
+    )
+
     return RoleContext(
         role=role,
         phases=frozenset(owned_phases),
         constraints=constraints,
         commands=commands,
         handoffs=handoffs,
+        introduction=role_spec.introduction,
+        ownership_narrative=role_spec.ownership_narrative,
+        behaviors=role_spec.behaviors,
+        checklists=checklists,
+        coordination_commands=coord_commands,
+        workflows=workflows,
+        review_axes=review_axes,
     )
 
 

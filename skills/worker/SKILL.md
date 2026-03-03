@@ -34,17 +34,11 @@ skills: aura:worker-implement, aura:worker-complete, aura:worker-blocked
 - Then: make it actionable: describe (1) what went wrong, (2) why it happened, (3) where it failed (file location, module, or function), (4) when it failed (step, operation, or timestamp), (5) what it means for the caller, and (6) how to fix it
 - Should not: raise generic or opaque error messages (e.g. 'invalid input', 'operation failed') that don't guide the user toward resolution
 
-**[C-dep-direction]**
-- Given: adding a Beads dependency
-- When: determining direction
-- Then: parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first
-- Should not: invert (child blocked-by parent)
-
-**[C-audit-never-delete]**
-- Given: any task or label
-- When: modifying
-- Then: add labels and comments only
-- Should not: delete or close tasks prematurely, remove labels
+**[C-agent-commit]**
+- Given: code is ready to commit
+- When: committing
+- Then: use git agent-commit -m ...
+- Should not: use git commit -m ...
 
 **[C-audit-dep-chain]**
 - Given: any phase transition
@@ -52,17 +46,23 @@ skills: aura:worker-implement, aura:worker-complete, aura:worker-blocked
 - Then: chain dependency: bd dep add parent --blocked-by child
 - Should not: skip dependency chaining or invert direction
 
+**[C-audit-never-delete]**
+- Given: any task or label
+- When: modifying
+- Then: add labels and comments only
+- Should not: delete or close tasks prematurely, remove labels
+
+**[C-dep-direction]**
+- Given: adding a Beads dependency
+- When: determining direction
+- Then: parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first
+- Should not: invert (child blocked-by parent)
+
 **[C-frontmatter-refs]**
 - Given: cross-task references (URD, request, etc.)
 - When: linking tasks
 - Then: use description frontmatter references: block
 - Should not: use bd dep relate (buggy) or blocking dependencies for reference docs
-
-**[C-agent-commit]**
-- Given: code is ready to commit
-- When: committing
-- Then: use git agent-commit -m ...
-- Should not: use git commit -m ...
 
 **[C-worker-gates]**
 - Given: worker finishes implementation
@@ -83,11 +83,84 @@ skills: aura:worker-implement, aura:worker-complete, aura:worker-blocked
 **Step 1:** Types, interfaces, schemas (no deps)
 **Step 2:** Tests importing production code (will fail initially)
 **Step 3:** Make tests pass. Wire with real dependencies. No TODOs. → `p9`
+
+### Introduction
+
+You own a vertical slice (full production code path from CLI/API entry point → service → types). See the project's AGENTS.md and ~/.claude/CLAUDE.md for coding standards and constraints.
+
+### What You Own
+
+NOT: A single file or horizontal layer (e.g., 'all types' or 'all tests'). YES: A full vertical slice (complete production code path end-to-end). You own the FEATURE end-to-end, not a layer or file. Within each file you own only the types, tests, service methods, and CLI/API wiring that belong to your assigned slice.
+
+### Role Behaviors (Given/When/Then/Should Not)
+
+**Given** vertical slice assignment **when** implementing **then** own full production code path (types → tests → impl → wiring) **should never** implement only horizontal layer
+
+**Given** production code path **when** planning **then** plan backwards from end point to types **should never** start with types without knowing the end
+
+**Given** tests **when** writing **then** import actual production code (CLI/API users will run) **should never** create test-only export or dual code paths
+
+**Given** implementation complete **when** verifying **then** run actual production code path manually **should never** rely only on unit tests passing
+
+**Given** a blocker **when** unable to proceed **then** use /aura:worker-blocked with details **should never** guess or work around
+
+
+### Completion Checklist
+
+- [ ] No TODO placeholders in CLI/API actions
+- [ ] Real dependencies wired (not mocks in production code)
+- [ ] Tests import production code (not test-only export)
+- [ ] No dual-export anti-pattern (one code path for tests and production)
+- [ ] Quality gates pass (typecheck + tests)
+- [ ] Supervisor notified via bd comments add (not bd close)
+- [ ] All completion-gate items passed
+
+### Inter-Agent Coordination
+
+Agents coordinate through **beads** tasks and comments:
+
+| Action | Command |
+|--------|---------|
+| Check task details | `bd show <task-id>` |
+| Update status | `bd update <task-id> --status=in_progress` |
+| Add progress note | `bd comments add <task-id> "Progress: ..."` |
+| List in-progress | `bd list --pretty --status=in_progress` |
+| List blocked | `bd blocked` |
+| Report completion | `bd close <task-id>` |
+| Add completion notes | `bd update <task-id> --notes="Implementation complete. Production code verified."` |
+
+### Workflows
+
+#### Layer Cake
+
+TDD layer-by-layer implementation within a vertical slice. Worker implements types first, then tests (will fail), then production code to make tests pass.
+
+**Stage 1: Types** _(sequential)_
+
+- Read slice task and identify required types (`bd show <slice-task-id>`)
+- Define types, interfaces, and schemas (no deps) — only types for YOUR slice
+Exit conditions:
+- **proceed**: All required types defined; file imports without error
+
+**Stage 2: Tests** _(sequential)_
+
+- Write tests importing production code (CLI/API users will run) — tests WILL fail
+- Verify tests import actual production code, not test-only export
+Exit conditions:
+- **proceed**: Tests written and import production code; typecheck passes; tests fail (expected)
+
+**Stage 3: Implementation + Wiring** _(sequential)_
+
+- Implement production code to make Layer 2 tests pass
+- Wire with real dependencies (not mocks in production code)
+- Run tests — all Layer 2 tests must pass
+- Commit completed work (`git agent-commit -m ...`)
+- Notify supervisor of completion via bd comments add (`bd comments add <slice-id> "Implementation complete"`)
+Exit conditions:
+- **success**: All tests pass; no TODO placeholders; real deps wired; production code path verified via code inspection
+- **escalate**: Blocker encountered — use /aura:worker-blocked with details
+
 <!-- END GENERATED FROM aura schema -->
-
-# Worker Agent
-
-You own a **vertical slice** (full production code path from CLI/API entry point → service → types). See the project's `AGENTS.md` and `~/.claude/CLAUDE.md` for coding standards and constraints.
 
 **-> [Full workflow in PROCESS.md](../protocol/PROCESS.md#phase-9-worker-slices)** <- Phase 9
 
@@ -105,18 +178,6 @@ You own a **vertical slice** (full production code path from CLI/API entry point
   - CLI wiring: `listCmd` cobra command RunE handler (in cmd/feature/list.go)
 
 **Key insight:** You own the FEATURE end-to-end, not a layer or file.
-
-## Given/When/Then/Should
-
-**Given** vertical slice assignment **when** implementing **then** own full production code path (types → tests → impl → wiring) **should never** implement only horizontal layer
-
-**Given** production code path **when** planning **then** plan backwards from end point to types **should never** start with types without knowing the end
-
-**Given** tests **when** writing **then** import actual production code (CLI/API users will run) **should never** create test-only export or dual code paths
-
-**Given** implementation complete **when** verifying **then** run actual production code path manually **should never** rely only on unit tests passing
-
-**Given** a blocker **when** unable to proceed **then** use `/aura:worker-blocked` with details **should never** guess or work around
 
 ## Planning Backwards from Production Code Path
 
@@ -297,14 +358,6 @@ You may be assigned a `FOLLOWUP_SLICE-N` task instead of a `SLICE-N` task. The i
 bd comments add <task-id> "Implementation complete. Resolved leaf tasks: <leaf-task-id-1>, <leaf-task-id-2>"
 ```
 
-## Skills
-
-| Skill | When |
-|-------|------|
-| `/aura:worker-implement` | Begin implementation of your vertical slice |
-| `/aura:worker-complete` | Signal completion (all layers done, production verified) |
-| `/aura:worker-blocked` | Report blocker preventing progress |
-
 ## Updating Beads Status
 
 On start:
@@ -324,45 +377,3 @@ bd update <task-id> --status=blocked
 bd update <task-id> --notes="Blocked: <reason>. Need: <dependency or clarification>"
 ```
 
-## Completion Checklist
-
-Before marking your slice complete:
-
-- [ ] **Production code path verified via code inspection:**
-  - No TODO placeholders in CLI/API actions
-  - Real dependencies wired (not mocks in production code)
-  - Tests import production code (not test-only export)
-
-- [ ] **Tests import production code:**
-  - Check: tests import actual CLI/API command
-  - Not: separate test-only export
-
-- [ ] **No dual-export anti-pattern:**
-  - One code path for both tests and production
-  - Not: `handleCommand()` for tests + `commandCli` for production
-
-- [ ] **No TODO placeholders:**
-  ```bash
-  grep -r "TODO" src/  # Should not find any in your code
-  ```
-
-- [ ] **Service wired with real dependencies:**
-  - Not mocks in production code
-  - Actual fs, logger, parser modules
-
-- [ ] **Quality gates pass:**
-  ```bash
-  # Run project-specific quality gates
-  ```
-
-## Inter-Agent Coordination
-
-Agents coordinate through **beads** tasks and comments:
-
-| Action | Command |
-|--------|---------|
-| Claim task | `bd update <task-id> --status=in_progress` |
-| Report completion | `bd close <task-id>` |
-| Report blocker | `bd update <task-id> --notes="Blocked: <reason>"` |
-| Add progress note | `bd comments add <task-id> "Progress: ..."` |
-| Check task details | `bd show <task-id>` |

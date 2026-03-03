@@ -33,8 +33,10 @@ from aura_protocol.context_injection import (
     _ROLE_CONSTRAINTS as _CI_ROLE_CONSTRAINTS,
 )
 from aura_protocol.types import (
+    CHECKLIST_SPECS,
     COMMAND_SPECS,
     CONSTRAINT_SPECS,
+    COORDINATION_COMMANDS,
     HANDOFF_SPECS,
     LABEL_SPECS,
     PHASE_SPECS,
@@ -43,6 +45,7 @@ from aura_protocol.types import (
     ROLE_SPECS,
     SUBSTEP_DATA,
     TITLE_CONVENTIONS,
+    WORKFLOW_SPECS,
     ContentLevel,
     ExecutionMode,
     PhaseId,
@@ -745,6 +748,27 @@ def _build_roles(root: ET.Element) -> None:
             om_el = ET.SubElement(role_el, "ownership-model")
             om_el.text = "\n      " + _ROLE_OWNERSHIP_MODEL[rid] + "\n    "
 
+        # Introduction (from RoleSpec.introduction)
+        if spec.introduction:
+            intro_el = ET.SubElement(role_el, "introduction")
+            intro_el.text = spec.introduction
+
+        # Ownership narrative (from RoleSpec.ownership_narrative)
+        if spec.ownership_narrative:
+            on_el = ET.SubElement(role_el, "ownership-narrative")
+            on_el.text = spec.ownership_narrative
+
+        # Behaviors (from RoleSpec.behaviors)
+        if spec.behaviors:
+            behaviors_el = ET.SubElement(role_el, "behaviors")
+            for b in spec.behaviors:
+                ET.SubElement(behaviors_el, "behavior",
+                              id=b.id,
+                              given=b.given,
+                              when=b.when,
+                              then=b.then,
+                              **{"should-not": b.should_not})
+
 
 def _build_commands(root: ET.Element) -> None:
     """Append <commands> section to root, derived from COMMAND_SPECS."""
@@ -933,7 +957,24 @@ def _build_constraints(root: ET.Element) -> None:
         if phase_ref is not None:
             c_attrs["phase-ref"] = phase_ref
 
-        ET.SubElement(constraints_el, "constraint", **c_attrs)
+        # command attribute (from ConstraintSpec.command)
+        if spec.command is not None:
+            c_attrs["command"] = spec.command
+
+        c_el = ET.SubElement(constraints_el, "constraint", **c_attrs)
+
+        # examples as children (from ConstraintSpec.examples)
+        for ex in spec.examples:
+            ex_attrs: dict[str, str] = {
+                "id": ex.id,
+                "lang": ex.lang.value,
+                "label": ex.label.value,
+            }
+            if ex.also_illustrates is not None:
+                ex_attrs["also-illustrates"] = ex.also_illustrates
+            ex_el = ET.SubElement(c_el, "example", **ex_attrs)
+            code_el = ET.SubElement(ex_el, "code")
+            code_el.text = ex.code
 
 
 def _build_task_titles(root: ET.Element) -> None:
@@ -1386,6 +1427,84 @@ def _build_procedure_steps(root: ET.Element) -> None:
             if step.next_state is not None:
                 step_el.set("next-state", step.next_state.value)
 
+            # examples as children (from ProcedureStep.examples)
+            for ex in step.examples:
+                ex_attrs: dict[str, str] = {
+                    "id": ex.id,
+                    "lang": ex.lang.value,
+                    "label": ex.label.value,
+                }
+                if ex.also_illustrates is not None:
+                    ex_attrs["also-illustrates"] = ex.also_illustrates
+                ex_el = ET.SubElement(step_el, "example", **ex_attrs)
+                code_el = ET.SubElement(ex_el, "code")
+                code_el.text = ex.code
+
+
+
+def _build_checklists(root: ET.Element) -> None:
+    """Append <checklists> section to root, derived from CHECKLIST_SPECS."""
+    checklists_el = ET.SubElement(root, "checklists")
+    for cl_id, cl in CHECKLIST_SPECS.items():
+        cl_el = ET.SubElement(checklists_el, "checklist",
+                              id=cl_id,
+                              **{"role-ref": cl.role_ref.value,
+                                 "gate": cl.gate.value})
+        for item in cl.items:
+            item_el = ET.SubElement(cl_el, "item",
+                                    id=item.id,
+                                    required="true" if item.required else "false")
+            item_el.text = item.text
+
+
+def _build_coordination_commands(root: ET.Element) -> None:
+    """Append <coordination-commands> section to root, derived from COORDINATION_COMMANDS."""
+    coord_el = ET.SubElement(root, "coordination-commands")
+    for cmd in COORDINATION_COMMANDS.values():
+        attrs: dict[str, str] = {
+            "id": cmd.id,
+            "action": cmd.action,
+            "template": cmd.template,
+        }
+        if cmd.role_ref is not None:
+            attrs["role-ref"] = cmd.role_ref.value
+        if cmd.shared:
+            attrs["shared"] = "true"
+        ET.SubElement(coord_el, "coord-cmd", **attrs)
+
+
+def _build_workflows(root: ET.Element) -> None:
+    """Append <workflows> section to root, derived from WORKFLOW_SPECS."""
+    workflows_el = ET.SubElement(root, "workflows")
+    for wf in WORKFLOW_SPECS.values():
+        wf_el = ET.SubElement(workflows_el, "workflow",
+                              id=wf.id,
+                              name=wf.name,
+                              **{"role-ref": wf.role_ref.value},
+                              description=wf.description)
+        for stage in wf.stages:
+            stage_attrs: dict[str, str] = {
+                "id": stage.id,
+                "name": stage.name,
+                "order": str(stage.order),
+                "execution": stage.execution.value,
+            }
+            if stage.phase_ref is not None:
+                stage_attrs["phase-ref"] = stage.phase_ref.value
+            stage_el = ET.SubElement(wf_el, "stage", **stage_attrs)
+            for action in stage.actions:
+                action_attrs: dict[str, str] = {
+                    "id": action.id,
+                    "instruction": action.instruction,
+                }
+                if action.command is not None:
+                    action_attrs["command"] = action.command
+                ET.SubElement(stage_el, "action", **action_attrs)
+            for ec in stage.exit_conditions:
+                ET.SubElement(stage_el, "exit-condition",
+                              type=ec.type.value,
+                              condition=ec.condition)
+
 
 # ─── Section comment helper ────────────────────────────────────────────────────
 
@@ -1553,6 +1672,26 @@ def generate_schema(output: Path, diff: bool = True) -> str:
         "     TDD layers for worker). Only roles with non-empty steps are listed."
     ))
     _build_procedure_steps(root)
+
+    root.append(_section_comment(
+        "CHECKLISTS\n\n"
+        "     Per-role quality gate checklists for slice completion, review readiness,\n"
+        "     and landing."
+    ))
+    _build_checklists(root)
+
+    root.append(_section_comment(
+        "COORDINATION COMMANDS\n\n"
+        "     Beads coordination commands shared across roles and role-specific."
+    ))
+    _build_coordination_commands(root)
+
+    root.append(_section_comment(
+        "WORKFLOWS\n\n"
+        "     Named agent workflows: Ride the Wave (supervisor), Layer Cake (worker),\n"
+        "     Architect State Flow (architect)."
+    ))
+    _build_workflows(root)
 
     # Serialize
     content = _serialize_tree(root)

@@ -38,18 +38,29 @@ from typing import Sequence
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from aura_protocol.types import (
+    CHECKLIST_SPECS,
     COMMAND_SPECS,
+    CONSTRAINT_SPECS,
+    COORDINATION_COMMANDS,
     HANDOFF_SPECS,
     PHASE_SPECS,
     PROCEDURE_STEPS,
+    REVIEW_AXIS_SPECS,
     ROLE_SPECS,
+    WORKFLOW_SPECS,
+    BehaviorSpec,
+    Checklist,
     CommandSpec,
     ConstraintContext,
+    ConstraintSpec,
+    CoordinationCommand,
     HandoffSpec,
     PhaseId,
     PhaseSpec,
+    ReviewAxisSpec,
     RoleId,
     RoleSpec,
+    Workflow,
 )
 
 # ─── Marker constants ─────────────────────────────────────────────────────────
@@ -123,14 +134,22 @@ def _skill_names_for_role(role_id: RoleId) -> list[str]:
     return result
 
 
-def _constraints_for_role(role_id: RoleId) -> list[ConstraintContext]:
-    """Return ConstraintContext objects relevant to a given role.
+def _constraints_for_role(role_id: RoleId) -> list[ConstraintSpec]:
+    """Return ConstraintSpec objects relevant to a given role.
 
-    Uses get_role_context() to return only the role-scoped constraints,
-    derived from _ROLE_CONSTRAINTS in context_injection.py.
+    Uses get_role_context() to determine which constraint IDs apply to the role,
+    then looks them up in CONSTRAINT_SPECS to return the full spec objects
+    (including examples field) for template rendering.
+
+    Returns specs sorted by ID for deterministic template output.
     """
     from aura_protocol.context_injection import get_role_context
-    return list(get_role_context(role_id).constraints)
+    role_ctx = get_role_context(role_id)
+    constraint_ids = {c.id for c in role_ctx.constraints}
+    return sorted(
+        [spec for cid, spec in CONSTRAINT_SPECS.items() if cid in constraint_ids],
+        key=lambda s: s.id,
+    )
 
 
 def _handoffs_for_role(role_id: RoleId) -> list[HandoffSpec]:
@@ -270,6 +289,34 @@ def _render_header(
     # Sort owned phases by declaration order in PhaseId (not string order)
     owned_phases_sorted = [p for p in PhaseId if p in set(role_spec.owned_phases)]
 
+    # Checklists filtered by role_ref.
+    checklists: list[Checklist] = [
+        spec
+        for spec in CHECKLIST_SPECS.values()
+        if spec.role_ref == role_id
+    ]
+
+    # Coordination commands: role-specific (role_ref == role) OR shared.
+    coordination_commands: list[CoordinationCommand] = [
+        cmd
+        for cmd in COORDINATION_COMMANDS.values()
+        if cmd.role_ref == role_id or cmd.shared
+    ]
+
+    # Workflows filtered by role_ref.
+    workflows: list[Workflow] = [
+        wf
+        for wf in WORKFLOW_SPECS.values()
+        if wf.role_ref == role_id
+    ]
+
+    # Review axes only for reviewer role.
+    review_axes: list[ReviewAxisSpec] = (
+        list(REVIEW_AXIS_SPECS.values())
+        if role_id == RoleId.REVIEWER
+        else []
+    )
+
     context: dict = {
         "role": role_spec,
         "commands": _commands_for_role(role_id),
@@ -280,6 +327,13 @@ def _render_header(
         "steps": list(PROCEDURE_STEPS.get(role_id, [])),
         "phase_slug": phase_slug,
         "sub_skills": _skill_names_for_role(role_id),
+        "introduction": role_spec.introduction,
+        "ownership_narrative": role_spec.ownership_narrative,
+        "behaviors": list(role_spec.behaviors),
+        "checklists": checklists,
+        "coordination_commands": coordination_commands,
+        "workflows": workflows,
+        "review_axes": review_axes,
     }
 
     return template.render(**context)
