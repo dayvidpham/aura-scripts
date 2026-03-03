@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.3] - 2026-03-03
+
+### Fixed
+- fix(schema): address 15 code review findings + UAT revisions (FR1-FR15)
+
+### Other
+- chore: beads update
+- Merge branch 'followup-schema-extensions'
+
 ## [0.9.2] - 2026-03-03
 
 ### Added
