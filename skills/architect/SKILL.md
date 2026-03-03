@@ -50,11 +50,31 @@ skills: aura:plan, aura:user-request, aura:user-elicit, aura:architect-propose-p
 - Then: use git agent-commit -m ...
 - Should not: use git commit -m ...
 
+```bash
+git agent-commit -m "feat: add login"
+```
+_Example (correct)_
+
+```bash
+git commit -m "feat: add login"
+```
+_Example (anti-pattern)_
+
 **[C-audit-dep-chain]**
 - Given: any phase transition
 - When: creating new task
 - Then: chain dependency: bd dep add parent --blocked-by child
 - Should not: skip dependency chaining or invert direction
+
+```bash
+# Full dependency chain: work flows bottom-up, closure flows top-down
+bd dep add request-id --blocked-by ure-id
+bd dep add ure-id --blocked-by proposal-id
+bd dep add proposal-id --blocked-by impl-plan-id
+bd dep add impl-plan-id --blocked-by slice-1-id
+bd dep add slice-1-id --blocked-by leaf-task-a-id
+```
+_Example (correct)_
 
 **[C-audit-never-delete]**
 - Given: any task or label
@@ -67,6 +87,16 @@ skills: aura:plan, aura:user-request, aura:user-elicit, aura:architect-propose-p
 - When: determining direction
 - Then: parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first
 - Should not: invert (child blocked-by parent)
+
+```bash
+bd dep add request-id --blocked-by ure-id
+```
+_Example (correct)_ — also illustrates: C-audit-dep-chain
+
+```bash
+bd dep add ure-id --blocked-by request-id
+```
+_Example (anti-pattern)_
 
 **[C-frontmatter-refs]**
 - Given: cross-task references (URD, request, etc.)
@@ -87,10 +117,31 @@ skills: aura:plan, aura:user-request, aura:user-elicit, aura:architect-propose-p
 - Should not: reuse N or delete old proposals
 
 **[C-ure-verbatim]**
-- Given: user interview (URE or UAT)
+- Given: user interview (Request, URE, or UAT), URD update, or mid-implementation design decision
 - When: recording in Beads
-- Then: capture full question text, ALL option descriptions, AND user's verbatim response
-- Should not: summarize options as (1)/(2)/(3) without option text
+- Then: capture full question text, ALL option descriptions, AND user's verbatim response; the URD is the living document of ALL user requests, URE, UAT, and mid-implementation design decisions and feedback — update it via bd comments add whenever user intent is captured
+- Should not: summarize options as (1)/(2)/(3) without option text, or paraphrase user responses
+
+```bash
+# Full question, all options with descriptions, verbatim response
+bd create --title "UAT: Plan acceptance for feature-X" \
+  --description "## Component: Verbose fields
+**Question:** Which verbose fields are useful?
+**Options:**
+- backupDir (full path): Shows where the backup landed
+- session ID: Enables log correlation across events
+- repo path + hash: Confirms which git repo was detected
+**User response:** backupDir (full path), session ID
+**Decision:** ACCEPT"
+```
+_Example (correct)_
+
+```bash
+# WRONG: options summarized as numbers, response paraphrased
+bd create --title "UAT: Plan acceptance" \
+  --description "Asked about verbose fields (1-4). User picked 1 and 2. Accepted."
+```
+_Example (anti-pattern)_
 
 
 ### Handoffs

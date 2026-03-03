@@ -40,11 +40,31 @@ skills: aura:worker-implement, aura:worker-complete, aura:worker-blocked
 - Then: use git agent-commit -m ...
 - Should not: use git commit -m ...
 
+```bash
+git agent-commit -m "feat: add login"
+```
+_Example (correct)_
+
+```bash
+git commit -m "feat: add login"
+```
+_Example (anti-pattern)_
+
 **[C-audit-dep-chain]**
 - Given: any phase transition
 - When: creating new task
 - Then: chain dependency: bd dep add parent --blocked-by child
 - Should not: skip dependency chaining or invert direction
+
+```bash
+# Full dependency chain: work flows bottom-up, closure flows top-down
+bd dep add request-id --blocked-by ure-id
+bd dep add ure-id --blocked-by proposal-id
+bd dep add proposal-id --blocked-by impl-plan-id
+bd dep add impl-plan-id --blocked-by slice-1-id
+bd dep add slice-1-id --blocked-by leaf-task-a-id
+```
+_Example (correct)_
 
 **[C-audit-never-delete]**
 - Given: any task or label
@@ -57,6 +77,16 @@ skills: aura:worker-implement, aura:worker-complete, aura:worker-blocked
 - When: determining direction
 - Then: parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first
 - Should not: invert (child blocked-by parent)
+
+```bash
+bd dep add request-id --blocked-by ure-id
+```
+_Example (correct)_ — also illustrates: C-audit-dep-chain
+
+```bash
+bd dep add ure-id --blocked-by request-id
+```
+_Example (anti-pattern)_
 
 **[C-frontmatter-refs]**
 - Given: cross-task references (URD, request, etc.)
@@ -107,13 +137,20 @@ NOT: A single file or horizontal layer (e.g., 'all types' or 'all tests'). YES: 
 
 ### Completion Checklist
 
+**completion gates:**
 - [ ] No TODO placeholders in CLI/API actions
 - [ ] Real dependencies wired (not mocks in production code)
 - [ ] Tests import production code (not test-only export)
 - [ ] No dual-export anti-pattern (one code path for tests and production)
 - [ ] Quality gates pass (typecheck + tests)
+- [ ] Production code path verified end-to-end via code inspection
+
+**slice-closure gates:**
 - [ ] Supervisor notified via bd comments add (not bd close)
 - [ ] All completion-gate items passed
+- [ ] Can only close on a review wave, not a worker wave
+- [ ] Eligible to close only after review by independent agents with no BLOCKERS or IMPORTANT findings
+
 
 ### Inter-Agent Coordination
 

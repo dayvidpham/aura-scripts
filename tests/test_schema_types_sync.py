@@ -754,9 +754,10 @@ class TestNewEnumsSyncVsSchema:
             if cl.get("gate")
         }
         python_gate_values = {g.value for g in GateType}
-        assert schema_gate_values <= python_gate_values, (
-            f"schema.xml uses gate values not in GateType.\n"
-            f"In schema only: {schema_gate_values - python_gate_values}"
+        assert schema_gate_values == python_gate_values, (
+            f"GateType values must exactly match schema.xml gate= attributes.\n"
+            f"In schema only: {schema_gate_values - python_gate_values}\n"
+            f"In Python only: {python_gate_values - schema_gate_values}"
         )
 
     def test_workflow_execution_values_match_schema_stage_attrs(
@@ -769,9 +770,10 @@ class TestNewEnumsSyncVsSchema:
             if s.get("execution")
         }
         python_execution_values = {e.value for e in WorkflowExecution}
-        assert schema_execution_values <= python_execution_values, (
-            f"schema.xml uses execution values not in WorkflowExecution.\n"
-            f"In schema only: {schema_execution_values - python_execution_values}"
+        assert schema_execution_values == python_execution_values, (
+            f"WorkflowExecution values must exactly match schema.xml execution= attributes.\n"
+            f"In schema only: {schema_execution_values - python_execution_values}\n"
+            f"In Python only: {python_execution_values - schema_execution_values}"
         )
 
     def test_exit_condition_type_values_match_schema_attrs(
@@ -784,9 +786,10 @@ class TestNewEnumsSyncVsSchema:
             if ec.get("type")
         }
         python_type_values = {t.value for t in ExitConditionType}
-        assert schema_type_values <= python_type_values, (
-            f"schema.xml uses exit-condition types not in ExitConditionType.\n"
-            f"In schema only: {schema_type_values - python_type_values}"
+        assert schema_type_values == python_type_values, (
+            f"ExitConditionType values must exactly match schema.xml type= attributes.\n"
+            f"In schema only: {schema_type_values - python_type_values}\n"
+            f"In Python only: {python_type_values - schema_type_values}"
         )
 
     def test_example_label_has_expected_values(self) -> None:

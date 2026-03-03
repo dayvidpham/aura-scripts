@@ -866,11 +866,40 @@
   <constraints>
     <!-- Audit trail -->
     <constraint id="C-audit-never-delete" given="any task or label" when="modifying" then="add labels and comments only" should-not="delete or close tasks prematurely, remove labels" />
-    <constraint id="C-audit-dep-chain" given="any phase transition" when="creating new task" then="chain dependency: bd dep add parent --blocked-by child" should-not="skip dependency chaining or invert direction" command="bd dep add &lt;parent&gt; --blocked-by &lt;child&gt;" />
+    <constraint id="C-audit-dep-chain" given="any phase transition" when="creating new task" then="chain dependency: bd dep add parent --blocked-by child" should-not="skip dependency chaining or invert direction" command="bd dep add &lt;parent&gt; --blocked-by &lt;child&gt;">
+      <example id="C-audit-dep-chain-full" lang="bash" label="correct">
+        <code><![CDATA[# Full dependency chain: work flows bottom-up, closure flows top-down
+bd dep add request-id --blocked-by ure-id
+bd dep add ure-id --blocked-by proposal-id
+bd dep add proposal-id --blocked-by impl-plan-id
+bd dep add impl-plan-id --blocked-by slice-1-id
+bd dep add slice-1-id --blocked-by leaf-task-a-id]]></code>
+      </example>
+    </constraint>
     <!-- Reviews -->
     <constraint id="C-review-consensus" given="review cycle (p4 or p10)" when="evaluating" then="all 3 reviewers must ACCEPT before proceeding" should-not="proceed with any REVISE vote outstanding" role-ref="epoch,reviewer,supervisor" phase-ref="p4,p10" />
     <constraint id="C-review-binary" given="a reviewer" when="voting" then="use ACCEPT or REVISE only" should-not="use APPROVE, APPROVE_WITH_COMMENTS, REQUEST_CHANGES, or REJECT" role-ref="reviewer" phase-ref="p4,p10" />
-    <constraint id="C-severity-eager" given="code review round (p10 only)" when="starting review" then="ALWAYS create 3 severity group tasks (BLOCKER, IMPORTANT, MINOR) immediately" should-not="lazily create severity groups only when findings exist" role-ref="reviewer" phase-ref="p10" />
+    <constraint id="C-severity-eager" given="code review round (p10 only)" when="starting review" then="ALWAYS create 3 severity group tasks (BLOCKER, IMPORTANT, MINOR) immediately" should-not="lazily create severity groups only when findings exist" role-ref="reviewer" phase-ref="p10">
+      <example id="C-severity-eager-create" lang="bash" label="correct">
+        <code><![CDATA[# Create all 3 severity groups immediately (even if empty)
+bd create --title "SLICE-1-REVIEW-A-1 BLOCKER" \
+  --labels "aura:severity:blocker,aura:p10-impl:s10-review"
+bd create --title "SLICE-1-REVIEW-A-1 IMPORTANT" \
+  --labels "aura:severity:important,aura:p10-impl:s10-review"
+bd create --title "SLICE-1-REVIEW-A-1 MINOR" \
+  --labels "aura:severity:minor,aura:p10-impl:s10-review"
+
+# Close empty groups immediately
+bd close <empty-important-id>
+bd close <empty-minor-id>]]></code>
+      </example>
+      <example id="C-severity-eager-anti" lang="bash" label="anti-pattern">
+        <code><![CDATA[# WRONG: only creating groups when findings exist
+# This skips empty groups and breaks the audit trail
+if blocker_findings:
+    bd create --title "BLOCKER" ...]]></code>
+      </example>
+    </constraint>
     <constraint id="C-severity-not-plan" given="plan review (p4)" when="reviewing" then="use binary ACCEPT/REVISE only" should-not="create severity tree for plan reviews" role-ref="reviewer" phase-ref="p4" />
     <constraint id="C-blocker-dual-parent" given="a BLOCKER finding in code review" when="recording" then="add as child of BOTH the severity group AND the slice it blocks" should-not="add to severity group only" role-ref="reviewer" phase-ref="p10" />
     <constraint id="C-followup-timing" given="code review completion with IMPORTANT or MINOR findings" when="creating follow-up epic" then="create immediately upon review completion" should-not="gate follow-up epic on BLOCKER resolution" role-ref="supervisor" phase-ref="p10" />
@@ -884,15 +913,47 @@
     <constraint id="C-slice-leaf-tasks" given="vertical slice created" when="decomposing slice into implementation units" then="create Beads leaf tasks (L1: types, L2: tests, L3: impl) within each slice with bd dep add slice-id --blocked-by leaf-task-id" should-not="create slices without leaf tasks — a slice with no children is undecomposed and cannot be tracked" role-ref="supervisor" phase-ref="p8,p9" command="bd dep add &lt;slice-id&gt; --blocked-by &lt;leaf-task-id&gt;" />
     <constraint id="C-handoff-skill-invocation" given="an agent is launched for a new phase (especially p7 to p8 handoff)" when="composing the launch prompt" then="prompt MUST start with Skill(/aura:{role}) invocation directive so the agent loads its role instructions" should-not="launch agents without skill invocation — they skip role-critical procedures like explore team setup and leaf task creation" role-ref="epoch,architect,supervisor" phase-ref="p7" />
     <!-- Task management -->
-    <constraint id="C-dep-direction" given="adding a Beads dependency" when="determining direction" then="parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first" should-not="invert (child blocked-by parent)" command="bd dep add &lt;stays-open&gt; --blocked-by &lt;must-finish-first&gt;" />
+    <constraint id="C-dep-direction" given="adding a Beads dependency" when="determining direction" then="parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first" should-not="invert (child blocked-by parent)" command="bd dep add &lt;stays-open&gt; --blocked-by &lt;must-finish-first&gt;">
+      <example id="C-dep-direction-correct" lang="bash" label="correct" also-illustrates="C-audit-dep-chain">
+        <code><![CDATA[bd dep add request-id --blocked-by ure-id]]></code>
+      </example>
+      <example id="C-dep-direction-anti" lang="bash" label="anti-pattern">
+        <code><![CDATA[bd dep add ure-id --blocked-by request-id]]></code>
+      </example>
+    </constraint>
     <constraint id="C-frontmatter-refs" given="cross-task references (URD, request, etc.)" when="linking tasks" then="use description frontmatter references: block" should-not="use bd dep relate (buggy) or blocking dependencies for reference docs" />
     <!-- Git -->
-    <constraint id="C-agent-commit" given="code is ready to commit" when="committing" then="use git agent-commit -m ..." should-not="use git commit -m ..." role-ref="architect,supervisor,worker" phase-ref="p9,p12" command="git agent-commit -m ..." />
+    <constraint id="C-agent-commit" given="code is ready to commit" when="committing" then="use git agent-commit -m ..." should-not="use git commit -m ..." role-ref="architect,supervisor,worker" phase-ref="p9,p12" command="git agent-commit -m ...">
+      <example id="C-agent-commit-correct" lang="bash" label="correct">
+        <code><![CDATA[git agent-commit -m "feat: add login"]]></code>
+      </example>
+      <example id="C-agent-commit-anti" lang="bash" label="anti-pattern">
+        <code><![CDATA[git commit -m "feat: add login"]]></code>
+      </example>
+    </constraint>
     <!-- Naming -->
     <constraint id="C-proposal-naming" given="a new or revised proposal" when="creating task" then="title PROPOSAL-{N} where N increments; mark old as aura:superseded" should-not="reuse N or delete old proposals" role-ref="architect" phase-ref="p3" />
     <constraint id="C-review-naming" given="a review task" when="creating" then="title {SCOPE}-REVIEW-{axis}-{round} where axis=A|B|C, round starts at 1" should-not="use numeric reviewer IDs (1/2/3) instead of axis letters" role-ref="reviewer" phase-ref="p4,p10" />
     <!-- User interviews -->
-    <constraint id="C-ure-verbatim" given="user interview (URE or UAT)" when="recording in Beads" then="capture full question text, ALL option descriptions, AND user's verbatim response" should-not="summarize options as (1)/(2)/(3) without option text" role-ref="architect" phase-ref="p2,p5,p11" />
+    <constraint id="C-ure-verbatim" given="user interview (Request, URE, or UAT), URD update, or mid-implementation design decision" when="recording in Beads" then="capture full question text, ALL option descriptions, AND user's verbatim response; the URD is the living document of ALL user requests, URE, UAT, and mid-implementation design decisions and feedback — update it via bd comments add whenever user intent is captured" should-not="summarize options as (1)/(2)/(3) without option text, or paraphrase user responses" role-ref="architect" phase-ref="p2,p5,p11">
+      <example id="C-ure-verbatim-correct" lang="bash" label="correct">
+        <code><![CDATA[# Full question, all options with descriptions, verbatim response
+bd create --title "UAT: Plan acceptance for feature-X" \
+  --description "## Component: Verbose fields
+**Question:** Which verbose fields are useful?
+**Options:**
+- backupDir (full path): Shows where the backup landed
+- session ID: Enables log correlation across events
+- repo path + hash: Confirms which git repo was detected
+**User response:** backupDir (full path), session ID
+**Decision:** ACCEPT"]]></code>
+      </example>
+      <example id="C-ure-verbatim-anti" lang="bash" label="anti-pattern">
+        <code><![CDATA[# WRONG: options summarized as numbers, response paraphrased
+bd create --title "UAT: Plan acceptance" \
+  --description "Asked about verbose fields (1-4). User picked 1 and 2. Accepted."]]></code>
+      </example>
+    </constraint>
     <!-- Follow-up lifecycle -->
     <constraint id="C-followup-lifecycle" given="follow-up epic created" when="starting follow-up work" then="run same protocol phases with FOLLOWUP_* prefix: FOLLOWUP_URE → FOLLOWUP_URD → FOLLOWUP_PROPOSAL → FOLLOWUP_IMPL_PLAN → FOLLOWUP_SLICE" should-not="skip the follow-up lifecycle or treat the follow-up epic as a flat task list" role-ref="supervisor" phase-ref="p10" />
     <constraint id="C-followup-leaf-adoption" given="supervisor creates FOLLOWUP_SLICE-N" when="assigning original IMPORTANT/MINOR leaf tasks to follow-up slices" then="add leaf task as child of follow-up slice (dual-parent: leaf blocks both severity group AND follow-up slice)" should-not="remove the leaf task from its original severity group parent" role-ref="supervisor" phase-ref="p10" />
@@ -1157,6 +1218,17 @@
       <step order="5" id="S-supervisor-create-leaf-tasks">
         <instruction>Create leaf tasks (L1/L2/L3) for every slice</instruction>
         <command>bd create --labels aura:p9-impl:s9-slice --title "SLICE-{K}-L{1,2,3}: &lt;description&gt;" ...</command>
+        <example id="S-supervisor-create-leaf-tasks-frontmatter" lang="bash" label="template" also-illustrates="C-frontmatter-refs">
+          <code><![CDATA[bd create --labels aura:p9-impl:s9-slice \
+  --title "SLICE-1-L1: Types -- <slice name>" \
+  --description "---
+references:
+  slice: <slice-1-id>
+  impl_plan: <impl-plan-task-id>
+  urd: <urd-task-id>
+---
+Layer 1: types and interfaces for <slice name>."]]></code>
+        </example>
       </step>
       <step order="6" id="S-supervisor-spawn-workers" next-state="p9">
         <instruction>Spawn workers for leaf tasks</instruction>
@@ -1188,10 +1260,13 @@
       <item id="CL-worker-test-import" required="true">Tests import production code (not test-only export)</item>
       <item id="CL-worker-no-dual-export" required="true">No dual-export anti-pattern (one code path for tests and production)</item>
       <item id="CL-worker-quality-gates" required="true">Quality gates pass (typecheck + tests)</item>
+      <item id="CL-worker-production-path" required="true">Production code path verified end-to-end via code inspection</item>
     </checklist>
     <checklist id="worker-slice-closure" role-ref="worker" gate="slice-closure">
       <item id="CL-worker-notified-supervisor" required="true">Supervisor notified via bd comments add (not bd close)</item>
       <item id="CL-worker-completion-done" required="true">All completion-gate items passed</item>
+      <item id="CL-worker-close-on-review-wave" required="true">Can only close on a review wave, not a worker wave</item>
+      <item id="CL-worker-review-eligible" required="true">Eligible to close only after review by independent agents with no BLOCKERS or IMPORTANT findings</item>
     </checklist>
     <checklist id="supervisor-review-ready" role-ref="supervisor" gate="review-ready">
       <item id="CL-sup-all-slices-notified" required="true">All workers have notified completion via bd comments add</item>
@@ -1203,6 +1278,8 @@
       <item id="CL-sup-followup-created" required="true">FOLLOWUP epic created if any IMPORTANT/MINOR findings exist</item>
       <item id="CL-sup-agent-commit" required="true">git agent-commit used (not git commit -m)</item>
       <item id="CL-sup-tasks-closed" required="true">All upstream tasks closed or dependency-resolved</item>
+      <item id="CL-sup-close-on-review-wave" required="true">Can only close on a review wave, not a worker wave</item>
+      <item id="CL-sup-review-eligible" required="true">Eligible to close only after review by independent agents with no BLOCKERS or IMPORTANT findings</item>
     </checklist>
   </checklists>
   <!-- ═══════════════════════════════════════════════════════════════════════

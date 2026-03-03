@@ -902,7 +902,9 @@ def parse_schema(path: Path) -> SchemaSpec:
 
     Returns:
         SchemaSpec with all 12 phases, 5 roles, 35 commands, 23 constraints,
-        6 handoffs, 21 labels, 3 review axes, and 16 title conventions.
+        6 handoffs, 21 labels, 3 review axes, 16 title conventions,
+        4 checklists, 10 coordination commands, 3 workflows, and procedure
+        steps with substep specs.
 
     Raises:
         SchemaParseError: If the file does not exist, is not valid XML, or is

@@ -42,6 +42,16 @@ skills: aura:reviewer-review-plan, aura:reviewer-review-code, aura:reviewer-comm
 - Then: chain dependency: bd dep add parent --blocked-by child
 - Should not: skip dependency chaining or invert direction
 
+```bash
+# Full dependency chain: work flows bottom-up, closure flows top-down
+bd dep add request-id --blocked-by ure-id
+bd dep add ure-id --blocked-by proposal-id
+bd dep add proposal-id --blocked-by impl-plan-id
+bd dep add impl-plan-id --blocked-by slice-1-id
+bd dep add slice-1-id --blocked-by leaf-task-a-id
+```
+_Example (correct)_
+
 **[C-audit-never-delete]**
 - Given: any task or label
 - When: modifying
@@ -59,6 +69,16 @@ skills: aura:reviewer-review-plan, aura:reviewer-review-code, aura:reviewer-comm
 - When: determining direction
 - Then: parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first
 - Should not: invert (child blocked-by parent)
+
+```bash
+bd dep add request-id --blocked-by ure-id
+```
+_Example (correct)_ — also illustrates: C-audit-dep-chain
+
+```bash
+bd dep add ure-id --blocked-by request-id
+```
+_Example (anti-pattern)_
 
 **[C-frontmatter-refs]**
 - Given: cross-task references (URD, request, etc.)
@@ -89,6 +109,29 @@ skills: aura:reviewer-review-plan, aura:reviewer-review-code, aura:reviewer-comm
 - When: starting review
 - Then: ALWAYS create 3 severity group tasks (BLOCKER, IMPORTANT, MINOR) immediately
 - Should not: lazily create severity groups only when findings exist
+
+```bash
+# Create all 3 severity groups immediately (even if empty)
+bd create --title "SLICE-1-REVIEW-A-1 BLOCKER" \
+  --labels "aura:severity:blocker,aura:p10-impl:s10-review"
+bd create --title "SLICE-1-REVIEW-A-1 IMPORTANT" \
+  --labels "aura:severity:important,aura:p10-impl:s10-review"
+bd create --title "SLICE-1-REVIEW-A-1 MINOR" \
+  --labels "aura:severity:minor,aura:p10-impl:s10-review"
+
+# Close empty groups immediately
+bd close <empty-important-id>
+bd close <empty-minor-id>
+```
+_Example (correct)_
+
+```bash
+# WRONG: only creating groups when findings exist
+# This skips empty groups and breaks the audit trail
+if blocker_findings:
+    bd create --title "BLOCKER" ...
+```
+_Example (anti-pattern)_
 
 **[C-severity-not-plan]**
 - Given: plan review (p4)

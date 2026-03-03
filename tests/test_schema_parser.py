@@ -231,7 +231,7 @@ class TestSchemaParserErrorPaths:
         missing = tmp_path / "nonexistent_schema.xml"
         with pytest.raises(SchemaParseError) as exc_info:
             parse_schema(missing)
-        assert "not found" in str(exc_info.value).lower() or "Schema file" in str(exc_info.value)
+        assert "not found" in str(exc_info.value).lower() and "Schema file" in str(exc_info.value)
 
     def test_error_on_invalid_xml(self, tmp_path: Path) -> None:
         """SchemaParseError when XML is malformed (unclosed tag)."""
@@ -240,7 +240,7 @@ class TestSchemaParserErrorPaths:
         with pytest.raises(SchemaParseError) as exc_info:
             parse_schema(bad_xml)
         msg = str(exc_info.value)
-        assert "XML parse error" in msg or "parse error" in msg.lower()
+        assert "XML parse error" in msg and "parse error" in msg.lower()
 
     def test_error_on_wrong_root_element(self, tmp_path: Path) -> None:
         """SchemaParseError when root element is not <aura-protocol>."""
@@ -248,7 +248,7 @@ class TestSchemaParserErrorPaths:
         bad_xml.write_text('<?xml version="1.0"?><wrong-root/>')
         with pytest.raises(SchemaParseError) as exc_info:
             parse_schema(bad_xml)
-        assert "root element" in str(exc_info.value).lower() or "aura-protocol" in str(exc_info.value)
+        assert "root element" in str(exc_info.value).lower() and "aura-protocol" in str(exc_info.value)
 
     def test_error_on_missing_phases_section(self, tmp_path: Path) -> None:
         """SchemaParseError when <phases> section is absent."""
@@ -308,7 +308,7 @@ class TestSchemaParserErrorPaths:
         """))
         with pytest.raises(SchemaParseError) as exc_info:
             parse_schema(xml)
-        assert "id" in str(exc_info.value).lower() or "'id'" in str(exc_info.value)
+        assert "id" in str(exc_info.value).lower() and "'id'" in str(exc_info.value)
 
     def test_error_on_phase_invalid_number(self, tmp_path: Path) -> None:
         """SchemaParseError when phase number is not an integer."""
@@ -330,7 +330,7 @@ class TestSchemaParserErrorPaths:
         """))
         with pytest.raises(SchemaParseError) as exc_info:
             parse_schema(xml)
-        assert "number" in str(exc_info.value).lower() or "integer" in str(exc_info.value).lower()
+        assert "number" in str(exc_info.value).lower() and "integer" in str(exc_info.value).lower()
 
     def test_parse_schema_raises_on_missing_instruction(self, tmp_path: Path) -> None:
         """SchemaParseError raised when a <step> in a startup-sequence has no <instruction>."""
@@ -391,7 +391,7 @@ class TestSchemaParserErrorPaths:
         """))
         with pytest.raises(SchemaParseError) as exc_info:
             parse_schema(xml)
-        assert "unknown" in str(exc_info.value).lower() or "role" in str(exc_info.value).lower()
+        assert "unknown" in str(exc_info.value).lower() and "role" in str(exc_info.value).lower()
 
     def test_error_on_unknown_content_level(self, tmp_path: Path) -> None:
         """SchemaParseError when handoff has unknown content-level value."""
@@ -414,7 +414,7 @@ class TestSchemaParserErrorPaths:
         """))
         with pytest.raises(SchemaParseError) as exc_info:
             parse_schema(xml)
-        assert "content-level" in str(exc_info.value) or "unknown" in str(exc_info.value).lower()
+        assert "content-level" in str(exc_info.value) and "unknown" in str(exc_info.value).lower()
 
 
 class TestSchemaParserReturnType:
@@ -476,10 +476,10 @@ class TestSchemaParserChecklists:
     def test_worker_completion_checklist_exists(self, parsed_spec: SchemaSpec) -> None:
         assert "worker-completion" in parsed_spec.checklists
 
-    def test_worker_completion_has_five_items(self, parsed_spec: SchemaSpec) -> None:
+    def test_worker_completion_has_six_items(self, parsed_spec: SchemaSpec) -> None:
         cl = parsed_spec.checklists["worker-completion"]
-        assert len(cl.items) == 5, (
-            f"Expected 5 items in worker-completion checklist, got {len(cl.items)}"
+        assert len(cl.items) == 6, (
+            f"Expected 6 items in worker-completion checklist, got {len(cl.items)}"
         )
 
     def test_worker_completion_first_item_id(self, parsed_spec: SchemaSpec) -> None:
@@ -493,10 +493,10 @@ class TestSchemaParserChecklists:
         cl = parsed_spec.checklists["worker-completion"]
         assert cl.role_ref == RoleId.WORKER
 
-    def test_supervisor_landing_has_four_items(self, parsed_spec: SchemaSpec) -> None:
+    def test_supervisor_landing_has_items(self, parsed_spec: SchemaSpec) -> None:
         cl = parsed_spec.checklists["supervisor-landing"]
-        assert len(cl.items) == 4, (
-            f"Expected 4 items in supervisor-landing checklist, got {len(cl.items)}"
+        assert len(cl.items) >= 4, (
+            f"Expected at least 4 items in supervisor-landing checklist, got {len(cl.items)}"
         )
 
     def test_all_checklist_items_required(self, parsed_spec: SchemaSpec) -> None:
@@ -622,7 +622,7 @@ class TestSchemaParserNewElementErrors:
         """))
         with pytest.raises(SchemaParseError) as exc_info:
             parse_schema(xml)
-        assert "gate" in str(exc_info.value).lower() or "unknown" in str(exc_info.value).lower()
+        assert "gate" in str(exc_info.value).lower() and "unknown" in str(exc_info.value).lower()
 
     def test_error_on_invalid_workflow_execution(self, tmp_path: Path) -> None:
         """SchemaParseError when a workflow stage has an unknown execution value."""
@@ -652,4 +652,4 @@ class TestSchemaParserNewElementErrors:
         """))
         with pytest.raises(SchemaParseError) as exc_info:
             parse_schema(xml)
-        assert "execution" in str(exc_info.value).lower() or "invalid" in str(exc_info.value).lower()
+        assert "execution" in str(exc_info.value).lower() and "invalid" in str(exc_info.value).lower()

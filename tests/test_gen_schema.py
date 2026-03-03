@@ -11,6 +11,7 @@ Acceptance criteria covered:
 from __future__ import annotations
 
 import io
+import re
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -1309,3 +1310,49 @@ class TestConstraintCommandRoundTrip:
         assert c_el.get("command") is not None, (
             "C-agent-commit must have 'command' attribute in generated XML"
         )
+
+
+# ─── CDATA wrapping tests (FR12) ──────────────────────────────────────────────
+
+
+class TestCdataWrapping:
+    """FR12: <code> element content wrapped in CDATA sections."""
+
+    def test_wrap_code_elements_in_cdata_basic(self) -> None:
+        """_wrap_code_elements_in_cdata replaces escaped content with CDATA."""
+        from aura_protocol.gen_schema import _wrap_code_elements_in_cdata
+
+        xml_input = "<code>git agent-commit -m &amp;quot;msg&amp;quot;</code>"
+        result = _wrap_code_elements_in_cdata(xml_input)
+        assert "<![CDATA[" in result
+        assert "]]>" in result
+        # CDATA body should contain unescaped content
+        assert '&amp;quot;' not in result.split("<![CDATA[")[1].split("]]>")[0]
+
+    def test_wrap_code_elements_in_cdata_empty(self) -> None:
+        """Empty <code /> elements are left unchanged."""
+        from aura_protocol.gen_schema import _wrap_code_elements_in_cdata
+
+        xml_input = '<code />'
+        result = _wrap_code_elements_in_cdata(xml_input)
+        assert "<![CDATA[" not in result
+
+    def test_wrap_code_elements_in_cdata_multiline(self) -> None:
+        """Multiline code content is properly wrapped."""
+        from aura_protocol.gen_schema import _wrap_code_elements_in_cdata
+
+        xml_input = "<code>line1\nline2\nline3</code>"
+        result = _wrap_code_elements_in_cdata(xml_input)
+        assert "<code><![CDATA[line1\nline2\nline3]]></code>" == result
+
+    def test_generated_schema_code_elements_use_cdata(
+        self, generated_schema_path: Path,
+    ) -> None:
+        """If any <code> elements exist in generated XML, they must use CDATA."""
+        content = generated_schema_path.read_text(encoding="utf-8")
+        # Find all <code>...</code> occurrences
+        code_matches = re.findall(r"<code>(.*?)</code>", content, re.DOTALL)
+        for match in code_matches:
+            assert match.startswith("<![CDATA[") and match.endswith("]]>"), (
+                f"<code> element content not wrapped in CDATA: {match[:80]!r}..."
+            )

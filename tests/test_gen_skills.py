@@ -1170,6 +1170,26 @@ class TestCompletionChecklistSection:
             "Completion checklist items must use '- [ ]' checkbox format."
         )
 
+    def test_checklist_renders_gate_subheadings(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Completion checklist must render gate type as subheading."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "gates:**" in result, (
+            "Completion checklist must render gate type subheadings (e.g. '**completion gates:**')."
+        )
+
 
 class TestInterAgentCoordinationSection:
     """### Inter-Agent Coordination section rendered as table from COORDINATION_COMMANDS."""
@@ -1213,8 +1233,8 @@ class TestInterAgentCoordinationSection:
         )
 
         # Table must have | Action | Command | header
-        assert "| Action |" in result or "| Action|" in result, (
-            "Coordination table must have 'Action' column header."
+        assert "| Action |" in result, (
+            "Coordination table must have '| Action |' column header."
         )
 
     def test_worker_coordination_includes_shared_commands(
@@ -1282,6 +1302,29 @@ class TestWorkflowsSection:
 
         assert "### Workflows" in result, (
             "Worker must have '### Workflows' section."
+        )
+
+    def test_architect_has_workflows_section(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Architect must render a Workflows section (has Architect State Flow)."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.ARCHITECT,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "### Workflows" in result, (
+            "Architect must have '### Workflows' section."
+        )
+        assert "Architect State Flow" in result, (
+            "Architect workflows must include 'Architect State Flow'."
         )
 
     def test_supervisor_workflow_contains_stages(
@@ -1401,14 +1444,17 @@ class TestConstraintCodeExamplesSection:
             write=False,
         )
 
-        # Find worker constraints with examples
+        # Worker constraints must include at least one with examples
         worker_constraints_with_examples = [
             spec for spec in CONSTRAINT_SPECS.values()
             if spec.examples
         ]
+        assert worker_constraints_with_examples, (
+            "At least one CONSTRAINT_SPECS entry must have non-empty examples. "
+            "Populate CodeExample on C-agent-commit, C-dep-direction, or similar."
+        )
 
-        if worker_constraints_with_examples:
-            # Code fences must appear
-            assert "```" in result, (
-                "Code fence must appear when a constraint has examples."
-            )
+        # Code fences must appear in rendered output
+        assert "```" in result, (
+            "Code fence must appear when a constraint has examples."
+        )

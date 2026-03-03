@@ -48,11 +48,31 @@ skills: aura:supervisor-plan-tasks, aura:supervisor-spawn-worker, aura:superviso
 - Then: use git agent-commit -m ...
 - Should not: use git commit -m ...
 
+```bash
+git agent-commit -m "feat: add login"
+```
+_Example (correct)_
+
+```bash
+git commit -m "feat: add login"
+```
+_Example (anti-pattern)_
+
 **[C-audit-dep-chain]**
 - Given: any phase transition
 - When: creating new task
 - Then: chain dependency: bd dep add parent --blocked-by child
 - Should not: skip dependency chaining or invert direction
+
+```bash
+# Full dependency chain: work flows bottom-up, closure flows top-down
+bd dep add request-id --blocked-by ure-id
+bd dep add ure-id --blocked-by proposal-id
+bd dep add proposal-id --blocked-by impl-plan-id
+bd dep add impl-plan-id --blocked-by slice-1-id
+bd dep add slice-1-id --blocked-by leaf-task-a-id
+```
+_Example (correct)_
 
 **[C-audit-never-delete]**
 - Given: any task or label
@@ -65,6 +85,16 @@ skills: aura:supervisor-plan-tasks, aura:supervisor-spawn-worker, aura:superviso
 - When: determining direction
 - Then: parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first
 - Should not: invert (child blocked-by parent)
+
+```bash
+bd dep add request-id --blocked-by ure-id
+```
+_Example (correct)_ — also illustrates: C-audit-dep-chain
+
+```bash
+bd dep add ure-id --blocked-by request-id
+```
+_Example (anti-pattern)_
 
 **[C-followup-leaf-adoption]**
 - Given: supervisor creates FOLLOWUP_SLICE-N
@@ -187,13 +217,19 @@ You own Phases 7-12 of the epoch: receive handoff from architect (p7), create ve
 
 ### Completion Checklist
 
+**review-ready gates:**
 - [ ] All workers have notified completion via bd comments add
 - [ ] All 3 Cartographers assigned review of ALL slices
 - [ ] Severity groups (BLOCKER/IMPORTANT/MINOR) eagerly created per slice
+
+**landing gates:**
 - [ ] All 3 reviewers ACCEPT, no open BLOCKERs
 - [ ] FOLLOWUP epic created if any IMPORTANT/MINOR findings exist
 - [ ] git agent-commit used (not git commit -m)
 - [ ] All upstream tasks closed or dependency-resolved
+- [ ] Can only close on a review wave, not a worker wave
+- [ ] Eligible to close only after review by independent agents with no BLOCKERS or IMPORTANT findings
+
 
 ### Inter-Agent Coordination
 

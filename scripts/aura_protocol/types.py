@@ -954,6 +954,21 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         then="chain dependency: bd dep add parent --blocked-by child",
         should_not="skip dependency chaining or invert direction",
         command="bd dep add <parent> --blocked-by <child>",
+        examples=(
+            CodeExample(
+                id="C-audit-dep-chain-full",
+                lang=ExampleLang.BASH,
+                label=ExampleLabel.CORRECT,
+                code=(
+                    "# Full dependency chain: work flows bottom-up, closure flows top-down\n"
+                    "bd dep add request-id --blocked-by ure-id\n"
+                    "bd dep add ure-id --blocked-by proposal-id\n"
+                    "bd dep add proposal-id --blocked-by impl-plan-id\n"
+                    "bd dep add impl-plan-id --blocked-by slice-1-id\n"
+                    "bd dep add slice-1-id --blocked-by leaf-task-a-id"
+                ),
+            ),
+        ),
     ),
     "C-review-consensus": ConstraintSpec(
         id="C-review-consensus",
@@ -975,6 +990,37 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         when="starting review",
         then="ALWAYS create 3 severity group tasks (BLOCKER, IMPORTANT, MINOR) immediately",
         should_not="lazily create severity groups only when findings exist",
+        examples=(
+            CodeExample(
+                id="C-severity-eager-create",
+                lang=ExampleLang.BASH,
+                label=ExampleLabel.CORRECT,
+                code=(
+                    "# Create all 3 severity groups immediately (even if empty)\n"
+                    'bd create --title "SLICE-1-REVIEW-A-1 BLOCKER" \\\n'
+                    '  --labels "aura:severity:blocker,aura:p10-impl:s10-review"\n'
+                    'bd create --title "SLICE-1-REVIEW-A-1 IMPORTANT" \\\n'
+                    '  --labels "aura:severity:important,aura:p10-impl:s10-review"\n'
+                    'bd create --title "SLICE-1-REVIEW-A-1 MINOR" \\\n'
+                    '  --labels "aura:severity:minor,aura:p10-impl:s10-review"\n'
+                    "\n"
+                    "# Close empty groups immediately\n"
+                    "bd close <empty-important-id>\n"
+                    "bd close <empty-minor-id>"
+                ),
+            ),
+            CodeExample(
+                id="C-severity-eager-anti",
+                lang=ExampleLang.BASH,
+                label=ExampleLabel.ANTI_PATTERN,
+                code=(
+                    "# WRONG: only creating groups when findings exist\n"
+                    "# This skips empty groups and breaks the audit trail\n"
+                    'if blocker_findings:\n'
+                    '    bd create --title "BLOCKER" ...'
+                ),
+            ),
+        ),
     ),
     "C-severity-not-plan": ConstraintSpec(
         id="C-severity-not-plan",
@@ -1103,6 +1149,21 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         then="parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first",
         should_not="invert (child blocked-by parent)",
         command="bd dep add <stays-open> --blocked-by <must-finish-first>",
+        examples=(
+            CodeExample(
+                id="C-dep-direction-correct",
+                lang=ExampleLang.BASH,
+                label=ExampleLabel.CORRECT,
+                code='bd dep add request-id --blocked-by ure-id',
+                also_illustrates="C-audit-dep-chain",
+            ),
+            CodeExample(
+                id="C-dep-direction-anti",
+                lang=ExampleLang.BASH,
+                label=ExampleLabel.ANTI_PATTERN,
+                code='bd dep add ure-id --blocked-by request-id',
+            ),
+        ),
     ),
     "C-frontmatter-refs": ConstraintSpec(
         id="C-frontmatter-refs",
@@ -1118,6 +1179,20 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         then="use git agent-commit -m ...",
         should_not="use git commit -m ...",
         command="git agent-commit -m ...",
+        examples=(
+            CodeExample(
+                id="C-agent-commit-correct",
+                lang=ExampleLang.BASH,
+                label=ExampleLabel.CORRECT,
+                code='git agent-commit -m "feat: add login"',
+            ),
+            CodeExample(
+                id="C-agent-commit-anti",
+                lang=ExampleLang.BASH,
+                label=ExampleLabel.ANTI_PATTERN,
+                code='git commit -m "feat: add login"',
+            ),
+        ),
     ),
     "C-proposal-naming": ConstraintSpec(
         id="C-proposal-naming",
@@ -1135,10 +1210,40 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
     ),
     "C-ure-verbatim": ConstraintSpec(
         id="C-ure-verbatim",
-        given="user interview (URE or UAT)",
+        given="user interview (Request, URE, or UAT), URD update, or mid-implementation design decision",
         when="recording in Beads",
-        then="capture full question text, ALL option descriptions, AND user's verbatim response",
-        should_not="summarize options as (1)/(2)/(3) without option text",
+        then="capture full question text, ALL option descriptions, AND user's verbatim response; the URD is the living document of ALL user requests, URE, UAT, and mid-implementation design decisions and feedback — update it via bd comments add whenever user intent is captured",
+        should_not="summarize options as (1)/(2)/(3) without option text, or paraphrase user responses",
+        examples=(
+            CodeExample(
+                id="C-ure-verbatim-correct",
+                lang=ExampleLang.BASH,
+                label=ExampleLabel.CORRECT,
+                code=(
+                    "# Full question, all options with descriptions, verbatim response\n"
+                    'bd create --title "UAT: Plan acceptance for feature-X" \\\n'
+                    '  --description "## Component: Verbose fields\n'
+                    "**Question:** Which verbose fields are useful?\n"
+                    "**Options:**\n"
+                    "- backupDir (full path): Shows where the backup landed\n"
+                    "- session ID: Enables log correlation across events\n"
+                    "- repo path + hash: Confirms which git repo was detected\n"
+                    "**User response:** backupDir (full path), session ID\n"
+                    '**Decision:** ACCEPT"'
+                ),
+            ),
+            CodeExample(
+                id="C-ure-verbatim-anti",
+                lang=ExampleLang.BASH,
+                label=ExampleLabel.ANTI_PATTERN,
+                code=(
+                    "# WRONG: options summarized as numbers, response paraphrased\n"
+                    'bd create --title "UAT: Plan acceptance" \\\n'
+                    '  --description "Asked about verbose fields (1-4). '
+                    'User picked 1 and 2. Accepted."'
+                ),
+            ),
+        ),
     ),
     "C-followup-lifecycle": ConstraintSpec(
         id="C-followup-lifecycle",
@@ -2185,6 +2290,25 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
                 'bd create --labels aura:p9-impl:s9-slice --title '
                 '"SLICE-{K}-L{1,2,3}: <description>" ...'
             ),
+            examples=(
+                CodeExample(
+                    id="S-supervisor-create-leaf-tasks-frontmatter",
+                    lang=ExampleLang.BASH,
+                    label=ExampleLabel.TEMPLATE,
+                    code=(
+                        'bd create --labels aura:p9-impl:s9-slice \\\n'
+                        '  --title "SLICE-1-L1: Types -- <slice name>" \\\n'
+                        '  --description "---\n'
+                        'references:\n'
+                        '  slice: <slice-1-id>\n'
+                        '  impl_plan: <impl-plan-task-id>\n'
+                        '  urd: <urd-task-id>\n'
+                        '---\n'
+                        'Layer 1: types and interfaces for <slice name>."'
+                    ),
+                    also_illustrates="C-frontmatter-refs",
+                ),
+            ),
         ),
         ProcedureStep(
             id=StepSlug.Supervisor.SpawnWorkers,
@@ -2379,6 +2503,10 @@ CHECKLIST_SPECS: dict[str, Checklist] = {
                 id="CL-worker-quality-gates",
                 text="Quality gates pass (typecheck + tests)",
             ),
+            ChecklistItem(
+                id="CL-worker-production-path",
+                text="Production code path verified end-to-end via code inspection",
+            ),
         ),
     ),
     "worker-slice-closure": Checklist(
@@ -2392,6 +2520,14 @@ CHECKLIST_SPECS: dict[str, Checklist] = {
             ChecklistItem(
                 id="CL-worker-completion-done",
                 text="All completion-gate items passed",
+            ),
+            ChecklistItem(
+                id="CL-worker-close-on-review-wave",
+                text="Can only close on a review wave, not a worker wave",
+            ),
+            ChecklistItem(
+                id="CL-worker-review-eligible",
+                text="Eligible to close only after review by independent agents with no BLOCKERS or IMPORTANT findings",
             ),
         ),
     ),
@@ -2432,6 +2568,14 @@ CHECKLIST_SPECS: dict[str, Checklist] = {
             ChecklistItem(
                 id="CL-sup-tasks-closed",
                 text="All upstream tasks closed or dependency-resolved",
+            ),
+            ChecklistItem(
+                id="CL-sup-close-on-review-wave",
+                text="Can only close on a review wave, not a worker wave",
+            ),
+            ChecklistItem(
+                id="CL-sup-review-eligible",
+                text="Eligible to close only after review by independent agents with no BLOCKERS or IMPORTANT findings",
             ),
         ),
     ),

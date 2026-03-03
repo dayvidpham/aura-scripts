@@ -108,9 +108,11 @@ _(No startup sequence defined for this role)_
 ### Completion Checklist
 
 {% for cl in checklists %}
+**{{ cl.gate.value }} gates:**
 {% for item in cl.items %}
 - [ ] {{ item.text }}
 {% endfor %}
+
 {% endfor %}
 {% endif %}
 {% if coordination_commands %}

@@ -23,8 +23,10 @@ from __future__ import annotations
 
 import difflib
 import io
+import re
 import sys
 import xml.etree.ElementTree as ET
+from html import unescape as html_unescape
 from pathlib import Path
 
 from aura_protocol.context_injection import (
@@ -1522,16 +1524,38 @@ def _section_comment(title: str) -> ET.Element:
 # ─── XML Serialization ────────────────────────────────────────────────────────
 
 
+def _wrap_code_elements_in_cdata(xml_str: str) -> str:
+    """Post-process serialized XML to wrap <code> element content in CDATA sections.
+
+    xml.etree.ElementTree does not natively support CDATA. This function finds
+    ``<code>escaped_content</code>`` patterns and replaces them with
+    ``<code><![CDATA[raw_content]]></code>``, unescaping any XML entities
+    (e.g. ``&lt;`` -> ``<``) so the CDATA body contains the original source code.
+
+    Empty ``<code />`` elements are left unchanged.
+    """
+
+    def _replace_code(match: re.Match[str]) -> str:
+        escaped_content = match.group(1)
+        raw_content = html_unescape(escaped_content)
+        return f"<code><![CDATA[{raw_content}]]></code>"
+
+    return re.sub(r"<code>(.*?)</code>", _replace_code, xml_str, flags=re.DOTALL)
+
+
 def _serialize_tree(root: ET.Element) -> str:
     """Serialize an ElementTree to a well-formatted XML string.
 
     Uses ET.indent (Python 3.9+) for indentation.
+    Wraps <code> element content in CDATA sections via post-processing.
     """
     tree = ET.ElementTree(root)
     ET.indent(tree, space="  ")
     buf = io.BytesIO()
     tree.write(buf, encoding="UTF-8", xml_declaration=True)
     content = buf.getvalue().decode("UTF-8")
+    # Post-process: wrap <code> content in CDATA sections
+    content = _wrap_code_elements_in_cdata(content)
     # Normalize declaration encoding to uppercase (ET writes uppercase already)
     return content + "\n"
 

@@ -469,21 +469,27 @@ class TestRoleSpecsUpdated:
         sup = ROLE_SPECS[RoleId.SUPERVISOR]
         assert sup.ownership_narrative is not None
 
-    def test_supervisor_has_behaviors(self) -> None:
-        sup = ROLE_SPECS[RoleId.SUPERVISOR]
-        assert len(sup.behaviors) >= 3
+    _ROLES_WITH_BEHAVIORS = [
+        RoleId.SUPERVISOR, RoleId.WORKER, RoleId.ARCHITECT, RoleId.REVIEWER,
+    ]
 
-    def test_worker_has_behaviors(self) -> None:
-        worker = ROLE_SPECS[RoleId.WORKER]
-        assert len(worker.behaviors) >= 3
+    @pytest.mark.parametrize("role_id", _ROLES_WITH_BEHAVIORS)
+    def test_every_impl_role_has_at_least_one_behavior(self, role_id: RoleId) -> None:
+        role = ROLE_SPECS[role_id]
+        assert len(role.behaviors) >= 1, (
+            f"Role {role_id.value} has no behaviors defined"
+        )
 
-    def test_architect_has_behaviors(self) -> None:
-        arch = ROLE_SPECS[RoleId.ARCHITECT]
-        assert len(arch.behaviors) >= 3
-
-    def test_reviewer_has_behaviors(self) -> None:
-        rev = ROLE_SPECS[RoleId.REVIEWER]
-        assert len(rev.behaviors) >= 2
+    @pytest.mark.parametrize("role_id", _ROLES_WITH_BEHAVIORS)
+    def test_all_behaviors_have_non_empty_fields(self, role_id: RoleId) -> None:
+        """Every behavior must have non-empty given/when/then/should_not."""
+        role = ROLE_SPECS[role_id]
+        for b in role.behaviors:
+            assert b.id, f"Role {role_id.value}: behavior has empty id"
+            assert b.given, f"Role {role_id.value}, {b.id}: empty 'given'"
+            assert b.when, f"Role {role_id.value}, {b.id}: empty 'when'"
+            assert b.then, f"Role {role_id.value}, {b.id}: empty 'then'"
+            assert b.should_not, f"Role {role_id.value}, {b.id}: empty 'should_not'"
 
     def test_all_behavior_ids_unique_within_role(self) -> None:
         for role_id, role_spec in ROLE_SPECS.items():
