@@ -14,11 +14,11 @@ Coverage strategy:
     - EpochWorkflow class has correct signal/query decorators
     - Signal/advance logic via direct state machine integration tests
     - Review vote signals correctly queued and applied
-    - WorkflowEnvironment.start_time_skipping() end-to-end sandbox tests
+    - WorkflowEnvironment.start_local() end-to-end sandbox tests
       (skip-safe when Temporal test server binary is unavailable)
 
 Note on Temporal sandbox testing:
-    WorkflowEnvironment.start_time_skipping() requires a Temporal test server
+    WorkflowEnvironment.start_local() requires a Temporal test server
     binary (downloaded at runtime). In environments without network access or
     a cached binary, we test:
     1. Activities via ActivityEnvironment (in-process, no server required)
@@ -27,7 +27,7 @@ Note on Temporal sandbox testing:
     3. Structural invariants via introspection of @workflow.defn decorators
 
     When a Temporal server is available, full end-to-end sandbox tests use
-    WorkflowEnvironment.start_time_skipping() with the EpochWorkflow class
+    WorkflowEnvironment.start_local() with the EpochWorkflow class
     (see TestWorkflowEnvironmentSandbox at the bottom of this file).
 """
 
@@ -848,7 +848,7 @@ class TestFullLifecycleIntegration:
 def _temporal_sandbox_works() -> bool:
     """Probe whether the full Temporal sandbox pipeline works end-to-end.
 
-    Tests start_time_skipping() AND that a workflow using custom search
+    Tests start_local() AND that a workflow using custom search
     attributes can run. Returns False if:
     - The test server binary can't be downloaded/started
     - Custom search attributes (AuraPhase, etc.) aren't registered
@@ -863,7 +863,9 @@ def _temporal_sandbox_works() -> bool:
         from temporalio.worker import Worker
 
         async def _probe() -> bool:
-            async with await WorkflowEnvironment.start_time_skipping() as env:
+            async with await WorkflowEnvironment.start_local(
+                search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN]
+            ) as env:
                 async with Worker(
                     env.client,
                     task_queue="probe-q",
@@ -899,16 +901,45 @@ def _temporal_sandbox_works() -> bool:
 
 _SKIP_REASON = (
     "Temporal sandbox unavailable (test server binary missing, "
-    "or custom search attributes not registered)"
+    "start_local() failed, or custom search attributes not registered)"
 )
 
 
+async def _poll_query(handle, expected_phase: PhaseId, *, timeout: float = 2.0, interval: float = 0.05):
+    """Poll workflow query until expected phase appears or timeout."""
+    import time
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        state = await handle.query(EpochWorkflow.current_state)
+        if state.current_phase == expected_phase:
+            return state
+        await asyncio.sleep(interval)
+    # Final attempt — let assertion fail with actual vs expected
+    return await handle.query(EpochWorkflow.current_state)
+
+
+async def _poll_history(handle, *, min_len: int = 1, timeout: float = 2.0, interval: float = 0.05):
+    """Poll workflow query until transition_history has at least min_len entries or timeout."""
+    import time
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        state = await handle.query(EpochWorkflow.current_state)
+        if len(state.transition_history) >= min_len:
+            return state
+        await asyncio.sleep(interval)
+    # Final attempt — let assertion fail with actual vs expected
+    return await handle.query(EpochWorkflow.current_state)
+
+
 class TestWorkflowEnvironmentSandbox:
-    """End-to-end WorkflowEnvironment.start_time_skipping() integration tests.
+    """End-to-end WorkflowEnvironment.start_local() integration tests.
 
     Tests that exercise the full Temporal signal → workflow → query cycle,
     verifying that EpochWorkflow correctly handles signals and exposes
     consistent state through queries.
+
+    Uses start_local() with all 5 custom search attributes registered
+    (SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN).
 
     Skipped entirely when the Temporal test server binary is not available.
     The probe runs lazily (cached) — it does NOT execute at module import time
@@ -947,7 +978,9 @@ class TestWorkflowEnvironmentSandbox:
         from temporalio.worker import Worker
         from temporalio.testing import WorkflowEnvironment
 
-        async with await WorkflowEnvironment.start_time_skipping() as env:
+        async with await WorkflowEnvironment.start_local(
+            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN]
+        ) as env:
             async with Worker(
                 env.client,
                 task_queue="test-advance-q",
@@ -975,8 +1008,8 @@ class TestWorkflowEnvironmentSandbox:
                     ),
                 )
 
-                # Query current state — must reflect the transition.
-                state = await handle.query(EpochWorkflow.current_state)
+                # Poll until transition is reflected (start_local() is real-time).
+                state = await _poll_query(handle, PhaseId.P2_ELICIT)
                 assert state.current_phase == PhaseId.P2_ELICIT
                 assert PhaseId.P1_REQUEST in state.completed_phases
                 assert len(state.transition_history) == 1
@@ -997,7 +1030,9 @@ class TestWorkflowEnvironmentSandbox:
         from temporalio.worker import Worker
         from temporalio.testing import WorkflowEnvironment
 
-        async with await WorkflowEnvironment.start_time_skipping() as env:
+        async with await WorkflowEnvironment.start_local(
+            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN]
+        ) as env:
             async with Worker(
                 env.client,
                 task_queue="test-vote-q",
@@ -1025,6 +1060,9 @@ class TestWorkflowEnvironmentSandbox:
                             condition_met=condition,
                         ),
                     )
+
+                # Poll until phase advances are reflected before submitting votes.
+                await _poll_query(handle, PhaseId.P4_REVIEW)
 
                 # Submit vote signals.
                 for axis, vote in [(ReviewAxis.CORRECTNESS, VoteType.ACCEPT), (ReviewAxis.TEST_QUALITY, VoteType.REVISE)]:
@@ -1057,7 +1095,9 @@ class TestWorkflowEnvironmentSandbox:
         from temporalio.worker import Worker
         from temporalio.testing import WorkflowEnvironment
 
-        async with await WorkflowEnvironment.start_time_skipping() as env:
+        async with await WorkflowEnvironment.start_local(
+            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN]
+        ) as env:
             async with Worker(
                 env.client,
                 task_queue="test-query-q",
@@ -1089,7 +1129,8 @@ class TestWorkflowEnvironmentSandbox:
                     ),
                 )
 
-                state = await handle.query(EpochWorkflow.current_state)
+                # Poll until both transitions are reflected (start_local() is real-time).
+                state = await _poll_query(handle, PhaseId.P3_PROPOSE)
                 assert state.current_phase == PhaseId.P3_PROPOSE
                 assert state.current_phase.value == "p3"
                 # Transition history should have 2 successful transitions.
@@ -1112,7 +1153,9 @@ class TestWorkflowEnvironmentSandbox:
         from temporalio.worker import Worker
         from temporalio.testing import WorkflowEnvironment
 
-        async with await WorkflowEnvironment.start_time_skipping() as env:
+        async with await WorkflowEnvironment.start_local(
+            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN]
+        ) as env:
             async with Worker(
                 env.client,
                 task_queue="test-failed-q",
@@ -1136,8 +1179,8 @@ class TestWorkflowEnvironmentSandbox:
                     ),
                 )
 
-                # Workflow should remain at P1 — the invalid advance was rejected.
-                state = await handle.query(EpochWorkflow.current_state)
+                # Poll until the failed attempt appears in history (start_local() is real-time).
+                state = await _poll_history(handle, min_len=1)
                 assert state.current_phase == PhaseId.P1_REQUEST
 
                 # The failed attempt must appear in transition_history.

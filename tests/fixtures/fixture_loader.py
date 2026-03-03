@@ -27,12 +27,13 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator
 
 import yaml
 
-from aura_protocol.state_machine import EpochState
+from aura_protocol.state_machine import EpochState, TransitionRecord
 from aura_protocol.types import (
     AuditEvent,
     PhaseId,
@@ -117,24 +118,29 @@ class ConstraintViolationTestCase:
 
     Each case covers one C-* constraint from CONSTRAINT_SPECS. Cases with
     skip_reason are skipped at collection time via pytest.mark.skip; the
-    remaining 5 runnable cases verify that the appropriate RuntimeConstraintChecker
+    remaining 25 runnable cases verify that the appropriate RuntimeConstraintChecker
     method fires the expected constraint_id.
 
-    Two check kinds (exactly one is set for runnable cases):
+    Three check kinds (exactly one is set for runnable cases):
     - State-based (violation_state set): call check_state(violation_state).
     - Transition-based (violation_from_phase + violation_to_phase set): call
       check_handoff_required(from_phase, to_phase).
+    - Method-based (violation_method set): call getattr(checker, violation_method)(**violation_args).
 
     Fields:
         constraint_id: The C-* constraint under test (e.g. "C-review-consensus").
         description: Human-readable description of the violation scenario.
         violation_state: EpochState that violates the constraint. Set for state-based
-            runnable cases; None for transition-based and skipped cases.
+            runnable cases; None for transition-based, method-based, and skipped cases.
         violation_from_phase: Source PhaseId for transition-based checks. Set only
             for C-handoff-skill-invocation; None otherwise.
         violation_to_phase: Target PhaseId for transition-based checks. Set only
             for C-handoff-skill-invocation; None otherwise.
-        skip_reason: If set, this case is skipped; both violation fields are None.
+        violation_method: Name of RuntimeConstraintChecker method to call directly.
+            Set for method-based cases; None otherwise.
+        violation_args: Keyword arguments for violation_method. Set when
+            violation_method is set; None otherwise.
+        skip_reason: If set, this case is skipped; all violation fields are None.
         id: Pytest-friendly identifier (used in pytest.param(id=...)).
     """
 
@@ -143,6 +149,8 @@ class ConstraintViolationTestCase:
     violation_state: EpochState | None
     violation_from_phase: PhaseId | None
     violation_to_phase: PhaseId | None
+    violation_method: str | None
+    violation_args: dict[str, Any] | None
     skip_reason: str | None
     id: str
 
@@ -386,7 +394,29 @@ class ProtocolFixture:
                     violation_state=None,
                     violation_from_phase=None,
                     violation_to_phase=None,
+                    violation_method=None,
+                    violation_args=None,
                     skip_reason=skip_reason,
+                    id=f"constraint:{constraint_id}",
+                )
+                continue
+
+            # Method-based check: call named RuntimeConstraintChecker method directly
+            if "violation_method" in entry:
+                method_name = entry["violation_method"]
+                raw_args = dict(entry.get("violation_args", {}))
+                # Single coercion: "phase" string → PhaseId enum
+                if "phase" in raw_args and isinstance(raw_args["phase"], str):
+                    raw_args["phase"] = PhaseId(raw_args["phase"])
+                yield ConstraintViolationTestCase(
+                    constraint_id=constraint_id,
+                    description=description,
+                    violation_state=None,
+                    violation_from_phase=None,
+                    violation_to_phase=None,
+                    violation_method=method_name,
+                    violation_args=raw_args,
+                    skip_reason=None,
                     id=f"constraint:{constraint_id}",
                 )
                 continue
@@ -402,6 +432,8 @@ class ProtocolFixture:
                     violation_state=None,
                     violation_from_phase=from_phase,
                     violation_to_phase=to_phase,
+                    violation_method=None,
+                    violation_args=None,
                     skip_reason=None,
                     id=f"constraint:{constraint_id}",
                 )
@@ -425,6 +457,16 @@ class ProtocolFixture:
                     SeverityLevel.MINOR: set(),
                 }
 
+            transition_history: list[TransitionRecord] = []
+            for raw_record in vs.get("transition_history", []):
+                transition_history.append(TransitionRecord(
+                    from_phase=PhaseId(raw_record["from_phase"]),
+                    to_phase=PhaseId(raw_record["to_phase"]),
+                    triggered_by=raw_record.get("triggered_by", ""),
+                    condition_met=raw_record.get("condition_met", ""),
+                    timestamp=datetime.now(tz=timezone.utc),
+                ))
+
             state = EpochState(
                 epoch_id=f"test-constraint-{constraint_id}",
                 current_phase=current_phase,
@@ -432,6 +474,7 @@ class ProtocolFixture:
                 blocker_count=blocker_count,
                 severity_groups=severity_groups,
             )
+            state.transition_history.extend(transition_history)
 
             yield ConstraintViolationTestCase(
                 constraint_id=constraint_id,
@@ -439,6 +482,8 @@ class ProtocolFixture:
                 violation_state=state,
                 violation_from_phase=None,
                 violation_to_phase=None,
+                violation_method=None,
+                violation_args=None,
                 skip_reason=None,
                 id=f"constraint:{constraint_id}",
             )

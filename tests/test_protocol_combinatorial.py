@@ -9,7 +9,7 @@ The fixture defines 5 axes:
     2. epoch_states         — pre-built epoch state snapshots
     3. vote_combinations    — review vote combinations for consensus testing
     4. audit_events         — sample AuditEvent objects
-    5. constraint_violations — all 26 C-* constraints (5 runnable, 21 skipped)
+    5. constraint_violations — all 26 C-* constraints (25 runnable, 1 skipped)
 
 Generators yield TestCase objects with a consistent `id` field used in
 pytest.param(id=...) for readable test names.
@@ -199,10 +199,10 @@ class TestFixtureLoaderGenerators:
         assert len(ids) == len(set(ids)), "Constraint case IDs must be unique"
         assert all(ids), "All IDs must be non-empty"
 
-    def test_constraint_cases_have_five_runnable(self) -> None:
-        """Exactly 5 constraint cases are runnable (violation_state is set)."""
+    def test_constraint_cases_have_twenty_five_runnable(self) -> None:
+        """Exactly 25 constraint cases are runnable (no skip_reason)."""
         runnable = [tc for tc in _CONSTRAINT_CASES if tc.skip_reason is None]
-        assert len(runnable) == 5
+        assert len(runnable) == 25
 
     def test_build_vote_dict_all_accept(self) -> None:
         """build_vote_dict('all_accept') returns typed ReviewAxis → VoteType dict."""
@@ -504,12 +504,11 @@ _SKIPPED_CONSTRAINT_CASES = [tc for tc in _CONSTRAINT_CASES if tc.skip_reason is
 class TestConstraintViolationCombinatorial:
     """Parametrized tests: constraint violation states fire the expected C-* constraint.
 
-    5 runnable cases: check_state() on the violation EpochState must include the
-    expected constraint_id in its violations list.
+    25 runnable cases: check_state(), check_handoff_required(), or individual
+    check_* methods on the violation data must include the expected constraint_id.
 
-    21 skipped cases: pytest.mark.skip applied — constraints require non-EpochState
-    data (task hierarchies, commit strings, document content) not representable
-    as static YAML state dicts.
+    1 skipped case: pytest.mark.skip applied — C-actionable-errors has no check
+    method; it is a code review convention only.
     """
 
     @pytest.mark.parametrize(
@@ -523,10 +522,14 @@ class TestConstraintViolationCombinatorial:
 
         - State-based (violation_state set): calls check_state(state).
         - Transition-based (violation_from/to_phase set): calls check_handoff_required.
-        Both assert the expected constraint_id appears in the returned violations.
+        - Method-based (violation_method set): calls method(**violation_args) directly.
+        All assert the expected constraint_id appears in the returned violations.
         """
         if tc.violation_state is not None:
             violations = _CHECKER.check_state(tc.violation_state)
+        elif tc.violation_method is not None:
+            method = getattr(_CHECKER, tc.violation_method)
+            violations = method(**tc.violation_args)
         else:
             assert tc.violation_from_phase is not None
             assert tc.violation_to_phase is not None
