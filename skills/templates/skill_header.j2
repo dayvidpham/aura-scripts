@@ -99,7 +99,11 @@ _(No startup sequence defined for this role)_
 ### Role Behaviors (Given/When/Then/Should Not)
 
 {% for b in behaviors %}
-**Given** {{ b.given }} **when** {{ b.when }} **then** {{ b.then }} **should never** {{ b.should_not }}
+**[{{ b.id }}]**
+- Given: {{ b.given }}
+- When: {{ b.when }}
+- Then: {{ b.then }}
+- Should not: {{ b.should_not }}
 
 {% endfor %}
 {% endif %}

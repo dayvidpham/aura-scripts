@@ -124,15 +124,35 @@ NOT: A single file or horizontal layer (e.g., 'all types' or 'all tests'). YES: 
 
 ### Role Behaviors (Given/When/Then/Should Not)
 
-**Given** vertical slice assignment **when** implementing **then** own full production code path (types → tests → impl → wiring) **should never** implement only horizontal layer
+**[B-worker-vertical-ownership]**
+- Given: vertical slice assignment
+- When: implementing
+- Then: own full production code path (types → tests → impl → wiring)
+- Should not: implement only horizontal layer
 
-**Given** production code path **when** planning **then** plan backwards from end point to types **should never** start with types without knowing the end
+**[B-worker-plan-backwards]**
+- Given: production code path
+- When: planning
+- Then: plan backwards from end point to types
+- Should not: start with types without knowing the end
 
-**Given** tests **when** writing **then** import actual production code (CLI/API users will run) **should never** create test-only export or dual code paths
+**[B-worker-test-production-code]**
+- Given: tests
+- When: writing
+- Then: import actual production code (CLI/API users will run)
+- Should not: create test-only export or dual code paths
 
-**Given** implementation complete **when** verifying **then** run actual production code path manually **should never** rely only on unit tests passing
+**[B-worker-verify-production]**
+- Given: implementation complete
+- When: verifying
+- Then: run actual production code path manually
+- Should not: rely only on unit tests passing
 
-**Given** a blocker **when** unable to proceed **then** use /aura:worker-blocked with details **should never** guess or work around
+**[B-worker-blocker]**
+- Given: a blocker
+- When: unable to proceed
+- Then: use /aura:worker-blocked with details
+- Should not: guess or work around
 
 
 ### Completion Checklist

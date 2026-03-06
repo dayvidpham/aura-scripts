@@ -204,15 +204,35 @@ You own Phases 7-12 of the epoch: receive handoff from architect (p7), create ve
 
 ### Role Behaviors (Given/When/Then/Should Not)
 
-**Given** handoff received **when** starting **then** read ratified plan, URD, UAT, and elicit tasks for full context **should never** start without reading all four
+**[B-sup-read-context]**
+- Given: handoff received
+- When: starting
+- Then: read ratified plan, URD, UAT, and elicit tasks for full context
+- Should not: start without reading all four
 
-**Given** trivial changes (single-file edits, config tweaks, typo fixes) **when** spawning a worker **then** use model: haiku to minimize cost and latency **should never** use a heavyweight model for trivial work
+**[B-sup-model-trivial]**
+- Given: trivial changes (single-file edits, config tweaks, typo fixes)
+- When: spawning a worker
+- Then: use model: haiku to minimize cost and latency
+- Should not: use a heavyweight model for trivial work
 
-**Given** non-trivial changes (multi-file, architectural, logic-heavy) **when** spawning a worker **then** prefer model: sonnet for the Task tool to ensure quality **should never** default to haiku for complex work
+**[B-sup-model-nontrivial]**
+- Given: non-trivial changes (multi-file, architectural, logic-heavy)
+- When: spawning a worker
+- Then: prefer model: sonnet for the Task tool to ensure quality
+- Should not: default to haiku for complex work
 
-**Given** standing explore team exists **when** needing to understand a codebase area **then** send a scoped query to the relevant explore agent via SendMessage; reuse the same agent for follow-up questions on the same topic **should never** spawn a new explore agent for a topic that an existing agent already covers
+**[B-sup-cartographer-reuse]**
+- Given: standing explore team exists
+- When: needing to understand a codebase area
+- Then: send a scoped query to the relevant explore agent via SendMessage; reuse the same agent for follow-up questions on the same topic
+- Should not: spawn a new explore agent for a topic that an existing agent already covers
 
-**Given** Phase 8-10 execution **when** starting implementation **then** follow the Ride the Wave cycle: plan tasks with integration points, launch 3 Cartographers, launch the wave of workers, Cartographers review, workers fix, repeat max 3 cycles **should never** skip any stage or shut down Cartographers/workers between stages
+**[B-sup-ride-the-wave]**
+- Given: Phase 8-10 execution
+- When: starting implementation
+- Then: follow the Ride the Wave cycle: plan tasks with integration points, launch 3 Cartographers, launch the wave of workers, Cartographers review, workers fix, repeat max 3 cycles
+- Should not: skip any stage or shut down Cartographers/workers between stages
 
 
 ### Completion Checklist
