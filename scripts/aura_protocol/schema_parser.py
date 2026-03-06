@@ -25,6 +25,7 @@ from aura_protocol.types import (
     Checklist,
     ChecklistItem,
     CodeExample,
+    CommandId,
     CommandSpec,
     ConstraintSpec,
     ContentLevel,
@@ -955,6 +956,19 @@ def _parse_figures(root: ET.Element, path: Path) -> dict[FigureId, Figure]:
                 wr_el.get("ref"), "ref", f"<workflow-ref> in <figure id='{fid_str}'>", path
             )
             workflow_refs.add(wr_str)
+        command_refs: set[CommandId] = set()
+        for cr_el in fig_el.findall("command-ref"):
+            cr_str = _require(
+                cr_el.get("ref"), "ref", f"<command-ref> in <figure id='{fid_str}'>", path
+            )
+            try:
+                command_refs.add(CommandId(cr_str))
+            except ValueError:
+                raise SchemaParseError(
+                    f"Unknown command-ref '{cr_str}' on <figure id='{fid_str}'> in {path}. "
+                    f"Valid command ids: {[c.value for c in CommandId]}. "
+                    f"Fix: correct the 'ref' attribute."
+                )
         result[fid] = Figure(
             id=fid,
             title=title,
@@ -962,6 +976,7 @@ def _parse_figures(root: ET.Element, path: Path) -> dict[FigureId, Figure]:
             role_refs=frozenset(role_refs),
             section_ref=section_ref,
             workflow_refs=frozenset(workflow_refs),
+            command_refs=frozenset(command_refs),
         )
     return result
 

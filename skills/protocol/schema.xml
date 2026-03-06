@@ -1401,10 +1401,12 @@ Layer 1: types and interfaces for <slice name>."]]></code>
     <figure id="layer-cake" title="Layer Cake — TDD Parallelism Within Vertical Slices" type="ascii-diagram" section-ref="workflows">
       <role-ref ref="worker" />
       <workflow-ref ref="layer-cake" />
+      <command-ref ref="cmd-sup-plan" />
     </figure>
     <figure id="ride-the-wave" title="Ride the Wave — Coordinated Phase 8-10 Execution" type="ascii-diagram" section-ref="workflows">
       <role-ref ref="supervisor" />
       <workflow-ref ref="ride-the-wave" />
+      <command-ref ref="cmd-sup-spawn" />
     </figure>
     <figure id="architect-state-flow" title="Architect State Flow — Sequential Planning Phases 1-7" type="ascii-diagram" section-ref="workflows">
       <role-ref ref="architect" />

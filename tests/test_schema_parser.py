@@ -15,6 +15,7 @@ import pytest
 from aura_protocol.schema_parser import SchemaParseError, SchemaSpec, parse_schema
 from aura_protocol.types import (
     FIGURE_SPECS,
+    CommandId,
     ContentLevel,
     ExecutionMode,
     FigureId,
@@ -702,3 +703,83 @@ class TestSchemaParserNewElementErrors:
         with pytest.raises(SchemaParseError) as exc_info:
             parse_schema(xml)
         assert "execution" in str(exc_info.value).lower() and "invalid" in str(exc_info.value).lower()
+
+
+# ─── SLICE-2: command_refs parsing tests ───────────────────────────────────────
+
+
+class TestSchemaParserCommandRefs:
+    """SLICE-2: command-ref elements parsed into command_refs frozenset[CommandId]."""
+
+    def test_figure_command_refs_parsed(self, parsed_spec: SchemaSpec) -> None:
+        """Figures with <command-ref> elements have non-empty command_refs frozenset."""
+        for fid, expected in FIGURE_SPECS.items():
+            if expected.command_refs:
+                actual = parsed_spec.figures[fid]
+                assert actual.command_refs == expected.command_refs, (
+                    f"Figure {fid}: command_refs mismatch: "
+                    f"{actual.command_refs} != {expected.command_refs}"
+                )
+
+    def test_figure_command_refs_type_is_frozenset(self, parsed_spec: SchemaSpec) -> None:
+        """command_refs is frozenset[CommandId], not set or list."""
+        for fid, fig in parsed_spec.figures.items():
+            assert isinstance(fig.command_refs, frozenset), (
+                f"Figure {fid}: command_refs should be frozenset, "
+                f"got {type(fig.command_refs).__name__}"
+            )
+
+    def test_figure_command_refs_contain_command_id_instances(
+        self, parsed_spec: SchemaSpec
+    ) -> None:
+        """Each element in command_refs is a CommandId enum member."""
+        for fid, fig in parsed_spec.figures.items():
+            for cref in fig.command_refs:
+                assert isinstance(cref, CommandId), (
+                    f"Figure {fid}: command_ref {cref!r} is not a CommandId instance"
+                )
+
+    def test_layer_cake_has_sup_plan_command_ref(self, parsed_spec: SchemaSpec) -> None:
+        """LAYER_CAKE figure references cmd-sup-plan."""
+        fig = parsed_spec.figures[FigureId.LAYER_CAKE]
+        assert CommandId.SUP_PLAN in fig.command_refs, (
+            f"LAYER_CAKE command_refs should include SUP_PLAN, got {fig.command_refs}"
+        )
+
+    def test_ride_the_wave_has_sup_spawn_command_ref(
+        self, parsed_spec: SchemaSpec
+    ) -> None:
+        """RIDE_THE_WAVE figure references cmd-sup-spawn."""
+        fig = parsed_spec.figures[FigureId.RIDE_THE_WAVE]
+        assert CommandId.SUP_SPAWN in fig.command_refs, (
+            f"RIDE_THE_WAVE command_refs should include SUP_SPAWN, got {fig.command_refs}"
+        )
+
+    def test_architect_state_flow_has_empty_command_refs(
+        self, parsed_spec: SchemaSpec
+    ) -> None:
+        """ARCHITECT_STATE_FLOW figure has no command-ref elements."""
+        fig = parsed_spec.figures[FigureId.ARCHITECT_STATE_FLOW]
+        assert fig.command_refs == frozenset(), (
+            f"ARCHITECT_STATE_FLOW should have empty command_refs, got {fig.command_refs}"
+        )
+
+
+class TestSchemaParserCommandRefsRoundTrip:
+    """SLICE-2: Round-trip gen_schema + parse preserves command_refs."""
+
+    def test_round_trip_preserves_command_refs(self, tmp_path: Path) -> None:
+        """Generate schema.xml via gen_schema, then parse it back, and verify
+        command_refs on every figure match FIGURE_SPECS."""
+        from aura_protocol.gen_schema import generate_schema
+
+        output_path = tmp_path / "schema_roundtrip.xml"
+        generate_schema(output_path, diff=False)
+
+        parsed = parse_schema(output_path)
+        for fid, expected in FIGURE_SPECS.items():
+            actual = parsed.figures[fid]
+            assert actual.command_refs == expected.command_refs, (
+                f"Round-trip: Figure {fid}: command_refs mismatch: "
+                f"{actual.command_refs} != {expected.command_refs}"
+            )

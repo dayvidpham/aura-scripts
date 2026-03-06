@@ -33,6 +33,8 @@ from aura_protocol.context_injection import (
 )
 from aura_protocol.types import (
     CONSTRAINT_SPECS,
+    FIGURE_SPECS,
+    CommandId,
     ConstraintContext,
     FigureId,
     PhaseId,
@@ -862,3 +864,51 @@ class TestFigureLoadErrors:
         yaml_path.write_text("id: layer-cake\ncontent: ''\n", encoding="utf-8")
         with pytest.raises(FigureLoadError, match="Empty 'content'"):
             _load_figure_content(FigureId.LAYER_CAKE, tmp_path)
+
+
+# ─── SLICE-2: command_refs preserved through Figure loading ───────────────────
+
+
+class TestFigureCommandRefsPreserved:
+    """SLICE-2: command_refs from FIGURE_SPECS are preserved through
+    Figure loading in get_role_context."""
+
+    def test_layer_cake_command_refs_preserved(self) -> None:
+        """WORKER's LAYER_CAKE figure preserves command_refs from FIGURE_SPECS."""
+        ctx = get_role_context(RoleId.WORKER)
+        layer_cake = next(fig for fig in ctx.figures if fig.id == FigureId.LAYER_CAKE)
+        expected = FIGURE_SPECS[FigureId.LAYER_CAKE].command_refs
+        assert layer_cake.command_refs == expected, (
+            f"LAYER_CAKE command_refs not preserved: {layer_cake.command_refs} != {expected}"
+        )
+
+    def test_ride_the_wave_command_refs_preserved(self) -> None:
+        """SUPERVISOR's RIDE_THE_WAVE figure preserves command_refs from FIGURE_SPECS."""
+        ctx = get_role_context(RoleId.SUPERVISOR)
+        ride_wave = next(fig for fig in ctx.figures if fig.id == FigureId.RIDE_THE_WAVE)
+        expected = FIGURE_SPECS[FigureId.RIDE_THE_WAVE].command_refs
+        assert ride_wave.command_refs == expected, (
+            f"RIDE_THE_WAVE command_refs not preserved: {ride_wave.command_refs} != {expected}"
+        )
+
+    def test_architect_state_flow_empty_command_refs_preserved(self) -> None:
+        """ARCHITECT's ARCHITECT_STATE_FLOW figure preserves empty command_refs."""
+        ctx = get_role_context(RoleId.ARCHITECT)
+        state_flow = next(
+            fig for fig in ctx.figures if fig.id == FigureId.ARCHITECT_STATE_FLOW
+        )
+        assert state_flow.command_refs == frozenset(), (
+            f"ARCHITECT_STATE_FLOW should have empty command_refs, "
+            f"got {state_flow.command_refs}"
+        )
+
+    def test_all_figures_command_refs_match_specs(self) -> None:
+        """Every figure loaded via get_role_context has command_refs matching FIGURE_SPECS."""
+        for role in RoleId:
+            ctx = get_role_context(role)
+            for fig in ctx.figures:
+                expected = FIGURE_SPECS[fig.id].command_refs
+                assert fig.command_refs == expected, (
+                    f"Role {role.value}, Figure {fig.id}: command_refs mismatch: "
+                    f"{fig.command_refs} != {expected}"
+                )

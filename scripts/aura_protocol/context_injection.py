@@ -541,6 +541,7 @@ def get_role_context(role: RoleId) -> RoleContext:
             role_refs=fig.role_refs,
             section_ref=fig.section_ref,
             workflow_refs=fig.workflow_refs,
+            command_refs=fig.command_refs,
             content=_load_figure_content(fig.id, figures_dir),
         )
         for fig in FIGURE_SPECS.values()

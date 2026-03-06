@@ -49,6 +49,7 @@ from aura_protocol.types import (
     SUBSTEP_DATA,
     TITLE_CONVENTIONS,
     WORKFLOW_SPECS,
+    CommandId,
     ContentLevel,
     ExecutionMode,
     PhaseId,
@@ -1522,6 +1523,8 @@ def _build_figures(root: ET.Element) -> None:
             ET.SubElement(fig_el, "role-ref", ref=role_ref.value)
         for wf_ref in sorted(fig.workflow_refs):
             ET.SubElement(fig_el, "workflow-ref", ref=wf_ref)
+        for cmd_ref in sorted(fig.command_refs, key=lambda c: c.value):
+            ET.SubElement(fig_el, "command-ref", ref=cmd_ref.value)
 
 
 # ─── Section comment helper ────────────────────────────────────────────────────
