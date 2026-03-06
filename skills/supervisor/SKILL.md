@@ -204,15 +204,35 @@ You own Phases 7-12 of the epoch: receive handoff from architect (p7), create ve
 
 ### Role Behaviors (Given/When/Then/Should Not)
 
-**Given** handoff received **when** starting **then** read ratified plan, URD, UAT, and elicit tasks for full context **should never** start without reading all four
+**[B-sup-read-context]**
+- Given: handoff received
+- When: starting
+- Then: read ratified plan, URD, UAT, and elicit tasks for full context
+- Should not: start without reading all four
 
-**Given** trivial changes (single-file edits, config tweaks, typo fixes) **when** spawning a worker **then** use model: haiku to minimize cost and latency **should never** use a heavyweight model for trivial work
+**[B-sup-model-trivial]**
+- Given: trivial changes (single-file edits, config tweaks, typo fixes)
+- When: spawning a worker
+- Then: use model: haiku to minimize cost and latency
+- Should not: use a heavyweight model for trivial work
 
-**Given** non-trivial changes (multi-file, architectural, logic-heavy) **when** spawning a worker **then** prefer model: sonnet for the Task tool to ensure quality **should never** default to haiku for complex work
+**[B-sup-model-nontrivial]**
+- Given: non-trivial changes (multi-file, architectural, logic-heavy)
+- When: spawning a worker
+- Then: prefer model: sonnet for the Task tool to ensure quality
+- Should not: default to haiku for complex work
 
-**Given** standing explore team exists **when** needing to understand a codebase area **then** send a scoped query to the relevant explore agent via SendMessage; reuse the same agent for follow-up questions on the same topic **should never** spawn a new explore agent for a topic that an existing agent already covers
+**[B-sup-cartographer-reuse]**
+- Given: standing explore team exists
+- When: needing to understand a codebase area
+- Then: send a scoped query to the relevant explore agent via SendMessage; reuse the same agent for follow-up questions on the same topic
+- Should not: spawn a new explore agent for a topic that an existing agent already covers
 
-**Given** Phase 8-10 execution **when** starting implementation **then** follow the Ride the Wave cycle: plan tasks with integration points, launch 3 Cartographers, launch the wave of workers, Cartographers review, workers fix, repeat max 3 cycles **should never** skip any stage or shut down Cartographers/workers between stages
+**[B-sup-ride-the-wave]**
+- Given: Phase 8-10 execution
+- When: starting implementation
+- Then: follow the Ride the Wave cycle: plan tasks with integration points, launch 3 Cartographers, launch the wave of workers, Cartographers review, workers fix, repeat max 3 cycles
+- Should not: skip any stage or shut down Cartographers/workers between stages
 
 
 ### Completion Checklist
@@ -280,6 +300,43 @@ Exit conditions:
 - **proceed**: 3 cycles exhausted, IMPORTANT remain — track in FOLLOWUP, proceed to Phase 11
 - **escalate**: 3 cycles exhausted, BLOCKERs remain — stop and escalate to user
 
+
+##### Ride the Wave — Coordinated Phase 8-10 Execution
+
+```text
+Phase 8: PLAN
+  ├─ Read RATIFIED_PLAN + URD
+  ├─ Spawn 3 Cartographers (TeamCreate, /aura:explore)
+  ├─ Query Cartographers to map codebase
+  ├─ Decompose into vertical slices + integration points
+  └─ Create leaf tasks for every slice
+
+Phase 9: BUILD
+  ├─ Spawn N Workers into same team (TeamCreate, /aura:worker)
+  ├─ Workers implement their slices in parallel
+  └─ Workers do NOT shut down when finished
+
+Phase 10: REVIEW + FIX CYCLES (max 3)
+  ├─ Cycle 1:
+  │   ├─ Cartographers switch to /aura:reviewer-review-code
+  │   ├─ Cartographers review ALL slices (severity tree: BLOCKER/IMPORTANT/MINOR)
+  │   ├─ Create FOLLOWUP epic if ANY IMPORTANT/MINOR findings
+  │   ├─ Workers fix BLOCKERs + IMPORTANTs
+  │   └─ Cartographers re-review
+  ├─ Cycle 2 (if needed): same pattern
+  ├─ Cycle 3 (if needed): same pattern
+  └─ After 3 cycles: remaining IMPORTANT → FOLLOWUP, proceed to UAT
+
+DONE → Phase 11 (UAT)
+  └─ Shut down Cartographers + Workers
+
+Cycle Exit Conditions:
+  All reviewers ACCEPT, no open BLOCKERs    → Proceed to Phase 11 (UAT)
+  BLOCKERs or IMPORTANT remain, cycles < 3  → Workers fix, Cartographers re-review
+  3 cycles exhausted, IMPORTANT remain      → Track in FOLLOWUP, proceed to Phase 11
+  3 cycles exhausted, BLOCKERs remain       → STOP — escalate to user, do NOT proceed
+
+```
 <!-- END GENERATED FROM aura schema -->
 
 **-> [Full workflow in PROCESS.md](../protocol/PROCESS.md#phase-8-implementation-plan)** <- Phases 7-12
@@ -485,56 +542,6 @@ Always spawn **3 Cartographers** (one per review axis: A/Correctness, B/Test qua
 - Cartographers are **NEVER shut down** during the Ride the Wave cycle
 - They persist from Phase 8 (explore) through Phase 10 (review) and all fix cycles
 - Only shut down after the wave is complete (all reviews ACCEPT or 3 cycles exhausted)
-
-## Ride the Wave — Full Execution Cycle
-
-**Ride the Wave** is the coordinated Phase 8-10 execution pattern. The supervisor orchestrates the entire cycle without implementing anything directly.
-
-### The Wave
-
-```
-Phase 8: PLAN
-  ├─ Read RATIFIED_PLAN + URD
-  ├─ Spawn 3 Cartographers (TeamCreate, /aura:explore)
-  ├─ Query Cartographers to map codebase
-  ├─ Decompose into vertical slices + integration points
-  └─ Create leaf tasks for every slice
-
-Phase 9: BUILD
-  ├─ Spawn N Workers into same team (TeamCreate, /aura:worker)
-  ├─ Workers implement their slices in parallel
-  └─ Workers do NOT shut down when finished
-
-Phase 10: REVIEW + FIX CYCLES (max 3)
-  ├─ Cycle 1:
-  │   ├─ Cartographers switch to /aura:reviewer-review-code
-  │   ├─ Cartographers review ALL slices (severity tree: BLOCKER/IMPORTANT/MINOR)
-  │   ├─ Create FOLLOWUP epic if ANY IMPORTANT/MINOR findings
-  │   ├─ Workers fix BLOCKERs + IMPORTANTs
-  │   └─ Cartographers re-review
-  ├─ Cycle 2 (if needed): same pattern
-  ├─ Cycle 3 (if needed): same pattern
-  └─ After 3 cycles: remaining IMPORTANT → FOLLOWUP, proceed to UAT
-
-DONE → Phase 11 (UAT)
-  └─ Shut down Cartographers + Workers
-```
-
-### Cycle Exit Conditions
-
-| Condition | Action |
-|-----------|--------|
-| All reviewers ACCEPT, no open BLOCKERs | Proceed to Phase 11 (UAT) |
-| BLOCKERs or IMPORTANT remain, cycles < 3 | Workers fix, Cartographers re-review |
-| 3 cycles exhausted, IMPORTANT remain | Track in FOLLOWUP, proceed to Phase 11 |
-| 3 cycles exhausted, BLOCKERs remain | **STOP** — escalate to user, do NOT proceed |
-
-### Slice Closure Rules
-
-- Slices are **NEVER closed** until reviewed at least once
-- After review, slices with no BLOCKERs may be marked complete
-- Slices with open BLOCKERs stay open until all BLOCKERs are resolved and re-reviewed
-- Label completed slices: `bd label add <slice-id> aura:p9-impl:slice-complete`
 
 ### Spawning the Wave of Workers
 
@@ -833,35 +840,6 @@ The worker skill provides:
 - File ownership validation
 - Standard DI patterns
 - Completion/blocked signaling via Beads
-
-## Layer Cake Parallelism (TDD Approach)
-
-Topologically sort tasks into layers following TDD principles:
-
-```
-Layer 0: Shared infrastructure (common types, enums — optional, parallel)
-   ↓
-Vertical Slices (parallel, each worker owns one slice):
-  Layer 1: Types for this slice
-  Layer 2: Tests importing production code (will FAIL — expected!)
-  Layer 3: Implementation + wiring (makes tests PASS)
-   ↓
-IMPLEMENTATION COMPLETE
-```
-
-Each layer completes before the next begins. Within a layer, all tasks run in parallel.
-
-**Key TDD principle:** Layer 2 tests will fail initially - this is expected. Layer 3 workers implement code to make those tests pass.
-
-### L2 Test File Requirements (CRITICAL)
-
-**ANTI-PATTERN WARNING:** Tests that pass without real implementation are INCORRECT.
-
-L2 test files MUST:
-1. **Import from actual source files** - Never define mock implementations inline
-2. **Fail until L3 implementation exists** - If tests pass immediately, something is wrong
-3. **Test behavior via DI mocks** - Mock dependencies, not the code under test
-4. **Define expected API contracts** - Tests specify what the implementation should do
 
 ## EPIC_FOLLOWUP Creation (Phase 10)
 

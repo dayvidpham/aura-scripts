@@ -20,9 +20,12 @@ from aura_protocol.gen_skills import (
     GENERATED_BEGIN,
     GENERATED_END,
     MarkerError,
+    _COMMAND_SKILL_DIRS,
+    _render_sub_skill_header,
     generate_skill,
+    generate_sub_skill,
 )
-from aura_protocol.types import RoleId
+from aura_protocol.types import CommandId, RoleId
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1457,4 +1460,323 @@ class TestConstraintCodeExamplesSection:
         # Code fences must appear in rendered output
         assert "```" in result, (
             "Code fence must appear when a constraint has examples."
+        )
+
+
+# ─── SLICE-3: Figure Positional Rendering Tests ─────────────────────────────
+
+
+class TestFigurePositionalRendering:
+    """Verify figures render after their associated workflow sections."""
+
+    def test_supervisor_figure_after_workflow(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Ride the Wave figure appears after the ride-the-wave workflow section."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.SUPERVISOR,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        # The figure title must appear in the output
+        assert "Ride the Wave" in result, (
+            "Supervisor output must contain 'Ride the Wave' figure title."
+        )
+        # Figure must appear after the workflow heading
+        wf_heading_pos = result.index("#### Ride the Wave")
+        figure_title_pos = result.index("##### Ride the Wave", wf_heading_pos + 1)
+        assert figure_title_pos > wf_heading_pos, (
+            "Ride the Wave figure (h5) must appear after its workflow heading (h4)."
+        )
+
+    def test_worker_figure_after_workflow(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Layer Cake figure appears after the layer-cake workflow section."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.WORKER,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "Layer Cake" in result, (
+            "Worker output must contain 'Layer Cake' figure title."
+        )
+        wf_heading_pos = result.index("#### Layer Cake")
+        figure_title_pos = result.index("##### Layer Cake", wf_heading_pos + 1)
+        assert figure_title_pos > wf_heading_pos, (
+            "Layer Cake figure (h5) must appear after its workflow heading (h4)."
+        )
+
+    def test_architect_figure_after_workflow(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Architect State Flow figure appears after the architect-state-flow workflow section."""
+        content = _minimal_with_markers()
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_skill(
+            RoleId.ARCHITECT,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert "Architect State Flow" in result, (
+            "Architect output must contain 'Architect State Flow' figure title."
+        )
+        wf_heading_pos = result.index("#### Architect State Flow")
+        figure_title_pos = result.index("##### Architect State Flow", wf_heading_pos + 1)
+        assert figure_title_pos > wf_heading_pos, (
+            "Architect State Flow figure (h5) must appear after its workflow heading (h4)."
+        )
+
+
+# ─── FOLLOWUP SLICE-3: Sub-skill rendering tests ────────────────────────────
+
+
+class TestSubSkillFigureRendering:
+    """Sub-skill figure rendering: markers, command description, and figures."""
+
+    def test_sub_skill_rendering_includes_markers(self) -> None:
+        """_render_sub_skill_header output must be wrapped in BEGIN/END markers."""
+        rendered = _render_sub_skill_header(CommandId.SUP_PLAN, TEMPLATE_DIR)
+
+        assert GENERATED_BEGIN in rendered, (
+            "Sub-skill header must contain BEGIN marker."
+        )
+        assert GENERATED_END in rendered, (
+            "Sub-skill header must contain END marker."
+        )
+
+    def test_sub_skill_header_includes_command_description(self) -> None:
+        """Sub-skill header must include the command name and description."""
+        from aura_protocol.types import COMMAND_SPECS
+
+        rendered = _render_sub_skill_header(CommandId.SUP_PLAN, TEMPLATE_DIR)
+        spec = COMMAND_SPECS[CommandId.SUP_PLAN]
+
+        assert spec.name in rendered, (
+            f"Sub-skill header must contain command name '{spec.name}'."
+        )
+        assert spec.description in rendered, (
+            f"Sub-skill header must contain command description '{spec.description}'."
+        )
+
+    def test_sub_skill_sup_plan_renders_layer_cake_figure(self) -> None:
+        """SUP_PLAN sub-skill must render the Layer Cake figure."""
+        rendered = _render_sub_skill_header(CommandId.SUP_PLAN, TEMPLATE_DIR)
+
+        assert "Layer Cake" in rendered, (
+            "SUP_PLAN sub-skill must render the Layer Cake figure title."
+        )
+        assert "```text" in rendered, (
+            "Sub-skill figure must be wrapped in a fenced text block."
+        )
+
+    def test_sub_skill_sup_spawn_renders_ride_the_wave_figure(self) -> None:
+        """SUP_SPAWN sub-skill must render the Ride the Wave figure."""
+        rendered = _render_sub_skill_header(CommandId.SUP_SPAWN, TEMPLATE_DIR)
+
+        assert "Ride the Wave" in rendered, (
+            "SUP_SPAWN sub-skill must render the Ride the Wave figure title."
+        )
+
+    @pytest.mark.parametrize("command_id", list(_COMMAND_SKILL_DIRS.keys()))
+    def test_all_command_skill_dirs_render_without_error(
+        self,
+        command_id: CommandId,
+    ) -> None:
+        """All commands in _COMMAND_SKILL_DIRS must render without error."""
+        rendered = _render_sub_skill_header(command_id, TEMPLATE_DIR)
+        assert isinstance(rendered, str)
+        assert len(rendered) > 0
+
+
+class TestSubSkillFileGeneration:
+    """generate_sub_skill() writes sub-skill SKILL.md with markers."""
+
+    def test_generate_sub_skill_writes_markers(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """generate_sub_skill() output must contain BEGIN/END markers."""
+        # Create a sub-skill SKILL.md with markers
+        content = (
+            "# Supervisor: Plan Tasks\n\n"
+            f"{GENERATED_BEGIN}\n"
+            "(old generated content)\n"
+            f"{GENERATED_END}\n\n"
+            "## Hand-authored body\n"
+        )
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_sub_skill(
+            CommandId.SUP_PLAN,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert GENERATED_BEGIN in result
+        assert GENERATED_END in result
+        assert "## Hand-authored body" in result, (
+            "Hand-authored body below END marker must be preserved."
+        )
+
+    def test_generate_sub_skill_preserves_body(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """generate_sub_skill() must preserve hand-authored body below END marker."""
+        hand_body = "## When to Use\n\nUse this when planning tasks.\n"
+        content = (
+            "# Sub-Skill\n\n"
+            f"{GENERATED_BEGIN}\n"
+            "(old)\n"
+            f"{GENERATED_END}\n"
+            + hand_body
+        )
+        skill_path = _make_skill_file(tmp_path, content)
+
+        result = generate_sub_skill(
+            CommandId.SUP_SPAWN,
+            skill_path,
+            template_dir=TEMPLATE_DIR,
+            diff=False,
+            write=False,
+        )
+
+        assert hand_body in result
+
+
+# ─── FOLLOWUP SLICE-3: Layer-cake L{M} content check ────────────────────────
+
+
+class TestLayerCakeLMContent:
+    """Layer-cake figure must use L{M} pattern, not hardcoded 'Layer 3'."""
+
+    def test_layer_cake_yaml_uses_lm_pattern(self) -> None:
+        """layer-cake.yaml content must reference L{M} (not hardcoded 'Layer 3')."""
+        from aura_protocol.context_injection import _load_figure_content
+        from aura_protocol.types import FigureId
+
+        figures_dir = _REPO_ROOT / "skills" / "protocol" / "figures"
+        content = _load_figure_content(FigureId.LAYER_CAKE, figures_dir)
+
+        # Must NOT contain the hardcoded "Layer 3"
+        assert "Layer 3" not in content, (
+            "layer-cake.yaml must not hardcode 'Layer 3'. "
+            "Use 'Layer M: Implementation' with L1/L2/.../L{M} pattern."
+        )
+
+    def test_layer_cake_yaml_has_layer_m(self) -> None:
+        """layer-cake.yaml must contain 'Layer M' for the implementation layer."""
+        from aura_protocol.context_injection import _load_figure_content
+        from aura_protocol.types import FigureId
+
+        figures_dir = _REPO_ROOT / "skills" / "protocol" / "figures"
+        content = _load_figure_content(FigureId.LAYER_CAKE, figures_dir)
+
+        assert "Layer M" in content, (
+            "layer-cake.yaml must contain 'Layer M' (variable number of implementation layers)."
+        )
+
+    def test_layer_cake_yaml_has_ellipsis_between_layers(self) -> None:
+        """layer-cake.yaml must indicate variability between L2 and LM."""
+        from aura_protocol.context_injection import _load_figure_content
+        from aura_protocol.types import FigureId
+
+        figures_dir = _REPO_ROOT / "skills" / "protocol" / "figures"
+        content = _load_figure_content(FigureId.LAYER_CAKE, figures_dir)
+
+        # Must have an indication of variable layers (e.g. "..." between L2 and LM)
+        assert "..." in content, (
+            "layer-cake.yaml must contain '...' to indicate variable layers between L2 and L{M}."
+        )
+
+    def test_layer_cake_no_hardcoded_l3_in_test_requirements(self) -> None:
+        """L2 Test File Requirements must not reference hardcoded 'L3'."""
+        from aura_protocol.context_injection import _load_figure_content
+        from aura_protocol.types import FigureId
+
+        figures_dir = _REPO_ROOT / "skills" / "protocol" / "figures"
+        content = _load_figure_content(FigureId.LAYER_CAKE, figures_dir)
+
+        # Check for "L3" references in test requirements section
+        # After the L{M} change, references should be "L{M}" or "later layers"
+        lines = content.splitlines()
+        test_req_lines = []
+        in_test_req = False
+        for line in lines:
+            if "Test File Requirements" in line:
+                in_test_req = True
+            if in_test_req:
+                test_req_lines.append(line)
+
+        test_req_text = "\n".join(test_req_lines)
+        assert "L3" not in test_req_text, (
+            "L2 Test File Requirements must not reference hardcoded 'L3'. "
+            "Use 'L{M}' or 'later layers' instead."
+        )
+
+
+# ─── FOLLOWUP SLICE-3: Supervisor body cleanup check ────────────────────────
+
+
+class TestSupervisorBodySectionsRemoved:
+    """Supervisor SKILL.md must NOT contain duplicated body sections."""
+
+    def test_supervisor_no_ride_the_wave_full_execution_section(self) -> None:
+        """Supervisor SKILL.md must not have '## Ride the Wave -- Full Execution Cycle'."""
+        skill_path = _REPO_ROOT / "skills" / "supervisor" / "SKILL.md"
+        content = skill_path.read_text(encoding="utf-8")
+
+        assert "## Ride the Wave — Full Execution Cycle" not in content, (
+            "Supervisor SKILL.md must not contain the '## Ride the Wave — Full Execution Cycle' "
+            "section. This content is now generated in the sub-skill header."
+        )
+
+    def test_supervisor_no_layer_cake_parallelism_section(self) -> None:
+        """Supervisor SKILL.md must not have '## Layer Cake Parallelism (TDD Approach)'."""
+        skill_path = _REPO_ROOT / "skills" / "supervisor" / "SKILL.md"
+        content = skill_path.read_text(encoding="utf-8")
+
+        assert "## Layer Cake Parallelism (TDD Approach)" not in content, (
+            "Supervisor SKILL.md must not contain the '## Layer Cake Parallelism (TDD Approach)' "
+            "section. This content is now generated in the sub-skill header."
+        )
+
+    def test_supervisor_still_has_spawning_section(self) -> None:
+        """Supervisor SKILL.md must still have '### Spawning the Wave of Workers'."""
+        skill_path = _REPO_ROOT / "skills" / "supervisor" / "SKILL.md"
+        content = skill_path.read_text(encoding="utf-8")
+
+        assert "Spawning the Wave" in content, (
+            "Supervisor SKILL.md must still contain the 'Spawning the Wave' section."
+        )
+
+    def test_supervisor_still_has_epic_followup_section(self) -> None:
+        """Supervisor SKILL.md must still have '## EPIC_FOLLOWUP Creation'."""
+        skill_path = _REPO_ROOT / "skills" / "supervisor" / "SKILL.md"
+        content = skill_path.read_text(encoding="utf-8")
+
+        assert "## EPIC_FOLLOWUP Creation" in content, (
+            "Supervisor SKILL.md must still contain '## EPIC_FOLLOWUP Creation' section."
         )

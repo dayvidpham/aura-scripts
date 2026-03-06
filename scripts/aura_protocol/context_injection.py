@@ -32,6 +32,7 @@ Design:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
 
 from aura_protocol.types import (
@@ -39,6 +40,7 @@ from aura_protocol.types import (
     COMMAND_SPECS,
     CONSTRAINT_SPECS,
     COORDINATION_COMMANDS,
+    FIGURE_SPECS,
     HANDOFF_SPECS,
     LABEL_SPECS,
     PHASE_SPECS,
@@ -49,12 +51,21 @@ from aura_protocol.types import (
     Checklist,
     ConstraintContext,
     CoordinationCommand,
+    Figure,
+    FigureId,
     PhaseId,
     ReviewAxisSpec,
     RoleId,
     Transition,
     Workflow,
 )
+
+
+# ─── Error Types ─────────────────────────────────────────────────────────────
+
+
+class FigureLoadError(Exception):
+    """Raised when a figure YAML file cannot be loaded."""
 
 
 # ─── Runtime Context Dataclasses ──────────────────────────────────────────────
@@ -80,6 +91,7 @@ class RoleContext:
         coordination_commands: Inter-agent commands (role-specific + shared) from COORDINATION_COMMANDS.
         workflows:             Named workflows for this role from WORKFLOW_SPECS.
         review_axes:           Review axes from REVIEW_AXIS_SPECS (reviewer only, empty for others).
+        figures:               ASCII diagram figures for this role from FIGURE_SPECS, filtered by role_refs.
     """
 
     role: RoleId
@@ -94,6 +106,7 @@ class RoleContext:
     coordination_commands: tuple[CoordinationCommand, ...]
     workflows: tuple[Workflow, ...]
     review_axes: tuple[ReviewAxisSpec, ...]
+    figures: tuple[Figure, ...]
 
 
 @dataclass(frozen=True)
@@ -368,6 +381,47 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
 }
 
 
+# ─── Figure Loading ──────────────────────────────────────────────────────────
+
+
+def _load_figure_content(figure_id: FigureId, figures_dir: Path) -> str:
+    """Load figure content from YAML file.
+
+    Reads skills/protocol/figures/{figure_id.value}.yaml and returns the 'content' field.
+
+    Raises:
+        FigureLoadError: If file is missing, malformed, has no 'content' key, or content is empty.
+    """
+    yaml_path = figures_dir / f"{figure_id.value}.yaml"
+    if not yaml_path.exists():
+        raise FigureLoadError(
+            f"Figure YAML not found: {yaml_path}. "
+            f"Fix: create {yaml_path} with id, title, type, content fields."
+        )
+    try:
+        import yaml
+
+        with open(yaml_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except Exception as exc:
+        raise FigureLoadError(
+            f"Malformed YAML in {yaml_path}: {exc}. "
+            f"Fix: ensure valid YAML syntax."
+        ) from exc
+    if not isinstance(data, dict) or "content" not in data:
+        raise FigureLoadError(
+            f"Missing 'content' key in {yaml_path}. "
+            f"Fix: add a 'content' field with the figure's ASCII diagram."
+        )
+    content = data["content"]
+    if not content or not content.strip():
+        raise FigureLoadError(
+            f"Empty 'content' in {yaml_path}. "
+            f"Fix: add the ASCII diagram to the 'content' field."
+        )
+    return content
+
+
 # ─── Context Lookup Functions ─────────────────────────────────────────────────
 
 
@@ -476,6 +530,24 @@ def get_role_context(role: RoleId) -> RoleContext:
         else ()
     )
 
+    # Figures filtered by role (M:N via role_refs frozenset).
+    # Content loaded from YAML at generation time.
+    figures_dir = Path(__file__).resolve().parent.parent.parent / "skills" / "protocol" / "figures"
+    figures: tuple[Figure, ...] = tuple(
+        Figure(
+            id=fig.id,
+            title=fig.title,
+            type=fig.type,
+            role_refs=fig.role_refs,
+            section_ref=fig.section_ref,
+            workflow_refs=fig.workflow_refs,
+            command_refs=fig.command_refs,
+            content=_load_figure_content(fig.id, figures_dir),
+        )
+        for fig in FIGURE_SPECS.values()
+        if role in fig.role_refs
+    )
+
     return RoleContext(
         role=role,
         phases=frozenset(owned_phases),
@@ -489,6 +561,7 @@ def get_role_context(role: RoleId) -> RoleContext:
         coordination_commands=coord_commands,
         workflows=workflows,
         review_axes=review_axes,
+        figures=figures,
     )
 
 

@@ -12,16 +12,20 @@ Covers:
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 import xml.etree.ElementTree as ET
 
 from aura_protocol.context_injection import (
+    FigureLoadError,
     PhaseContext,
     RoleContext,
     _PHASE_CONSTRAINTS,
     _ROLE_CONSTRAINTS,
     _build_constraint_contexts,
+    _load_figure_content,
     get_phase_context,
     get_role_context,
     render_role_context_as_text,
@@ -29,7 +33,10 @@ from aura_protocol.context_injection import (
 )
 from aura_protocol.types import (
     CONSTRAINT_SPECS,
+    FIGURE_SPECS,
+    CommandId,
     ConstraintContext,
+    FigureId,
     PhaseId,
     RoleId,
 )
@@ -774,3 +781,134 @@ class TestRenderRoleContext:
         xml1 = render_role_context_as_xml(RoleId.SUPERVISOR)
         xml2 = render_role_context_as_xml(RoleId.SUPERVISOR)
         assert xml1 == xml2, "XML render is not deterministic"
+
+
+# ─── SLICE-3: Figure Presence Tests ──────────────────────────────────────────
+
+
+class TestFigurePresence:
+    """Verify figures are correctly populated on RoleContext by role."""
+
+    def test_supervisor_has_ride_the_wave_figure(self) -> None:
+        """get_role_context(SUPERVISOR) has a figure with id RIDE_THE_WAVE and non-empty content."""
+        ctx = get_role_context(RoleId.SUPERVISOR)
+        fig_ids = {fig.id for fig in ctx.figures}
+        assert FigureId.RIDE_THE_WAVE in fig_ids, (
+            "SUPERVISOR RoleContext must include RIDE_THE_WAVE figure."
+        )
+        ride_fig = next(fig for fig in ctx.figures if fig.id == FigureId.RIDE_THE_WAVE)
+        assert ride_fig.content.strip(), (
+            "RIDE_THE_WAVE figure must have non-empty content."
+        )
+
+    def test_worker_has_layer_cake_figure(self) -> None:
+        """get_role_context(WORKER) has a figure with id LAYER_CAKE and non-empty content."""
+        ctx = get_role_context(RoleId.WORKER)
+        fig_ids = {fig.id for fig in ctx.figures}
+        assert FigureId.LAYER_CAKE in fig_ids, (
+            "WORKER RoleContext must include LAYER_CAKE figure."
+        )
+        cake_fig = next(fig for fig in ctx.figures if fig.id == FigureId.LAYER_CAKE)
+        assert cake_fig.content.strip(), (
+            "LAYER_CAKE figure must have non-empty content."
+        )
+
+    def test_architect_has_state_flow_figure(self) -> None:
+        """get_role_context(ARCHITECT) has a figure with id ARCHITECT_STATE_FLOW and non-empty content."""
+        ctx = get_role_context(RoleId.ARCHITECT)
+        fig_ids = {fig.id for fig in ctx.figures}
+        assert FigureId.ARCHITECT_STATE_FLOW in fig_ids, (
+            "ARCHITECT RoleContext must include ARCHITECT_STATE_FLOW figure."
+        )
+        flow_fig = next(fig for fig in ctx.figures if fig.id == FigureId.ARCHITECT_STATE_FLOW)
+        assert flow_fig.content.strip(), (
+            "ARCHITECT_STATE_FLOW figure must have non-empty content."
+        )
+
+    def test_reviewer_has_no_figures(self) -> None:
+        """get_role_context(REVIEWER) has empty figures tuple."""
+        ctx = get_role_context(RoleId.REVIEWER)
+        assert ctx.figures == (), (
+            f"REVIEWER must have no figures, got {len(ctx.figures)} figure(s)."
+        )
+
+
+# ─── SLICE-3: Figure Load Error Path Tests ───────────────────────────────────
+
+
+class TestFigureLoadErrors:
+    """Test _load_figure_content error paths with temporary directories."""
+
+    def test_figure_load_missing_yaml(self, tmp_path: pathlib.Path) -> None:
+        """FigureLoadError when YAML file doesn't exist."""
+        with pytest.raises(FigureLoadError, match="Figure YAML not found"):
+            _load_figure_content(FigureId.LAYER_CAKE, tmp_path)
+
+    def test_figure_load_malformed_yaml(self, tmp_path: pathlib.Path) -> None:
+        """FigureLoadError when YAML is not valid YAML."""
+        yaml_path = tmp_path / f"{FigureId.LAYER_CAKE.value}.yaml"
+        yaml_path.write_text("{{{{invalid yaml: [", encoding="utf-8")
+        with pytest.raises(FigureLoadError, match="Malformed YAML"):
+            _load_figure_content(FigureId.LAYER_CAKE, tmp_path)
+
+    def test_figure_load_missing_content_key(self, tmp_path: pathlib.Path) -> None:
+        """FigureLoadError when YAML has no 'content' key."""
+        yaml_path = tmp_path / f"{FigureId.LAYER_CAKE.value}.yaml"
+        yaml_path.write_text("id: layer-cake\ntitle: test\n", encoding="utf-8")
+        with pytest.raises(FigureLoadError, match="Missing 'content' key"):
+            _load_figure_content(FigureId.LAYER_CAKE, tmp_path)
+
+    def test_figure_load_empty_content(self, tmp_path: pathlib.Path) -> None:
+        """FigureLoadError when YAML content field is empty string."""
+        yaml_path = tmp_path / f"{FigureId.LAYER_CAKE.value}.yaml"
+        yaml_path.write_text("id: layer-cake\ncontent: ''\n", encoding="utf-8")
+        with pytest.raises(FigureLoadError, match="Empty 'content'"):
+            _load_figure_content(FigureId.LAYER_CAKE, tmp_path)
+
+
+# ─── SLICE-2: command_refs preserved through Figure loading ───────────────────
+
+
+class TestFigureCommandRefsPreserved:
+    """SLICE-2: command_refs from FIGURE_SPECS are preserved through
+    Figure loading in get_role_context."""
+
+    def test_layer_cake_command_refs_preserved(self) -> None:
+        """WORKER's LAYER_CAKE figure preserves command_refs from FIGURE_SPECS."""
+        ctx = get_role_context(RoleId.WORKER)
+        layer_cake = next(fig for fig in ctx.figures if fig.id == FigureId.LAYER_CAKE)
+        expected = FIGURE_SPECS[FigureId.LAYER_CAKE].command_refs
+        assert layer_cake.command_refs == expected, (
+            f"LAYER_CAKE command_refs not preserved: {layer_cake.command_refs} != {expected}"
+        )
+
+    def test_ride_the_wave_command_refs_preserved(self) -> None:
+        """SUPERVISOR's RIDE_THE_WAVE figure preserves command_refs from FIGURE_SPECS."""
+        ctx = get_role_context(RoleId.SUPERVISOR)
+        ride_wave = next(fig for fig in ctx.figures if fig.id == FigureId.RIDE_THE_WAVE)
+        expected = FIGURE_SPECS[FigureId.RIDE_THE_WAVE].command_refs
+        assert ride_wave.command_refs == expected, (
+            f"RIDE_THE_WAVE command_refs not preserved: {ride_wave.command_refs} != {expected}"
+        )
+
+    def test_architect_state_flow_empty_command_refs_preserved(self) -> None:
+        """ARCHITECT's ARCHITECT_STATE_FLOW figure preserves empty command_refs."""
+        ctx = get_role_context(RoleId.ARCHITECT)
+        state_flow = next(
+            fig for fig in ctx.figures if fig.id == FigureId.ARCHITECT_STATE_FLOW
+        )
+        assert state_flow.command_refs == frozenset(), (
+            f"ARCHITECT_STATE_FLOW should have empty command_refs, "
+            f"got {state_flow.command_refs}"
+        )
+
+    def test_all_figures_command_refs_match_specs(self) -> None:
+        """Every figure loaded via get_role_context has command_refs matching FIGURE_SPECS."""
+        for role in RoleId:
+            ctx = get_role_context(role)
+            for fig in ctx.figures:
+                expected = FIGURE_SPECS[fig.id].command_refs
+                assert fig.command_refs == expected, (
+                    f"Role {role.value}, Figure {fig.id}: command_refs mismatch: "
+                    f"{fig.command_refs} != {expected}"
+                )

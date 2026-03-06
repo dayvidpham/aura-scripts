@@ -1391,4 +1391,26 @@ Layer 1: types and interfaces for <slice name>."]]></code>
       </stage>
     </workflow>
   </workflows>
+  <!-- ═══════════════════════════════════════════════════════════════════════
+     FIGURES
+
+     ASCII diagram figures associated with roles and workflows.
+     Content stored in YAML files, not in schema.xml.
+     ═══════════════════════════════════════════════════════════════════════ -->
+  <figures>
+    <figure id="layer-cake" title="Layer Cake — TDD Parallelism Within Vertical Slices" type="ascii-diagram" section-ref="workflows">
+      <role-ref ref="worker" />
+      <workflow-ref ref="layer-cake" />
+      <command-ref ref="cmd-sup-plan" />
+    </figure>
+    <figure id="ride-the-wave" title="Ride the Wave — Coordinated Phase 8-10 Execution" type="ascii-diagram" section-ref="workflows">
+      <role-ref ref="supervisor" />
+      <workflow-ref ref="ride-the-wave" />
+      <command-ref ref="cmd-sup-spawn" />
+    </figure>
+    <figure id="architect-state-flow" title="Architect State Flow — Sequential Planning Phases 1-7" type="ascii-diagram" section-ref="workflows">
+      <role-ref ref="architect" />
+      <workflow-ref ref="architect-state-flow" />
+    </figure>
+  </figures>
 </aura-protocol>

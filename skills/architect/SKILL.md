@@ -165,15 +165,35 @@ You own Phases 1-7 of the epoch: capture and classify user request (p1), run req
 
 ### Role Behaviors (Given/When/Then/Should Not)
 
-**Given** user request captured **when** starting **then** run /aura:user-elicit for URE survey **should never** skip elicitation phase
+**[B-arch-elicit]**
+- Given: user request captured
+- When: starting
+- Then: run /aura:user-elicit for URE survey
+- Should not: skip elicitation phase
 
-**Given** a feature request **when** writing plan **then** use BDD Given/When/Then format with acceptance criteria **should never** write vague requirements
+**[B-arch-bdd]**
+- Given: a feature request
+- When: writing plan
+- Then: use BDD Given/When/Then format with acceptance criteria
+- Should not: write vague requirements
 
-**Given** plan ready **when** requesting review **then** spawn 3 axis-specific reviewers (A=Correctness, B=Test quality, C=Elegance) **should never** spawn reviewers without axis assignment
+**[B-arch-reviewers]**
+- Given: plan ready
+- When: requesting review
+- Then: spawn 3 axis-specific reviewers (A=Correctness, B=Test quality, C=Elegance)
+- Should not: spawn reviewers without axis assignment
 
-**Given** consensus reached (all 3 ACCEPT) **when** proceeding **then** run /aura:user-uat before ratifying **should never** skip user acceptance test
+**[B-arch-uat]**
+- Given: consensus reached (all 3 ACCEPT)
+- When: proceeding
+- Then: run /aura:user-uat before ratifying
+- Should not: skip user acceptance test
 
-**Given** UAT passed **when** ratifying **then** add aura:p6-plan:s6-ratify label to PROPOSAL-N **should never** close or delete the proposal task
+**[B-arch-ratify]**
+- Given: UAT passed
+- When: ratifying
+- Then: add aura:p6-plan:s6-ratify label to PROPOSAL-N
+- Should not: close or delete the proposal task
 
 
 ### Inter-Agent Coordination
@@ -245,6 +265,46 @@ Exit conditions:
 Exit conditions:
 - **success**: Handoff document stored at .git/.aura/handoff/, supervisor notified
 
+
+##### Architect State Flow — Sequential Planning Phases 1-7
+
+```text
+Phase 1: REQUEST
+  ├─ Classify incoming request (s1_1)
+  ├─ Research prior art + constraints (s1_2, parallel)
+  └─ Explore codebase for relevant files, patterns + integration points (s1_3, parallel)
+
+Phase 2: ELICIT / URD
+  ├─ Conduct user requirements elicitation (s2_1)
+  └─ Produce URD — single source of truth (s2_2)
+
+Phase 3: PROPOSE
+  └─ Draft PROPOSAL-N with public interfaces + tradeoffs (s3)
+
+Phase 4: REVIEW
+  ├─ 3 axis-specific reviewers evaluate proposal
+  ├─ Binary vote: ACCEPT or REVISE
+  └─ Loop: revise proposal until all 3 ACCEPT
+
+Phase 5: UAT
+  └─ Present plan to user for acceptance test
+
+Phase 6: RATIFY
+  ├─ Mark superseded proposals (aura:superseded)
+  └─ Ratify accepted proposal as canonical spec
+
+Phase 7: HANDOFF
+  ├─ Produce architect-to-supervisor.md handoff document
+  └─ Transfer to supervisor for implementation planning
+
+Sequential Flow:
+  REQUEST ──► ELICIT/URD ──► PROPOSE ──► REVIEW ──► UAT ──► RATIFY ──► HANDOFF
+     │            │             │           │         │         │          │
+    p1           p2            p3          p4        p5        p6         p7
+
+Exit: Supervisor receives ratified plan + handoff document
+
+```
 <!-- END GENERATED FROM aura schema -->
 
 **-> [Full workflow in PROCESS.md](../protocol/PROCESS.md#phase-3-proposal-n)**

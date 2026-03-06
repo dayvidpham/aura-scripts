@@ -25,6 +25,7 @@ from aura_protocol.types import (
     Checklist,
     ChecklistItem,
     CodeExample,
+    CommandId,
     CommandSpec,
     ConstraintSpec,
     ContentLevel,
@@ -34,6 +35,9 @@ from aura_protocol.types import (
     ExitConditionType,
     ExampleLabel,
     ExampleLang,
+    Figure,
+    FigureId,
+    FigureType,
     GateType,
     HandoffSpec,
     LabelSpec,
@@ -43,6 +47,7 @@ from aura_protocol.types import (
     ReviewAxisSpec,
     RoleId,
     RoleSpec,
+    SectionRef,
     SubstepSpec,
     SubstepType,
     TitleConvention,
@@ -98,6 +103,7 @@ class SchemaSpec:
     checklists: dict[str, Checklist]
     coordination_commands: dict[str, CoordinationCommand]
     workflows: dict[str, Workflow]
+    figures: dict[FigureId, Figure]
 
 
 # ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -891,6 +897,90 @@ def _parse_workflows(root: ET.Element, path: Path) -> dict[str, Workflow]:
     return result
 
 
+def _parse_figures(root: ET.Element, path: Path) -> dict[FigureId, Figure]:
+    """Extract all figures from <figures> section.
+
+    Returns empty dict when <figures> section is absent.
+    """
+    figures_el = root.find("figures")
+    if figures_el is None:
+        return {}
+    result: dict[FigureId, Figure] = {}
+    for fig_el in figures_el.findall("figure"):
+        fid_str = _require(fig_el.get("id"), "id", "<figure>", path)
+        title = _require(fig_el.get("title"), "title", f"<figure id='{fid_str}'>", path)
+        type_str = _require(fig_el.get("type"), "type", f"<figure id='{fid_str}'>", path)
+        section_ref_str = _require(
+            fig_el.get("section-ref"), "section-ref", f"<figure id='{fid_str}'>", path
+        )
+        try:
+            fid = FigureId(fid_str)
+        except ValueError:
+            raise SchemaParseError(
+                f"Unknown figure id '{fid_str}' in {path}. "
+                f"Valid ids: {[f.value for f in FigureId]}. "
+                f"Fix: correct the 'id' attribute or add to FigureId enum."
+            )
+        try:
+            fig_type = FigureType(type_str)
+        except ValueError:
+            raise SchemaParseError(
+                f"Unknown figure type '{type_str}' on <figure id='{fid_str}'> in {path}. "
+                f"Valid types: {[t.value for t in FigureType]}. "
+                f"Fix: correct the 'type' attribute."
+            )
+        try:
+            section_ref = SectionRef(section_ref_str)
+        except ValueError:
+            raise SchemaParseError(
+                f"Unknown section-ref '{section_ref_str}' on <figure id='{fid_str}'> in {path}. "
+                f"Valid refs: {[s.value for s in SectionRef]}. "
+                f"Fix: correct the 'section-ref' attribute."
+            )
+        role_refs: set[RoleId] = set()
+        for rr_el in fig_el.findall("role-ref"):
+            rr_str = _require(
+                rr_el.get("ref"), "ref", f"<role-ref> in <figure id='{fid_str}'>", path
+            )
+            try:
+                role_refs.add(RoleId(rr_str))
+            except ValueError:
+                raise SchemaParseError(
+                    f"Unknown role-ref '{rr_str}' on <figure id='{fid_str}'> in {path}. "
+                    f"Valid roles: {[r.value for r in RoleId]}. "
+                    f"Fix: correct the 'ref' attribute."
+                )
+        workflow_refs: set[str] = set()
+        for wr_el in fig_el.findall("workflow-ref"):
+            wr_str = _require(
+                wr_el.get("ref"), "ref", f"<workflow-ref> in <figure id='{fid_str}'>", path
+            )
+            workflow_refs.add(wr_str)
+        command_refs: set[CommandId] = set()
+        for cr_el in fig_el.findall("command-ref"):
+            cr_str = _require(
+                cr_el.get("ref"), "ref", f"<command-ref> in <figure id='{fid_str}'>", path
+            )
+            try:
+                command_refs.add(CommandId(cr_str))
+            except ValueError:
+                raise SchemaParseError(
+                    f"Unknown command-ref '{cr_str}' on <figure id='{fid_str}'> in {path}. "
+                    f"Valid command ids: {[c.value for c in CommandId]}. "
+                    f"Fix: correct the 'ref' attribute."
+                )
+        result[fid] = Figure(
+            id=fid,
+            title=title,
+            type=fig_type,
+            role_refs=frozenset(role_refs),
+            section_ref=section_ref,
+            workflow_refs=frozenset(workflow_refs),
+            command_refs=frozenset(command_refs),
+        )
+    return result
+
+
 # ─── Public API ───────────────────────────────────────────────────────────────
 
 
@@ -959,6 +1049,7 @@ def parse_schema(path: Path) -> SchemaSpec:
     checklists = _parse_checklists(root, path)
     coordination_commands = _parse_coordination_commands(root, path)
     workflows = _parse_workflows(root, path)
+    figures = _parse_figures(root, path)
 
     return SchemaSpec(
         phases=phases,
@@ -974,4 +1065,5 @@ def parse_schema(path: Path) -> SchemaSpec:
         checklists=checklists,
         coordination_commands=coordination_commands,
         workflows=workflows,
+        figures=figures,
     )

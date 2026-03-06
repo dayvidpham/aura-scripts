@@ -17,6 +17,7 @@ Enums:
     SubstepType   — 13 values: classify, research, explore, elicit, urd, propose, review, uat, ratify, handoff, plan, slice, landing
     StepSlug      — nested namespace: StepSlug.Supervisor.* and StepSlug.Worker.* str enums for ProcedureStep.id
     SkillRef      — SUPERVISOR, WORKER str enum for ProcedureStep.command skill invocations
+    CommandId     — 35 values: cmd-epoch, cmd-plan, ... (keys COMMAND_SPECS)
 
 Frozen Dataclasses:
     Transition          — single valid phase transition
@@ -47,7 +48,7 @@ Canonical Lookup Dicts:
     HANDOFF_SPECS       — dict[str, HandoffSpec]          — all 6 handoffs
     PHASE_DOMAIN        — dict[PhaseId, Domain]           — phase-to-domain mapping
     ROLE_SPECS          — dict[RoleId, RoleSpec]          — all 5 roles
-    COMMAND_SPECS       — dict[str, CommandSpec]          — all 35 commands
+    COMMAND_SPECS       — dict[CommandId, CommandSpec]     — all 35 commands
     LABEL_SPECS         — dict[str, LabelSpec]            — all 21 labels
     REVIEW_AXIS_SPECS   — dict[str, ReviewAxisSpec]       — all 3 review axes
     TITLE_CONVENTIONS   — list[TitleConvention]           — all 16 title conventions
@@ -167,6 +168,7 @@ from aura_protocol.types import (
     ROLE_SPECS,
     TITLE_CONVENTIONS,
     AuditEvent,
+    CommandId,
     CommandSpec,
     ConstraintCheckEvent,
     ConstraintContext,
@@ -218,6 +220,7 @@ __all__ = [
     "SubstepType",
     "StepSlug",
     "SkillRef",
+    "CommandId",
     # Frozen dataclasses
     "Transition",
     "PhaseSpec",

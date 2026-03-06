@@ -1,0 +1,13 @@
+<!-- BEGIN GENERATED FROM aura schema -->
+**Command:** `{{ command_name }}` — {{ command_description }}
+{% if figures %}
+{% for fig in figures %}
+
+##### {{ fig.title }}
+
+```text
+{{ fig.content }}
+```
+{% endfor %}
+{% endif %}
+<!-- END GENERATED FROM aura schema -->

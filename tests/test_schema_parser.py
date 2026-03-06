@@ -13,7 +13,16 @@ from pathlib import Path
 import pytest
 
 from aura_protocol.schema_parser import SchemaParseError, SchemaSpec, parse_schema
-from aura_protocol.types import ContentLevel, ExecutionMode, PhaseId, ReviewAxis, RoleId
+from aura_protocol.types import (
+    FIGURE_SPECS,
+    CommandId,
+    ContentLevel,
+    ExecutionMode,
+    FigureId,
+    PhaseId,
+    ReviewAxis,
+    RoleId,
+)
 
 # ─── Schema path ──────────────────────────────────────────────────────────────
 
@@ -591,6 +600,47 @@ class TestSchemaParserWorkflows:
         assert len(wf.stages) == 3
 
 
+# ─── Structural tests for figures ──────────────────────────────────────────
+
+
+class TestSchemaParserFigures:
+    """Structural tests for figure entities parsed from schema.xml."""
+
+    def test_figures_section_parsed(self, parsed_spec: SchemaSpec) -> None:
+        """SchemaSpec.figures has exactly 3 entries matching FIGURE_SPECS keys."""
+        assert len(parsed_spec.figures) == len(FIGURE_SPECS), (
+            f"Expected {len(FIGURE_SPECS)} figures, got {len(parsed_spec.figures)}: "
+            f"{list(parsed_spec.figures.keys())}"
+        )
+        assert set(parsed_spec.figures.keys()) == set(FIGURE_SPECS.keys()), (
+            f"Figure keys mismatch: parsed={set(parsed_spec.figures.keys())}, "
+            f"expected={set(FIGURE_SPECS.keys())}"
+        )
+
+    def test_figure_attributes_match(self, parsed_spec: SchemaSpec) -> None:
+        """Each parsed Figure has correct id, title, type, role_refs, section_ref, workflow_refs."""
+        for fid, expected in FIGURE_SPECS.items():
+            actual = parsed_spec.figures[fid]
+            assert actual.id == expected.id, (
+                f"Figure {fid}: id mismatch: {actual.id} != {expected.id}"
+            )
+            assert actual.title == expected.title, (
+                f"Figure {fid}: title mismatch: {actual.title!r} != {expected.title!r}"
+            )
+            assert actual.type == expected.type, (
+                f"Figure {fid}: type mismatch: {actual.type} != {expected.type}"
+            )
+            assert actual.role_refs == expected.role_refs, (
+                f"Figure {fid}: role_refs mismatch: {actual.role_refs} != {expected.role_refs}"
+            )
+            assert actual.section_ref == expected.section_ref, (
+                f"Figure {fid}: section_ref mismatch: {actual.section_ref} != {expected.section_ref}"
+            )
+            assert actual.workflow_refs == expected.workflow_refs, (
+                f"Figure {fid}: workflow_refs mismatch: {actual.workflow_refs} != {expected.workflow_refs}"
+            )
+
+
 # ─── Error tests for new malformed elements ───────────────────────────────────
 
 
@@ -653,3 +703,83 @@ class TestSchemaParserNewElementErrors:
         with pytest.raises(SchemaParseError) as exc_info:
             parse_schema(xml)
         assert "execution" in str(exc_info.value).lower() and "invalid" in str(exc_info.value).lower()
+
+
+# ─── SLICE-2: command_refs parsing tests ───────────────────────────────────────
+
+
+class TestSchemaParserCommandRefs:
+    """SLICE-2: command-ref elements parsed into command_refs frozenset[CommandId]."""
+
+    def test_figure_command_refs_parsed(self, parsed_spec: SchemaSpec) -> None:
+        """Figures with <command-ref> elements have non-empty command_refs frozenset."""
+        for fid, expected in FIGURE_SPECS.items():
+            if expected.command_refs:
+                actual = parsed_spec.figures[fid]
+                assert actual.command_refs == expected.command_refs, (
+                    f"Figure {fid}: command_refs mismatch: "
+                    f"{actual.command_refs} != {expected.command_refs}"
+                )
+
+    def test_figure_command_refs_type_is_frozenset(self, parsed_spec: SchemaSpec) -> None:
+        """command_refs is frozenset[CommandId], not set or list."""
+        for fid, fig in parsed_spec.figures.items():
+            assert isinstance(fig.command_refs, frozenset), (
+                f"Figure {fid}: command_refs should be frozenset, "
+                f"got {type(fig.command_refs).__name__}"
+            )
+
+    def test_figure_command_refs_contain_command_id_instances(
+        self, parsed_spec: SchemaSpec
+    ) -> None:
+        """Each element in command_refs is a CommandId enum member."""
+        for fid, fig in parsed_spec.figures.items():
+            for cref in fig.command_refs:
+                assert isinstance(cref, CommandId), (
+                    f"Figure {fid}: command_ref {cref!r} is not a CommandId instance"
+                )
+
+    def test_layer_cake_has_sup_plan_command_ref(self, parsed_spec: SchemaSpec) -> None:
+        """LAYER_CAKE figure references cmd-sup-plan."""
+        fig = parsed_spec.figures[FigureId.LAYER_CAKE]
+        assert CommandId.SUP_PLAN in fig.command_refs, (
+            f"LAYER_CAKE command_refs should include SUP_PLAN, got {fig.command_refs}"
+        )
+
+    def test_ride_the_wave_has_sup_spawn_command_ref(
+        self, parsed_spec: SchemaSpec
+    ) -> None:
+        """RIDE_THE_WAVE figure references cmd-sup-spawn."""
+        fig = parsed_spec.figures[FigureId.RIDE_THE_WAVE]
+        assert CommandId.SUP_SPAWN in fig.command_refs, (
+            f"RIDE_THE_WAVE command_refs should include SUP_SPAWN, got {fig.command_refs}"
+        )
+
+    def test_architect_state_flow_has_empty_command_refs(
+        self, parsed_spec: SchemaSpec
+    ) -> None:
+        """ARCHITECT_STATE_FLOW figure has no command-ref elements."""
+        fig = parsed_spec.figures[FigureId.ARCHITECT_STATE_FLOW]
+        assert fig.command_refs == frozenset(), (
+            f"ARCHITECT_STATE_FLOW should have empty command_refs, got {fig.command_refs}"
+        )
+
+
+class TestSchemaParserCommandRefsRoundTrip:
+    """SLICE-2: Round-trip gen_schema + parse preserves command_refs."""
+
+    def test_round_trip_preserves_command_refs(self, tmp_path: Path) -> None:
+        """Generate schema.xml via gen_schema, then parse it back, and verify
+        command_refs on every figure match FIGURE_SPECS."""
+        from aura_protocol.gen_schema import generate_schema
+
+        output_path = tmp_path / "schema_roundtrip.xml"
+        generate_schema(output_path, diff=False)
+
+        parsed = parse_schema(output_path)
+        for fid, expected in FIGURE_SPECS.items():
+            actual = parsed.figures[fid]
+            assert actual.command_refs == expected.command_refs, (
+                f"Round-trip: Figure {fid}: command_refs mismatch: "
+                f"{actual.command_refs} != {expected.command_refs}"
+            )
