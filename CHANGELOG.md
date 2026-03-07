@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.5] - 2026-03-07
+
+### Added
+- feat(hooks): adds initial modified `bd prime` output optimized for aura workflows
+
+### Other
+- chore: beads backup
+- Merge branch 'fix--hooks--bd-prime'
+
 ## [0.9.4] - 2026-03-06
 
 ### Added
