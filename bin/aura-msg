@@ -15,7 +15,11 @@ Usage:
 """
 
 import argparse
+import asyncio
 import sys
+
+from aura_protocol.config import default_config_path, load_yaml_section, resolve_connection
+from aura_protocol.formatters import format_epoch_state
 
 
 def _add_connection_args(parser: argparse.ArgumentParser) -> None:
@@ -87,6 +91,9 @@ def build_parser() -> argparse.ArgumentParser:
     sc = signal_sub.add_parser("complete", help="Signal slice completion")
     _add_connection_args(sc)
     sc.add_argument("--slice-id", required=True, help="Slice identifier")
+    sc_output = sc.add_mutually_exclusive_group()
+    sc_output.add_argument("--output", metavar="TEXT", help="Completion output (sets success=True)")
+    sc_output.add_argument("--error", metavar="TEXT", help="Error message (sets success=False)")
 
     # ── phase group ───────────────────────────────────────────────────────────
     phase_p = subparsers.add_parser("phase", help="Phase transition commands")
@@ -122,6 +129,88 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _resolve_conn(args: argparse.Namespace) -> object:
+    """Resolve Temporal connection config from CLI args > env > YAML > defaults."""
+    config_path = getattr(args, "config", None)
+    if config_path is not None:
+        from pathlib import Path
+        yaml_path = Path(config_path)
+    else:
+        yaml_path = default_config_path()
+
+    yaml_section = load_yaml_section(yaml_path, "aura-msg")
+    return resolve_connection(
+        cli_args={
+            "namespace": getattr(args, "namespace", None),
+            "task_queue": getattr(args, "task_queue", None),
+            "server_address": getattr(args, "server_address", None),
+        },
+        yaml_section=yaml_section,
+    )
+
+
+async def _cmd_query_state(args: argparse.Namespace) -> None:
+    """aura-msg query state — query epoch state from EpochWorkflow."""
+    from temporalio.client import Client
+    from temporalio.exceptions import WorkflowNotFoundError
+    from aura_protocol.workflow import EpochWorkflow
+
+    conn = _resolve_conn(args)
+    fmt = getattr(args, "format", "json")
+
+    try:
+        client = await Client.connect(
+            conn.server_address,
+            namespace=conn.namespace,
+        )
+    except Exception as exc:
+        print(
+            f"aura-msg: connection error — {exc}\n"
+            f"  Where:  {conn.server_address} (namespace={conn.namespace})\n"
+            f"  Why:    Could not connect to Temporal server\n"
+            f"  Fix:    Verify aurad is running and server-address is correct",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    try:
+        handle = client.get_workflow_handle(args.epoch_id)
+        result = await handle.query(EpochWorkflow.full_state)
+    except Exception as exc:
+        exc_str = str(exc)
+        # WorkflowNotFound is a 3; connection errors at query time are also possible
+        if "not found" in exc_str.lower() or "does not exist" in exc_str.lower():
+            print(
+                f"aura-msg: workflow not found — epoch-id '{args.epoch_id}' does not exist\n"
+                f"  Where:  {conn.server_address} (namespace={conn.namespace})\n"
+                f"  Why:    No running workflow with ID '{args.epoch_id}'\n"
+                f"  Fix:    Check epoch-id or start the epoch with 'aura-msg epoch start'",
+                file=sys.stderr,
+            )
+            sys.exit(3)
+        print(
+            f"aura-msg: workflow error — {exc}\n"
+            f"  Where:  epoch-id={args.epoch_id}\n"
+            f"  Fix:    Check workflow status in Temporal UI",
+            file=sys.stderr,
+        )
+        sys.exit(3)
+
+    print(format_epoch_state(result, fmt=fmt))
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments.
+
+    Args:
+        argv: Argument list to parse. Defaults to sys.argv[1:] when None.
+
+    Returns:
+        Parsed namespace with .group and .subcommand attributes.
+    """
+    return build_parser().parse_args(argv)
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -130,14 +219,18 @@ def main() -> None:
         parser.print_help()
         sys.exit(0)
 
-    # Dispatch to group handlers (not yet implemented)
     group = args.group
     subcommand = getattr(args, "subcommand", None)
     if subcommand is None:
-        # Show group help
         parser.parse_args([group, "--help"])
         sys.exit(0)
 
+    # Dispatch implemented subcommands
+    if group == "query" and subcommand == "state":
+        asyncio.run(_cmd_query_state(args))
+        return
+
+    # Not yet implemented
     print(
         f"aura-msg: '{group} {subcommand}' is not yet implemented",
         file=sys.stderr,

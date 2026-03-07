@@ -519,6 +519,34 @@ class EpochWorkflow:
         return self._sm.available_transitions
 
     @workflow.query
+    def full_state(self) -> "QueryStateResult":
+        """Query: return a flattened QueryStateResult DTO for CLI output (SLICE-3).
+
+        Combines EpochState fields into a serializable DTO suitable for
+        aura-msg query state. Uses state.review_votes per D20.
+        """
+        if self._sm is None:
+            return QueryStateResult(
+                current_phase="",
+                current_role="",
+                transition_history=[],
+                votes={},
+                last_error=None,
+                available_transitions=[],
+                active_session_count=0,
+            )
+        state = self._sm.state
+        return QueryStateResult(
+            current_phase=state.current_phase.value,
+            current_role=state.current_role.value,
+            transition_history=list(state.transition_history),
+            votes={k.value: v.value for k, v in state.review_votes.items()},
+            last_error=state.last_error,
+            available_transitions=list(self._sm.available_transitions),
+            active_session_count=0,  # updated by session_register in SLICE-7
+        )
+
+    @workflow.query
     def slice_progress_state(self) -> list[SliceProgressSignal]:
         """Query: return all accumulated slice progress signals so far.
 

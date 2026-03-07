@@ -1,32 +1,32 @@
-"""Tests for bin/aura-msg — Aura Protocol model harness CLI stub (SLICE-2-L2).
+"""Tests for bin/aura-msg — Aura Protocol model harness CLI (SLICE-3-L1 update).
 
-BDD Acceptance Criteria:
-    AC-M1: Given bin/aura-msg.py exists, when checked, then the file is present
-           with a python3 shebang. Should not require a running Temporal server.
-    AC-M2: Given aura-msg with no args, when invoked, then --help is printed and
-           exit code is 0 (argparse convention for no-subcommand case).
-    AC-M3: Given aura-msg --help, when invoked, then output contains all four
-           planned subcommands: start-epoch, signal-vote, query-state, advance-phase.
-    AC-M4: Given any planned subcommand (start-epoch, signal-vote, query-state,
-           advance-phase), when invoked, then exits with code 1 and stderr contains
-           "not implemented".
-    AC-M5: Given build_parser(), when called, then parser.prog == "aura-msg" and
-           all four subcommands are registered.
-    AC-M6: Given parse_args([subcommand]), when called for each planned subcommand,
-           then args.subcommand == subcommand.
+Parser structure: nested subcommand groups (group → subcommand).
+
+Groups and subcommands:
+    query  state    — aura-msg query state --epoch-id ID [--format json|text]
+    epoch  start    — aura-msg epoch start --epoch-id ID --description TEXT
+    signal vote     — aura-msg signal vote --epoch-id ID --axis AX --vote V --reviewer-id RID
+    signal complete — aura-msg signal complete --epoch-id ID --slice-id SID
+    phase  advance  — aura-msg phase advance --epoch-id ID --to-phase PH ...
+    session register — aura-msg session register --epoch-id ID --session-id SID
+
+BDD Acceptance Criteria (updated for nested groups):
+    AC-M1: bin/aura-msg exists with python3 shebang.
+    AC-M2: No args → print help, exit 0.
+    AC-M3: --help → exit 0 and output shows group names.
+    AC-M5: build_parser() returns parser with prog="aura-msg" and all groups.
+    AC-M6: parse_args(["query", "state", ...]) sets group="query", subcommand="state".
 
 Coverage strategy:
     - File exists + has python3 shebang (filesystem check)
-    - Module importable via importlib (build_parser present + correct prog name)
-    - parse_args([]) → subcommand is None (AC-M2 unit)
-    - parse_args([sub]) → subcommand matches (AC-M6 unit)
-    - --help subprocess output contains all subcommands (AC-M3 integration)
-    - subcommand subprocess → exit 1 + stderr "not implemented" (AC-M4 integration)
-    - no-args subprocess → exit 0 (AC-M2 integration)
+    - build_parser() prog name and top-level group registration
+    - parse_args with group + subcommand routing
+    - Subprocess: --help exits 0, no-args exits 0
+    - Subprocess: unimplemented subcommand exits 1 with stderr message
 
 DI approach:
-    - build_parser() / parse_args(): tested via importlib-loaded module.
-    - Integration: subprocess calls against the actual script (same code path users run).
+    - build_parser() / parse_args(): tested via importlib-loaded module (SourceFileLoader).
+    - Integration: subprocess calls against the actual script.
       No mocking framework — only plain subprocess + importlib.
 """
 
@@ -44,14 +44,20 @@ import pytest
 # ─── Constants ─────────────────────────────────────────────────────────────────
 
 AURA_MSG_PATH = Path(__file__).parent.parent / "bin" / "aura-msg"
+SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
 PYTHON = sys.executable
 
-PLANNED_SUBCOMMANDS = [
-    "start-epoch",
-    "signal-vote",
-    "query-state",
-    "advance-phase",
+# New group structure: (group, subcommand, required_args)
+SUBCOMMAND_CASES = [
+    ("query", "state", ["--epoch-id", "E1"]),
+    ("epoch", "start", ["--epoch-id", "E1", "--description", "test"]),
+    ("signal", "vote", ["--epoch-id", "E1", "--axis", "correctness", "--vote", "accept", "--reviewer-id", "R1"]),
+    ("signal", "complete", ["--epoch-id", "E1", "--slice-id", "S1"]),
+    ("phase", "advance", ["--epoch-id", "E1", "--to-phase", "p10", "--triggered-by", "w1", "--condition", "done"]),
+    ("session", "register", ["--epoch-id", "E1", "--session-id", "sess-1", "--role", "worker"]),
 ]
+
+GROUPS = ["query", "epoch", "signal", "phase", "session"]
 
 # ─── Module loader ────────────────────────────────────────────────────────────
 
@@ -59,15 +65,24 @@ PLANNED_SUBCOMMANDS = [
 def _load_aura_msg() -> ModuleType:
     """Load bin/aura-msg as a Python module via importlib.
 
-    Returns a fresh module (re-executed each call) for test isolation.
     Uses SourceFileLoader because the file has no .py extension.
+    Adds scripts/ to sys.path so aura_protocol imports resolve.
     """
-    loader = importlib.machinery.SourceFileLoader("aura_msg", str(AURA_MSG_PATH))
-    spec = importlib.util.spec_from_loader("aura_msg", loader, origin=str(AURA_MSG_PATH))
-    assert spec is not None, f"Could not create module spec for {AURA_MSG_PATH}"
-    module = importlib.util.module_from_spec(spec)
-    loader.exec_module(module)
-    return module
+    scripts_str = str(SCRIPTS_DIR)
+    inserted = False
+    if scripts_str not in sys.path:
+        sys.path.insert(0, scripts_str)
+        inserted = True
+    try:
+        loader = importlib.machinery.SourceFileLoader("aura_msg", str(AURA_MSG_PATH))
+        spec = importlib.util.spec_from_loader("aura_msg", loader, origin=str(AURA_MSG_PATH))
+        assert spec is not None, f"Could not create module spec for {AURA_MSG_PATH}"
+        module = importlib.util.module_from_spec(spec)
+        loader.exec_module(module)
+        return module
+    finally:
+        if inserted and scripts_str in sys.path:
+            sys.path.remove(scripts_str)
 
 
 @pytest.fixture(scope="module")
@@ -95,39 +110,66 @@ class TestAuraMsgFile:
 
 
 class TestBuildParser:
-    """AC-M5: build_parser() returns parser with correct prog and subcommands."""
+    """AC-M5: build_parser() returns parser with correct prog and groups."""
 
     def test_parser_prog(self, aura_msg: ModuleType) -> None:
         parser = aura_msg.build_parser()
         assert parser.prog == "aura-msg"
 
-    @pytest.mark.parametrize("subcommand", PLANNED_SUBCOMMANDS)
-    def test_each_subcommand_registered(
-        self, aura_msg: ModuleType, subcommand: str
-    ) -> None:
-        """Each planned subcommand must be registered in the parser."""
+    @pytest.mark.parametrize("group", GROUPS)
+    def test_each_group_registered(self, aura_msg: ModuleType, group: str) -> None:
+        """Each top-level group must be registered in the parser."""
         parser = aura_msg.build_parser()
-        # parse_args([sub]) must not raise SystemExit
-        args = parser.parse_args([subcommand])
+        with pytest.raises(SystemExit) as exc_info:
+            parser.parse_args([group, "--help"])
+        assert exc_info.value.code == 0, f"Group '{group}' --help exited non-zero"
+
+    @pytest.mark.parametrize("group,subcommand,extra_args", SUBCOMMAND_CASES)
+    def test_each_subcommand_registered(
+        self, aura_msg: ModuleType, group: str, subcommand: str, extra_args: list[str]
+    ) -> None:
+        """Each subcommand must parse without error."""
+        parser = aura_msg.build_parser()
+        args = parser.parse_args([group, subcommand] + extra_args)
+        assert args.group == group
         assert args.subcommand == subcommand
 
 
+class TestBuildParserGroups:
+    """Additional parser structural checks."""
+
+    def test_query_state_has_format(self, aura_msg: ModuleType) -> None:
+        parser = aura_msg.build_parser()
+        args = parser.parse_args(["query", "state", "--epoch-id", "E1", "--format", "text"])
+        assert args.format == "text"
+
+    def test_query_state_default_format_json(self, aura_msg: ModuleType) -> None:
+        parser = aura_msg.build_parser()
+        args = parser.parse_args(["query", "state", "--epoch-id", "E1"])
+        assert args.format == "json"
+
+    def test_signal_complete_mutually_exclusive(self, aura_msg: ModuleType) -> None:
+        parser = aura_msg.build_parser()
+        args = parser.parse_args(["signal", "complete", "--epoch-id", "E1", "--slice-id", "S1", "--output", "done"])
+        assert args.output == "done"
+        assert args.error is None
+
+
 class TestParseArgs:
-    """AC-M2, AC-M6: parse_args() defaults and subcommand routing."""
+    """AC-M2, AC-M6: parse_args() defaults and group/subcommand routing."""
 
-    def test_no_args_subcommand_is_none(self, aura_msg: ModuleType) -> None:
-        """AC-M2: no args → subcommand is None (help branch in main)."""
-        parser = aura_msg.build_parser()
-        args = parser.parse_args([])
-        assert args.subcommand is None
+    def test_no_args_group_is_none(self, aura_msg: ModuleType) -> None:
+        """AC-M2: no args → group is None (help branch in main)."""
+        args = aura_msg.parse_args([])
+        assert args.group is None
 
-    @pytest.mark.parametrize("subcommand", PLANNED_SUBCOMMANDS)
-    def test_subcommand_parsed_correctly(
-        self, aura_msg: ModuleType, subcommand: str
+    @pytest.mark.parametrize("group,subcommand,extra_args", SUBCOMMAND_CASES)
+    def test_group_and_subcommand_parsed_correctly(
+        self, aura_msg: ModuleType, group: str, subcommand: str, extra_args: list[str]
     ) -> None:
-        """AC-M6: each subcommand sets args.subcommand correctly."""
-        parser = aura_msg.build_parser()
-        args = parser.parse_args([subcommand])
+        """AC-M6: group+subcommand parsed correctly."""
+        args = aura_msg.parse_args([group, subcommand] + extra_args)
+        assert args.group == group
         assert args.subcommand == subcommand
 
 
@@ -135,15 +177,19 @@ class TestParseArgs:
 
 
 class TestAuraMsgSubprocess:
-    """Integration tests using the actual aura-msg.py script (same path users run)."""
+    """Integration tests using the actual aura-msg script (same path users run)."""
 
-    def test_no_args_exits_zero(self) -> None:
-        """AC-M2: no subcommand → print help and exit 0."""
-        result = subprocess.run(
-            [PYTHON, str(AURA_MSG_PATH)],
+    def _run(self, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [PYTHON, str(AURA_MSG_PATH)] + list(args),
             capture_output=True,
             text=True,
+            env={"PYTHONPATH": str(SCRIPTS_DIR), "PATH": "/usr/bin:/bin"},
         )
+
+    def test_no_args_exits_zero(self) -> None:
+        """AC-M2: no group → print help and exit 0."""
+        result = self._run()
         assert result.returncode == 0, (
             f"Expected exit 0 with no args, got {result.returncode}.\n"
             f"stdout: {result.stdout!r}\nstderr: {result.stderr!r}"
@@ -151,51 +197,36 @@ class TestAuraMsgSubprocess:
 
     def test_help_exits_zero(self) -> None:
         """AC-M3 (exit code): --help must exit 0."""
-        result = subprocess.run(
-            [PYTHON, str(AURA_MSG_PATH), "--help"],
-            capture_output=True,
-            text=True,
-        )
+        result = self._run("--help")
         assert result.returncode == 0, (
             f"--help exited {result.returncode}.\nstdout: {result.stdout!r}"
         )
 
-    @pytest.mark.parametrize("subcommand", PLANNED_SUBCOMMANDS)
-    def test_help_contains_subcommand(self, subcommand: str) -> None:
-        """AC-M3: --help output must mention each planned subcommand."""
-        result = subprocess.run(
-            [PYTHON, str(AURA_MSG_PATH), "--help"],
-            capture_output=True,
-            text=True,
-        )
+    @pytest.mark.parametrize("group", GROUPS)
+    def test_help_contains_group(self, group: str) -> None:
+        """AC-M3: --help output must mention each group."""
+        result = self._run("--help")
         output = result.stdout + result.stderr
-        assert subcommand in output, (
-            f"'{subcommand}' not found in --help output.\n"
+        assert group in output, (
+            f"'{group}' not found in --help output.\n"
             f"stdout: {result.stdout!r}\nstderr: {result.stderr!r}"
         )
 
-    @pytest.mark.parametrize("subcommand", PLANNED_SUBCOMMANDS)
-    def test_subcommand_exits_one(self, subcommand: str) -> None:
-        """AC-M4: each subcommand exits with code 1 (not implemented)."""
-        result = subprocess.run(
-            [PYTHON, str(AURA_MSG_PATH), subcommand],
-            capture_output=True,
-            text=True,
-        )
+    @pytest.mark.parametrize("group,subcommand,extra_args", SUBCOMMAND_CASES)
+    def test_subcommand_exits_one(self, group: str, subcommand: str, extra_args: list[str]) -> None:
+        """Unimplemented subcommand exits with code 1."""
+        result = self._run(group, subcommand, *extra_args)
         assert result.returncode == 1, (
-            f"'{subcommand}' exited {result.returncode}, expected 1.\n"
+            f"'{group} {subcommand}' exited {result.returncode}, expected 1.\n"
             f"stdout: {result.stdout!r}\nstderr: {result.stderr!r}"
         )
 
-    @pytest.mark.parametrize("subcommand", PLANNED_SUBCOMMANDS)
-    def test_subcommand_stderr_not_implemented(self, subcommand: str) -> None:
-        """AC-M4: each subcommand prints 'not implemented' to stderr."""
-        result = subprocess.run(
-            [PYTHON, str(AURA_MSG_PATH), subcommand],
-            capture_output=True,
-            text=True,
-        )
-        assert "not implemented" in result.stderr.lower(), (
-            f"'{subcommand}': expected 'not implemented' in stderr.\n"
+    @pytest.mark.parametrize("group,subcommand,extra_args", SUBCOMMAND_CASES)
+    def test_subcommand_stderr_mentions_subcommand(self, group: str, subcommand: str, extra_args: list[str]) -> None:
+        """Unimplemented subcommand prints group+subcommand name to stderr."""
+        result = self._run(group, subcommand, *extra_args)
+        combined = (result.stdout + result.stderr).lower()
+        assert subcommand in combined or "not" in combined, (
+            f"'{group} {subcommand}': expected subcommand or 'not' in output.\n"
             f"stderr: {result.stderr!r}"
         )
