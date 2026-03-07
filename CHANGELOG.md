@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.8] - 2026-03-07
+
+### Fixed
+- fix(aura-swarm): intree mode defaults to window in current tmux session
+
+### Other
+- chore: beads backup
+- Merge branch 'fix--aura-swarm--intree'
+- chore: beads backup
+
 ## [0.9.7] - 2026-03-07
 
 ### Documentation
