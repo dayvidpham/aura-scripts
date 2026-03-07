@@ -199,10 +199,10 @@ class TestFixtureLoaderGenerators:
         assert len(ids) == len(set(ids)), "Constraint case IDs must be unique"
         assert all(ids), "All IDs must be non-empty"
 
-    def test_constraint_cases_have_twenty_five_runnable(self) -> None:
-        """Exactly 25 constraint cases are runnable (no skip_reason)."""
+    def test_constraint_cases_have_twenty_seven_runnable(self) -> None:
+        """Exactly 27 constraint cases are runnable (no skip_reason)."""
         runnable = [tc for tc in _CONSTRAINT_CASES if tc.skip_reason is None]
-        assert len(runnable) == 25
+        assert len(runnable) == 27
 
     def test_build_vote_dict_all_accept(self) -> None:
         """build_vote_dict('all_accept') returns typed ReviewAxis → VoteType dict."""

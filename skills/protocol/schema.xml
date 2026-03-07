@@ -261,9 +261,9 @@
               <instruction>Read RATIFIED_PLAN and URD via bd show</instruction>
               <command>bd show &lt;ratified-plan-id&gt; &amp;&amp; bd show &lt;urd-id&gt;</command>
             </step>
-            <step order="3" id="S-supervisor-cartographers">
-              <instruction>Create standing explore team via TeamCreate before any codebase exploration</instruction>
-              <context>TeamCreate with /aura:explore role; minimum 3 agents</context>
+            <step order="3" id="S-supervisor-explore-ephemeral">
+              <instruction>Spawn ephemeral Explore subagents via Task tool for scoped codebase queries</instruction>
+              <context>Each subagent is short-lived and returns findings; no standing team overhead</context>
             </step>
             <step order="4" id="S-supervisor-decompose-slices" next-state="p8">
               <instruction>Decompose into vertical slices</instruction>
@@ -389,6 +389,9 @@
         <delegate to-role="architect" phases="p1,p2,p3,p4,p5,p6,p7" />
         <delegate to-role="supervisor" phases="p7,p8,p9,p10,p11,p12" />
       </delegates>
+      <tools>Read, Glob, Grep, Bash, Skill, Agent, Task</tools>
+      <model>opus</model>
+      <thinking>medium</thinking>
       <introduction>You are the master orchestrator for the full 12-phase epoch lifecycle. You delegate planning phases (1-7) to the architect and implementation phases (7-12) to the supervisor.</introduction>
       <ownership-narrative>You own the full 12-phase lifecycle from Request to Landing. You delegate phases 1-7 to the architect and phases 7-12 to the supervisor. The epoch role coordinates the complete workflow end-to-end and is the only role that spans all phases.</ownership-narrative>
     </role>
@@ -405,6 +408,9 @@
       <label-awareness>
       aura:p1-user, aura:p2-user, aura:p3-plan, aura:p4-plan, aura:p5-user, aura:p6-plan, aura:p7-plan
     </label-awareness>
+      <tools>Read, Glob, Grep, Bash, Skill, Agent, Task</tools>
+      <model>opus</model>
+      <thinking>medium</thinking>
       <introduction>You design specifications and coordinate the planning phases of epochs. See the project's AGENTS.md and ~/.claude/CLAUDE.md for coding standards and constraints.</introduction>
       <ownership-narrative>You own Phases 1-7 of the epoch: capture and classify user request (p1), run requirements elicitation URE survey (p2), create PROPOSAL-N with full technical plan (p3), spawn 3 axis-specific reviewers and loop until consensus (p4), present plan to user for acceptance test (p5), add ratify label to accepted PROPOSAL-N (p6), create handoff document and transfer to supervisor (p7).</ownership-narrative>
       <behaviors>
@@ -428,6 +434,8 @@
         <axis-ref ref="axis-test_quality" />
         <axis-ref ref="axis-elegance" />
       </uses-axes>
+      <tools>Read, Glob, Grep, Bash, Skill</tools>
+      <model>sonnet</model>
       <introduction>You review from an end-user alignment perspective. See the project's protocol/CONSTRAINTS.md for coding standards.</introduction>
       <ownership-narrative>You participate in two phases: Phase 4 (plan review) — evaluate PROPOSAL-N against one axis using binary ACCEPT/REVISE, NO severity tree; Phase 10 (code review) — review ALL implementation slices against your axis using full severity tree (BLOCKER/IMPORTANT/MINOR), EAGER creation of all 3 severity groups.</ownership-narrative>
       <behaviors>
@@ -451,32 +459,21 @@
     </label-awareness>
       <invariants>
         <invariant>NEVER implements code — always spawns workers</invariant>
-        <invariant>NEVER explores codebase directly — delegates to standing explore team</invariant>
+        <invariant>NEVER explores codebase directly — delegates to ephemeral Explore subagents</invariant>
         <invariant>ALWAYS creates leaf tasks within each slice — no undecomposed slices</invariant>
         <invariant>Creates follow-up epic when code review has IMPORTANT or MINOR findings</invariant>
       </invariants>
-      <standing-teams>
-        <team id="explore-team" purpose="Context-cached codebase exploration agents">
-          <description>
-          Standing team of explore agents created via TeamCreate at the start of Phase 8.
-          Each agent is scoped to a specific codebase domain. Agents retain context between
-          queries, making follow-up questions on the same domain near-zero-cost.
-          Minimum 1 agent; scale based on feature complexity (1-4 agents).
-        </description>
-          <agent-template role="explore" skill-ref="cmd-explore" invocation="Skill(/aura:explore)" min-count="1" max-count="4">
-            <scoping>Each agent assigned a specific codebase domain (e.g., CLI wiring, DB layer, build system)</scoping>
-            <lifecycle>Created before exploration, shut down after all slices have leaf tasks</lifecycle>
-          </agent-template>
-        </team>
-      </standing-teams>
+      <tools>Read, Glob, Grep, Bash, Skill, Agent, Task</tools>
+      <model>opus</model>
+      <thinking>medium</thinking>
       <introduction>You coordinate parallel task execution. See the project's AGENTS.md and ~/.claude/CLAUDE.md for coding standards and constraints.</introduction>
-      <ownership-narrative>You own Phases 7-12 of the epoch: receive handoff from architect (p7), create vertical slice decomposition IMPL_PLAN (p8), spawn workers for parallel implementation SLICE-N (p9), spawn 3 Cartographer/reviewers for ALL slices with severity tree (p10), coordinate user acceptance test (p11), commit, push, and hand off (p12). You NEVER implement code directly — all implementation is delegated to workers.</ownership-narrative>
+      <ownership-narrative>You own Phases 7-12 of the epoch: receive handoff from architect (p7), create vertical slice decomposition IMPL_PLAN (p8), spawn workers for parallel implementation SLICE-N (p9), spawn ephemeral reviewers for per-slice code review with severity tree (p10), coordinate user acceptance test (p11), commit, push, and hand off (p12). You NEVER implement code directly — all implementation is delegated to workers.</ownership-narrative>
       <behaviors>
         <behavior id="B-sup-read-context" given="handoff received" when="starting" then="read ratified plan, URD, UAT, and elicit tasks for full context" should-not="start without reading all four" />
         <behavior id="B-sup-model-trivial" given="trivial changes (single-file edits, config tweaks, typo fixes)" when="spawning a worker" then="use model: haiku to minimize cost and latency" should-not="use a heavyweight model for trivial work" />
         <behavior id="B-sup-model-nontrivial" given="non-trivial changes (multi-file, architectural, logic-heavy)" when="spawning a worker" then="prefer model: sonnet for the Task tool to ensure quality" should-not="default to haiku for complex work" />
-        <behavior id="B-sup-cartographer-reuse" given="standing explore team exists" when="needing to understand a codebase area" then="send a scoped query to the relevant explore agent via SendMessage; reuse the same agent for follow-up questions on the same topic" should-not="spawn a new explore agent for a topic that an existing agent already covers" />
-        <behavior id="B-sup-ride-the-wave" given="Phase 8-10 execution" when="starting implementation" then="follow the Ride the Wave cycle: plan tasks with integration points, launch 3 Cartographers, launch the wave of workers, Cartographers review, workers fix, repeat max 3 cycles" should-not="skip any stage or shut down Cartographers/workers between stages" />
+        <behavior id="B-sup-explore-ephemeral" given="codebase exploration needed" when="needing to understand a codebase area" then="spawn an ephemeral Explore subagent via Task tool with a scoped query; each subagent is short-lived and returns findings" should-not="explore the codebase directly as supervisor or maintain a standing explore team" />
+        <behavior id="B-sup-ride-the-wave" given="Phase 8-10 execution" when="starting implementation" then="follow the Ride the Wave cycle: plan tasks with integration points, launch the wave of workers, spawn ephemeral reviewers for per-slice review (clean exit = 0 BLOCKERs + 0 IMPORTANTs), workers fix per-slice with atomic commits, max 3 cycles per slice, escalate to architect after cycle 3" should-not="skip any stage; batch review across slices; exceed 3 review cycles per slice" />
       </behaviors>
     </role>
     <role id="worker" name="Worker" description="Vertical slice implementer (full production code path)">
@@ -486,6 +483,8 @@
       <label-awareness>
       aura:p9-impl:s9-slice
     </label-awareness>
+      <tools>Read, Glob, Grep, Bash, Skill, Edit, Write</tools>
+      <model>sonnet</model>
       <ownership-model>
       One worker per production code path. Owns full vertical
       (types → tests → implementation → wiring).
@@ -785,7 +784,7 @@
         <label-ref ref="L-p1s1_3" />
       </creates-labels>
       <file>skills/explore/SKILL.md</file>
-      <note>Used in Phase 1 (s1_3) by architect, and in Phase 8 by supervisor's standing explore team.</note>
+      <note>Used in Phase 1 (s1_3) by architect, and in Phase 8 by supervisor's ephemeral Explore subagents.</note>
     </command>
     <command id="cmd-research" name="aura:research" description="Domain research — find standards, prior art, and competing approaches">
       <phases>
@@ -815,7 +814,7 @@
       <required-fields>
       request, urd, proposal, ratified-plan, context, key-decisions, open-items, acceptance-criteria
     </required-fields>
-      <skill-invocation directive="Skill(/aura:supervisor)" note="Supervisor launch prompt MUST start with this invocation. Without it, supervisor skips explore team setup and leaf task creation." />
+      <skill-invocation directive="Skill(/aura:supervisor)" note="Supervisor launch prompt MUST start with this invocation. Without it, supervisor skips leaf task creation." />
     </handoff>
     <handoff id="h2" source-role="supervisor" target-role="worker" at-phase="p9" content-level="summary-with-ids" file-pattern="supervisor-to-worker.md">
       <required-fields>
@@ -906,12 +905,14 @@ if blocker_findings:
     <!-- Ownership -->
     <constraint id="C-vertical-slices" given="implementation decomposition" when="assigning work" then="each production code path owned by exactly ONE worker (full vertical)" should-not="assign horizontal layers or same path to multiple workers" role-ref="supervisor" phase-ref="p8,p9" />
     <constraint id="C-supervisor-no-impl" given="supervisor role" when="implementation phase" then="spawn workers for all code changes" should-not="implement code directly" role-ref="supervisor" phase-ref="p8,p9" />
-    <constraint id="C-supervisor-cartographers" given="supervisor needs codebase exploration and code review" when="starting Phase 8 (IMPL_PLAN) and Phase 10 (Code Review)" then="create exactly 3 Cartographers via TeamCreate with /aura:explore before any exploration; Cartographers are dual-role: explore codebase in Phase 8, switch to /aura:reviewer in Phase 10; Cartographers NEVER shut down between phases — persist for full Ride the Wave cycle; max 3 worker-reviewer cycles; supervisor shuts down Cartographers after cycle 3 or all-ACCEPT" should-not="perform deep codebase exploration directly as supervisor; shut down Cartographers between Phase 8 and Phase 10; exceed 3 worker-reviewer cycles" role-ref="epoch,supervisor" phase-ref="p8,p9,p10" />
+    <constraint id="C-supervisor-explore-ephemeral" given="supervisor needs codebase exploration" when="starting Phase 8 (IMPL_PLAN)" then="spawn ephemeral Explore subagents via Task tool for scoped codebase queries; each subagent is short-lived and returns findings; no standing team overhead" should-not="explore the codebase directly as supervisor; maintain a standing explore team" role-ref="epoch,supervisor" phase-ref="p8,p9,p10" />
+    <constraint id="C-clean-review-exit" given="per-slice code review" when="evaluating review results" then="clean review exit requires 0 BLOCKERs AND 0 IMPORTANTs; MINORs are acceptable and tracked in FOLLOWUP epic; each slice has its own independent review cycle counter (max 3 cycles); after 3 failed cycles, escalate to architect for re-planning" should-not="accept review with open BLOCKERs or IMPORTANTs; batch review across multiple slices; exceed 3 cycles without escalating; escalate to user instead of architect" />
+    <constraint id="C-autonomous-progression" given="supervisor orchestrating phases" when="deciding whether to proceed" then="4 user-gated phases only: (1) research depth decision, (2) URE survey, (3) Plan UAT, (4) Impl UAT; all other phase transitions are auto-ratified by the supervisor; after Plan UAT ACCEPT, proceed directly to ratification without user gate" should-not="add additional user gates beyond the 4 defined; require user approval for ratification after UAT ACCEPT" />
     <constraint id="C-integration-points" given="multiple vertical slices share types, interfaces, or data flows" when="decomposing IMPL_PLAN in Phase 8" then="identify horizontal Layer Integration Points and document them in IMPL_PLAN; each integration point specifies: owning slice, consuming slices, shared contract, merge timing; include integration points in slice descriptions so workers know what to export and import" should-not="leave cross-slice dependencies implicit; assume workers will discover contracts on their own" role-ref="epoch,supervisor" phase-ref="p8" />
-    <constraint id="C-slice-review-before-close" given="workers complete their implementation slices" when="slice implementation is done" then="workers notify supervisor with bd comments add (not bd close); slices must be reviewed at least once by Cartographers before closure; only the supervisor closes slices, after review passes" should-not="close slices immediately upon worker completion; allow workers to close their own slices" role-ref="epoch,supervisor" phase-ref="p9,p10" />
-    <constraint id="C-max-review-cycles" given="worker-Cartographer review-fix cycles are ongoing" when="counting review-fix iterations" then="limit to a maximum of 3 cycles total; after cycle 3, remaining IMPORTANT findings move to FOLLOWUP epic; proceed to Phase 11 (UAT) regardless of remaining IMPORTANTs after cycle 3" should-not="exceed 3 worker-reviewer cycles; block UAT on non-BLOCKER findings after 3 cycles" role-ref="epoch,supervisor" phase-ref="p10" />
+    <constraint id="C-slice-review-before-close" given="workers complete their implementation slices" when="slice implementation is done" then="workers notify supervisor with bd comments add (not bd close); slices must be reviewed at least once by ephemeral reviewers before closure; only the supervisor closes slices, after review passes" should-not="close slices immediately upon worker completion; allow workers to close their own slices" role-ref="epoch,supervisor" phase-ref="p9,p10" />
+    <constraint id="C-max-review-cycles" given="per-slice review-fix cycles are ongoing" when="counting review-fix iterations per slice" then="limit to a maximum of 3 cycles per slice; clean review exit = 0 BLOCKERs + 0 IMPORTANTs; after cycle 3, escalate to architect for re-planning if BLOCKERs or IMPORTANTs remain; remaining IMPORTANT findings move to FOLLOWUP epic" should-not="exceed 3 review cycles per slice; escalate to user instead of architect; batch review across multiple slices" role-ref="epoch,supervisor" phase-ref="p10" />
     <constraint id="C-slice-leaf-tasks" given="vertical slice created" when="decomposing slice into implementation units" then="create Beads leaf tasks (L1: types, L2: tests, L3: impl) within each slice with bd dep add slice-id --blocked-by leaf-task-id" should-not="create slices without leaf tasks — a slice with no children is undecomposed and cannot be tracked" role-ref="supervisor" phase-ref="p8,p9" command="bd dep add &lt;slice-id&gt; --blocked-by &lt;leaf-task-id&gt;" />
-    <constraint id="C-handoff-skill-invocation" given="an agent is launched for a new phase (especially p7 to p8 handoff)" when="composing the launch prompt" then="prompt MUST start with Skill(/aura:{role}) invocation directive so the agent loads its role instructions" should-not="launch agents without skill invocation — they skip role-critical procedures like explore team setup and leaf task creation" role-ref="epoch,architect,supervisor" phase-ref="p7" />
+    <constraint id="C-handoff-skill-invocation" given="an agent is launched for a new phase (especially p7 to p8 handoff)" when="composing the launch prompt" then="prompt MUST start with Skill(/aura:{role}) invocation directive so the agent loads its role instructions" should-not="launch agents without skill invocation — they skip role-critical procedures like ephemeral exploration and leaf task creation" role-ref="epoch,architect,supervisor" phase-ref="p7" />
     <!-- Task management -->
     <constraint id="C-dep-direction" given="adding a Beads dependency" when="determining direction" then="parent blocked-by child: bd dep add stays-open --blocked-by must-finish-first" should-not="invert (child blocked-by parent)" command="bd dep add &lt;stays-open&gt; --blocked-by &lt;must-finish-first&gt;">
       <example id="C-dep-direction-correct" lang="bash" label="correct" also-illustrates="C-audit-dep-chain">
@@ -1207,9 +1208,9 @@ bd create --title "UAT: Plan acceptance" \
         <instruction>Read RATIFIED_PLAN and URD via bd show</instruction>
         <command>bd show &lt;ratified-plan-id&gt; &amp;&amp; bd show &lt;urd-id&gt;</command>
       </step>
-      <step order="3" id="S-supervisor-cartographers">
-        <instruction>Create standing explore team via TeamCreate before any codebase exploration</instruction>
-        <context>TeamCreate with /aura:explore role; minimum 3 agents</context>
+      <step order="3" id="S-supervisor-explore-ephemeral">
+        <instruction>Spawn ephemeral Explore subagents via Task tool for scoped codebase queries</instruction>
+        <context>Each subagent is short-lived and returns findings; no standing team overhead</context>
       </step>
       <step order="4" id="S-supervisor-decompose-slices" next-state="p8">
         <instruction>Decompose into vertical slices</instruction>
@@ -1270,7 +1271,7 @@ Layer 1: types and interfaces for <slice name>."]]></code>
     </checklist>
     <checklist id="supervisor-review-ready" role-ref="supervisor" gate="review-ready">
       <item id="CL-sup-all-slices-notified" required="true">All workers have notified completion via bd comments add</item>
-      <item id="CL-sup-cartographers-assigned" required="true">All 3 Cartographers assigned review of ALL slices</item>
+      <item id="CL-sup-reviewers-assigned" required="true">Ephemeral reviewers spawned for all slices</item>
       <item id="CL-sup-severity-groups-created" required="true">Severity groups (BLOCKER/IMPORTANT/MINOR) eagerly created per slice</item>
     </checklist>
     <checklist id="supervisor-landing" role-ref="supervisor" gate="landing">
@@ -1306,28 +1307,28 @@ Layer 1: types and interfaces for <slice name>."]]></code>
      Architect State Flow (architect).
      ═══════════════════════════════════════════════════════════════════════ -->
   <workflows>
-    <workflow id="ride-the-wave" name="Ride the Wave" role-ref="supervisor" description="Coordinated Phase 8-10 execution pattern. The supervisor orchestrates the full cycle: plan slices, launch Cartographers, launch workers, Cartographers review, workers fix, repeat max 3 cycles.">
+    <workflow id="ride-the-wave" name="Ride the Wave" role-ref="supervisor" description="Coordinated Phase 8-10 execution pattern. The supervisor orchestrates the full cycle: plan slices, launch workers, spawn ephemeral reviewers for per-slice review, workers fix, repeat max 3 cycles per slice.">
       <stage id="rtw-plan" name="Plan" order="1" execution="sequential" phase-ref="p8">
         <action id="rtw-plan-read" instruction="Read RATIFIED_PLAN and URD via bd show" command="bd show &lt;ratified-plan-id&gt; &amp;&amp; bd show &lt;urd-id&gt;" />
-        <action id="rtw-plan-cartographers" instruction="Spawn 3 Cartographers via TeamCreate with /aura:explore" />
-        <action id="rtw-plan-decompose" instruction="Query Cartographers to map codebase, then decompose into vertical slices with integration points" />
+        <action id="rtw-plan-explore" instruction="Spawn ephemeral Explore subagents via Task tool to map codebase areas" />
+        <action id="rtw-plan-decompose" instruction="Use Explore findings to decompose into vertical slices with integration points" />
         <action id="rtw-plan-leaf-tasks" instruction="Create leaf tasks (L1/L2/L3) for every slice" command="bd dep add &lt;slice-id&gt; --blocked-by &lt;leaf-task-id&gt;" />
         <exit-condition type="proceed" condition="All slices created with leaf tasks, dependency-chained, assigned" />
       </stage>
       <stage id="rtw-build" name="Build" order="2" execution="parallel" phase-ref="p9">
-        <action id="rtw-build-spawn" instruction="Spawn N workers into same team as Cartographers" command="aura-swarm start --epic &lt;epic-id&gt;" />
+        <action id="rtw-build-spawn" instruction="Spawn N workers for parallel slice implementation" command="aura-swarm start --epic &lt;epic-id&gt;" />
         <action id="rtw-build-monitor" instruction="Monitor worker progress via bd list and bd show" command="bd list --labels=&quot;aura:p9-impl:s9-slice&quot; --status=in_progress" />
         <exit-condition type="proceed" condition="All workers have notified completion via bd comments add" />
       </stage>
       <stage id="rtw-review-fix" name="Review + Fix Cycles" order="3" execution="conditional-loop" phase-ref="p10">
-        <action id="rtw-review-switch" instruction="Send Cartographers review assignment (switch to /aura:reviewer-review-code)" />
-        <action id="rtw-review-severity" instruction="Cartographers create severity groups (BLOCKER/IMPORTANT/MINOR) per slice" />
+        <action id="rtw-review-spawn" instruction="Spawn ephemeral reviewers via Task tool for per-slice code review" />
+        <action id="rtw-review-severity" instruction="Reviewers create severity groups (BLOCKER/IMPORTANT/MINOR) per slice" />
         <action id="rtw-review-followup" instruction="Create FOLLOWUP epic if any IMPORTANT/MINOR findings exist" />
         <action id="rtw-review-fix" instruction="Workers fix BLOCKERs and IMPORTANT findings" />
         <exit-condition type="success" condition="All reviewers ACCEPT, no open BLOCKERs — proceed to Phase 11 UAT" />
-        <exit-condition type="continue" condition="BLOCKERs or IMPORTANT remain, cycles &lt; 3 — workers fix, Cartographers re-review" />
+        <exit-condition type="continue" condition="BLOCKERs or IMPORTANTs remain, cycles &lt; 3 per slice — workers fix, spawn new ephemeral reviewers" />
         <exit-condition type="proceed" condition="3 cycles exhausted, IMPORTANT remain — track in FOLLOWUP, proceed to Phase 11" />
-        <exit-condition type="escalate" condition="3 cycles exhausted, BLOCKERs remain — stop and escalate to user" />
+        <exit-condition type="escalate" condition="3 cycles exhausted per slice, BLOCKERs remain — escalate to architect for re-planning" />
       </stage>
     </workflow>
     <workflow id="layer-cake" name="Layer Cake" role-ref="worker" description="TDD layer-by-layer implementation within a vertical slice. Worker implements types first, then tests (will fail), then production code to make tests pass.">

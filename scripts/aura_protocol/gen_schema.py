@@ -228,7 +228,7 @@ _ROLE_LABEL_AWARENESS: dict[str, str] = {
 _ROLE_INVARIANTS: dict[str, list[str]] = {
     "supervisor": [
         "NEVER implements code — always spawns workers",
-        "NEVER explores codebase directly — delegates to standing explore team",
+        "NEVER explores codebase directly — delegates to ephemeral Explore subagents",
         "ALWAYS creates leaf tasks within each slice — no undecomposed slices",
         "Creates follow-up epic when code review has IMPORTANT or MINOR findings",
     ],
@@ -279,7 +279,7 @@ _HANDOFF_SKILL_INVOCATIONS: dict[str, dict] = {
         "directive": "Skill(/aura:supervisor)",
         "note": (
             "Supervisor launch prompt MUST start with this invocation. Without it, "
-            "supervisor skips explore team setup and leaf task creation."
+            "supervisor skips leaf task creation."
         ),
     },
     "h2": {
@@ -714,38 +714,16 @@ def _build_roles(root: ET.Element) -> None:
                 inv_el = ET.SubElement(inv_parent, "invariant")
                 inv_el.text = inv_text
 
-        # Standing teams (supervisor)
-        if rid == "supervisor":
-            teams_el = ET.SubElement(role_el, "standing-teams")
-            team_el = ET.SubElement(teams_el, "team",
-                                    id="explore-team",
-                                    purpose="Context-cached codebase exploration agents")
-            desc_el = ET.SubElement(team_el, "description")
-            desc_el.text = (
-                "\n          Standing team of explore agents created via TeamCreate "
-                "at the start of Phase 8.\n"
-                "          Each agent is scoped to a specific codebase domain. "
-                "Agents retain context between\n"
-                "          queries, making follow-up questions on the same domain "
-                "near-zero-cost.\n"
-                "          Minimum 1 agent; scale based on feature complexity (1-4 agents).\n"
-                "        "
-            )
-            at_el = ET.SubElement(team_el, "agent-template",
-                                  role="explore",
-                                  **{"skill-ref": "cmd-explore",
-                                     "invocation": "Skill(/aura:explore)",
-                                     "min-count": "1",
-                                     "max-count": "4"})
-            scoping_el = ET.SubElement(at_el, "scoping")
-            scoping_el.text = (
-                "Each agent assigned a specific codebase domain "
-                "(e.g., CLI wiring, DB layer, build system)"
-            )
-            lc_el = ET.SubElement(at_el, "lifecycle")
-            lc_el.text = (
-                "Created before exploration, shut down after all slices have leaf tasks"
-            )
+        # Tools, model, thinking (from RoleSpec)
+        if spec.tools:
+            tools_el = ET.SubElement(role_el, "tools")
+            tools_el.text = ", ".join(spec.tools)
+        if spec.model:
+            model_el = ET.SubElement(role_el, "model")
+            model_el.text = spec.model
+        if spec.thinking:
+            thinking_el = ET.SubElement(role_el, "thinking")
+            thinking_el.text = spec.thinking
 
         # Ownership model (worker)
         if rid in _ROLE_OWNERSHIP_MODEL:
@@ -856,7 +834,7 @@ def _build_commands(root: ET.Element) -> None:
             note_el = ET.SubElement(cmd_el, "note")
             note_el.text = (
                 "Used in Phase 1 (s1_3) by architect, and in Phase 8 by "
-                "supervisor's standing explore team."
+                "supervisor's ephemeral Explore subagents."
             )
 
 

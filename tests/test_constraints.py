@@ -35,7 +35,7 @@ Coverage:
     - check_followup_lifecycle: C-followup-lifecycle
     - check_followup_leaf_adoption: C-followup-leaf-adoption
     - check_worker_gates: C-worker-gates
-    - check_supervisor_cartographers: C-supervisor-cartographers
+    - check_supervisor_explore_ephemeral: C-supervisor-explore-ephemeral
     - check_integration_points: C-integration-points
     - check_slice_review_before_close: C-slice-review-before-close
     - check_max_review_cycles: C-max-review-cycles
@@ -1499,38 +1499,38 @@ class TestCheckWorkerGates:
         assert any(v.context.get("gate") == "tests" for v in violations)
 
 
-# ─── C-supervisor-cartographers ───────────────────────────────────────────────
+# ─── C-supervisor-explore-ephemeral ───────────────────────────────────────────
 
 
-class TestCheckSupervisorCartographers:
-    """C-supervisor-cartographers: supervisor must have Cartographers at p8."""
+class TestCheckSupervisorExploreEphemeral:
+    """C-supervisor-explore-ephemeral: supervisor must use ephemeral Explore subagents at p8."""
 
-    def test_p8_with_explore_team_returns_empty(self) -> None:
+    def test_p8_with_ephemeral_task_returns_empty(self) -> None:
         checker = _make_checker()
-        violations = checker.check_supervisor_cartographers(
-            PhaseId.P8_IMPL_PLAN, has_explore_team=True
+        violations = checker.check_supervisor_explore_ephemeral(
+            PhaseId.P8_IMPL_PLAN, exploration_method="ephemeral_task"
         )
         assert violations == []
 
-    def test_p8_without_explore_team_returns_violation(self) -> None:
+    def test_p8_without_ephemeral_task_returns_violation(self) -> None:
         checker = _make_checker()
-        violations = checker.check_supervisor_cartographers(
-            PhaseId.P8_IMPL_PLAN, has_explore_team=False
+        violations = checker.check_supervisor_explore_ephemeral(
+            PhaseId.P8_IMPL_PLAN, exploration_method="direct"
         )
         assert len(violations) == 1
-        assert violations[0].constraint_id == "C-supervisor-cartographers"
+        assert violations[0].constraint_id == "C-supervisor-explore-ephemeral"
 
-    def test_non_p8_phase_returns_empty_regardless_of_explore_team(self) -> None:
+    def test_non_p8_phase_returns_empty_regardless_of_method(self) -> None:
         checker = _make_checker()
         for phase in (
             PhaseId.P1_REQUEST, PhaseId.P9_SLICE, PhaseId.P10_CODE_REVIEW
         ):
-            violations = checker.check_supervisor_cartographers(phase, has_explore_team=False)
+            violations = checker.check_supervisor_explore_ephemeral(phase, exploration_method="direct")
             assert violations == [], f"Unexpected violation at {phase}"
 
     def test_violation_context_contains_phase(self) -> None:
         checker = _make_checker()
-        violations = checker.check_supervisor_cartographers(PhaseId.P8_IMPL_PLAN, False)
+        violations = checker.check_supervisor_explore_ephemeral(PhaseId.P8_IMPL_PLAN, "direct")
         assert violations[0].context.get("phase") == "p8"
 
 
@@ -1934,14 +1934,14 @@ class TestCheckStructural:
         ids = {v.constraint_id for v in violations}
         assert "C-supervisor-no-impl" in ids
 
-    def test_supervisor_cartographers_violation_at_p8(self) -> None:
+    def test_supervisor_explore_ephemeral_violation_at_p8(self) -> None:
         checker = _make_checker()
         violations = checker.check_structural(
             phase=PhaseId.P8_IMPL_PLAN,
-            has_explore_team=False,
+            exploration_method="direct",
         )
         ids = {v.constraint_id for v in violations}
-        assert "C-supervisor-cartographers" in ids
+        assert "C-supervisor-explore-ephemeral" in ids
 
     def test_integration_points_via_structural(self) -> None:
         """C-integration-points surfaces through check_structural()."""

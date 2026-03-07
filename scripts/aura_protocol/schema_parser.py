@@ -365,6 +365,19 @@ def _parse_roles(root: ET.Element, path: Path) -> dict[RoleId, RoleSpec]:
             on_el.text.strip() if on_el is not None and on_el.text else None
         )
         behaviors = _parse_behaviors(role, path)
+
+        # Parse <tools>, <model>, <thinking> elements (optional)
+        tools_el = role.find("tools")
+        tools: tuple[str, ...] = ()
+        if tools_el is not None and tools_el.text:
+            tools = tuple(t.strip() for t in tools_el.text.split(",") if t.strip())
+        model_el = role.find("model")
+        model: str | None = model_el.text.strip() if model_el is not None and model_el.text else None
+        thinking_el = role.find("thinking")
+        thinking: str | None = (
+            thinking_el.text.strip() if thinking_el is not None and thinking_el.text else None
+        )
+
         result[rid] = RoleSpec(
             id=rid,
             name=name,
@@ -373,6 +386,9 @@ def _parse_roles(root: ET.Element, path: Path) -> dict[RoleId, RoleSpec]:
             introduction=introduction,
             ownership_narrative=ownership_narrative,
             behaviors=behaviors,
+            tools=tools,
+            model=model,
+            thinking=thinking,
         )
     return result
 

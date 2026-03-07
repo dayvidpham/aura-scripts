@@ -25,7 +25,7 @@ Storage: `.git/.aura/handoff/{request-task-id}/architect-to-supervisor.md`
 
 ## Supervisor Startup
 1. Call `Skill(/aura:supervisor)` to load your role instructions
-2. Create a standing explore team via TeamCreate before any codebase exploration
+2. Spawn ephemeral Explore subagents via Task tool when codebase exploration is needed
 3. Read the RATIFIED PROPOSAL and URD with `bd show` commands below
 4. Every vertical slice MUST have leaf tasks (L1: types, L2: tests, L3: impl)
 
@@ -95,7 +95,7 @@ Storage: `.git/.aura/handoff/{request-task-id}/architect-to-supervisor.md`
 
 ## Example Prompt
 
-**CRITICAL:** The prompt MUST instruct the supervisor to invoke `/aura:supervisor` as its first action. Without this, the supervisor agent starts without its role instructions and skips leaf task creation, explore team setup, and other critical procedures.
+**CRITICAL:** The prompt MUST instruct the supervisor to invoke `/aura:supervisor` as its first action. Without this, the supervisor agent starts without its role instructions and skips leaf task creation, ephemeral exploration, and other critical procedures.
 
 ```
 Start by calling `Skill(/aura:supervisor)` to load your role instructions.
@@ -120,7 +120,7 @@ Implement the ratified plan for <feature name>.
 
 ## Reminders
 1. Call `Skill(/aura:supervisor)` FIRST — do not proceed without loading your role
-2. Create a standing explore team via TeamCreate BEFORE doing any codebase exploration
+2. Spawn ephemeral Explore subagents via Task tool when codebase exploration is needed
 3. Every vertical slice MUST have leaf tasks (L1: types, L2: tests, L3: impl) — a slice without leaf tasks is undecomposed
 4. Read the ratified plan with `bd show <ratified-proposal-id>` and the URD with `bd show <urd-id>`
 ```
@@ -153,7 +153,7 @@ Given an expired token when accessing protected routes then return 401
 
 ## Reminders
 1. Call Skill(/aura:supervisor) FIRST
-2. Create standing explore team via TeamCreate before codebase exploration
+2. Spawn ephemeral Explore subagents via Task tool when codebase exploration is needed
 3. Every slice MUST have leaf tasks (L1/L2/L3)
 4. Read ratified plan: bd show project-prop1 and URD: bd show project-xyz
 EOF

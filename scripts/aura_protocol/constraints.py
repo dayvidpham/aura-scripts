@@ -297,9 +297,9 @@ class RuntimeConstraintChecker:
         action_type: str | None = None,
         # check_integration_points
         has_integration_points: bool | None = None,
-        # check_supervisor_cartographers
+        # check_supervisor_explore_ephemeral
         phase: PhaseId | None = None,
-        has_explore_team: bool | None = None,
+        exploration_method: str | None = None,
         # check_slice_review_before_close
         slice_closed_by_worker: bool | None = None,
         review_completed: bool | None = None,
@@ -332,7 +332,7 @@ class RuntimeConstraintChecker:
         - C-frontmatter-refs (task_description, required_ref_keys)
         - C-supervisor-no-impl (role, action_type)
         - C-integration-points (has_integration_points)
-        - C-supervisor-cartographers (phase, has_explore_team)
+        - C-supervisor-explore-ephemeral (phase, exploration_method)
         - C-slice-review-before-close (slice_closed_by_worker, review_completed)
         - C-max-review-cycles (review_cycle_count)
         - C-followup-leaf-adoption (leaf_task_id, severity_group_id, followup_slice_id)
@@ -377,8 +377,8 @@ class RuntimeConstraintChecker:
         if has_integration_points is not None:
             violations.extend(self.check_integration_points(has_integration_points))
 
-        if phase is not None and has_explore_team is not None:
-            violations.extend(self.check_supervisor_cartographers(phase, has_explore_team))
+        if phase is not None and exploration_method is not None:
+            violations.extend(self.check_supervisor_explore_ephemeral(phase, exploration_method))
 
         if slice_closed_by_worker is not None and review_completed is not None:
             violations.extend(
@@ -1235,36 +1235,36 @@ class RuntimeConstraintChecker:
 
         return violations
 
-    def check_supervisor_cartographers(
+    def check_supervisor_explore_ephemeral(
         self,
         phase: PhaseId,
-        has_explore_team: bool,
+        exploration_method: str,
     ) -> list[ConstraintViolation]:
-        """C-supervisor-cartographers: supervisor must use Cartographers for p8 exploration and p10 review.
+        """C-supervisor-explore-ephemeral: supervisor must use ephemeral Explore subagents.
 
-        At Phase 8 (IMPL_PLAN), supervisor must create exactly 3 Cartographers via TeamCreate.
-        Cartographers are dual-role (explore → review) and must persist for the full Ride the Wave cycle.
+        At Phase 8 (IMPL_PLAN), supervisor must spawn ephemeral Explore subagents via Task tool
+        for scoped codebase queries. Each subagent is short-lived and returns findings.
 
-        Returns violation if at p8 and has_explore_team is False.
+        Returns violation if at p8 and exploration_method is not 'ephemeral_task'.
         """
         if phase != PhaseId.P8_IMPL_PLAN:
             return []
 
-        if has_explore_team:
+        if exploration_method == "ephemeral_task":
             return []
 
         return [
             ConstraintViolation(
-                constraint_id="C-supervisor-cartographers",
+                constraint_id="C-supervisor-explore-ephemeral",
                 message=(
-                    "Phase p8 (IMPL_PLAN): supervisor must create exactly 3 Cartographers "
-                    "via TeamCreate with /aura:explore before any codebase exploration. "
-                    "Cartographers are dual-role (explore in p8, review in p10) and must NOT be "
-                    "shut down between phases. Supervisor must NOT explore the codebase directly."
+                    "Phase p8 (IMPL_PLAN): supervisor must spawn ephemeral Explore subagents "
+                    "via Task tool for scoped codebase queries. Each subagent is short-lived "
+                    "and returns findings. Supervisor must NOT explore the codebase directly "
+                    "or maintain a standing explore team."
                 ),
                 context={
                     "phase": phase.value,
-                    "has_explore_team": str(has_explore_team),
+                    "exploration_method": exploration_method,
                 },
             )
         ]
@@ -1305,7 +1305,7 @@ class RuntimeConstraintChecker:
         """C-slice-review-before-close: slices must be reviewed before closure.
 
         Workers must notify via bd comments add (not bd close).
-        Only the supervisor closes slices, after Cartographer review passes.
+        Only the supervisor closes slices, after ephemeral reviewer review passes.
 
         Returns violation if slice_closed_by_worker is True, or if slice is closed
         without review_completed.
@@ -1319,7 +1319,7 @@ class RuntimeConstraintChecker:
                     message=(
                         "Worker must NOT close their own slice. "
                         "Workers notify supervisor via bd comments add; "
-                        "only the supervisor closes slices after Cartographer review passes."
+                        "only the supervisor closes slices after ephemeral reviewer review passes."
                     ),
                     context={
                         "slice_closed_by_worker": str(slice_closed_by_worker),
@@ -1333,7 +1333,7 @@ class RuntimeConstraintChecker:
                 ConstraintViolation(
                     constraint_id="C-slice-review-before-close",
                     message=(
-                        "Slice cannot be closed before Cartographer review is completed. "
+                        "Slice cannot be closed before ephemeral reviewer review is completed. "
                         "At least one review cycle must pass before supervisor closes the slice."
                     ),
                     context={
@@ -1349,7 +1349,7 @@ class RuntimeConstraintChecker:
         self,
         review_cycle_count: int,
     ) -> list[ConstraintViolation]:
-        """C-max-review-cycles: worker-Cartographer review-fix cycles capped at 3.
+        """C-max-review-cycles: per-slice review-fix cycles capped at 3.
 
         After cycle 3, remaining IMPORTANT findings move to FOLLOWUP epic.
         Phase 11 (UAT) proceeds regardless of remaining IMPORTANTs after cycle 3.
@@ -1437,3 +1437,74 @@ class RuntimeConstraintChecker:
             )
 
         return violations
+
+    def check_clean_review_exit(
+        self,
+        blockers_remaining: int,
+        importants_remaining: int,
+        exited_on_worker_wave: bool,
+    ) -> list[ConstraintViolation]:
+        """C-clean-review-exit: review cycle must exit with 0 BLOCKERs + 0 IMPORTANTs.
+
+        Returns violation if BLOCKERs or IMPORTANTs remain, or if exiting on a worker wave.
+        """
+        violations: list[ConstraintViolation] = []
+
+        if blockers_remaining > 0 or importants_remaining > 0:
+            violations.append(
+                ConstraintViolation(
+                    constraint_id="C-clean-review-exit",
+                    message=(
+                        f"Review cycle exiting with {blockers_remaining} BLOCKERs and "
+                        f"{importants_remaining} IMPORTANTs outstanding. "
+                        "Clean review exit requires 0 BLOCKERs AND 0 IMPORTANTs."
+                    ),
+                    context={
+                        "blockers_remaining": str(blockers_remaining),
+                        "importants_remaining": str(importants_remaining),
+                    },
+                )
+            )
+
+        if exited_on_worker_wave:
+            violations.append(
+                ConstraintViolation(
+                    constraint_id="C-clean-review-exit",
+                    message=(
+                        "Review cycle exited on a worker wave. "
+                        "Must always end on a review wave."
+                    ),
+                    context={"exited_on_worker_wave": "true"},
+                )
+            )
+
+        return violations
+
+    def check_autonomous_progression(
+        self,
+        phase: str,
+        asked_user: bool,
+    ) -> list[ConstraintViolation]:
+        """C-autonomous-progression: non-user-gated phases must proceed autonomously.
+
+        User-gated phases: p1 (research depth), p2 (URE), p5 (Plan UAT), p11 (Impl UAT).
+        All other phases proceed without asking user.
+        """
+        user_gated = {"p1", "p2", "p5", "p11"}
+
+        if phase in user_gated:
+            return []
+
+        if not asked_user:
+            return []
+
+        return [
+            ConstraintViolation(
+                constraint_id="C-autonomous-progression",
+                message=(
+                    f"Phase {phase} is not user-gated but asked user for confirmation. "
+                    "Non-user-gated phases must proceed autonomously."
+                ),
+                context={"phase": phase, "asked_user": "true"},
+            )
+        ]

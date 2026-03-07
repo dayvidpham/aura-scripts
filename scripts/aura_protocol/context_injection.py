@@ -161,10 +161,10 @@ _GENERAL_CONSTRAINTS: frozenset[str] = frozenset({
 #   C-followup-timing         → SUPERVISOR (given: "code review completion" — supervisor orchestrates followup)
 #   C-vertical-slices         → SUPERVISOR (given: "implementation decomposition" when: "assigning work")
 #   C-supervisor-no-impl      → SUPERVISOR (given: "supervisor role")
-#   C-supervisor-cartographers → SUPERVISOR (given: "supervisor needs codebase exploration and code review")
+#   C-supervisor-explore-ephemeral → SUPERVISOR (given: "supervisor needs codebase exploration")
 #   C-integration-points      → SUPERVISOR (given: "multiple vertical slices share types" when: "decomposing IMPL_PLAN")
 #   C-slice-review-before-close → SUPERVISOR (given: "workers complete their implementation slices")
-#   C-max-review-cycles       → SUPERVISOR (given: "worker-Cartographer review-fix cycles are ongoing")
+#   C-max-review-cycles       → SUPERVISOR (given: "per-slice review-fix cycles are ongoing")
 #   C-slice-leaf-tasks        → SUPERVISOR (given: "vertical slice created" — supervisor creates slices)
 #   C-handoff-skill-invocation→ ARCHITECT + SUPERVISOR (both are sources of handoffs h1 and h2/h3)
 #   C-dep-direction           → ALL (see _GENERAL_CONSTRAINTS)
@@ -184,8 +184,8 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
         "C-review-consensus",
         # Epoch creates handoffs as master orchestrator
         "C-handoff-skill-invocation",
-        # Epoch delegates p8/p10 exploration+review to 3 Cartographers (Ride the Wave)
-        "C-supervisor-cartographers",
+        # Epoch delegates exploration to ephemeral Explore subagents (Ride the Wave)
+        "C-supervisor-explore-ephemeral",
         # Epoch ensures supervisor documents integration points between slices
         "C-integration-points",
         # Epoch enforces: slices reviewed before closure; supervisor closes, not workers
@@ -222,8 +222,8 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
         "C-review-consensus",
         # Supervisor must not implement code directly
         "C-supervisor-no-impl",
-        # Supervisor must use Cartographers for p8/p10 exploration and review
-        "C-supervisor-cartographers",
+        # Supervisor must use ephemeral Explore subagents for codebase exploration
+        "C-supervisor-explore-ephemeral",
         # Supervisor must document integration points between slices
         "C-integration-points",
         # Slices must be reviewed before closure
@@ -269,7 +269,7 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
 #   C-followup-timing         → P10_CODE_REVIEW (given: "code review completion")
 #   C-vertical-slices         → P8_IMPL_PLAN, P9_SLICE (given: "implementation decomposition")
 #   C-supervisor-no-impl      → P8_IMPL_PLAN, P9_SLICE (given: "implementation phase")
-#   C-supervisor-cartographers → P8_IMPL_PLAN, P9_SLICE, P10_CODE_REVIEW (dual-role: explore then review)
+#   C-supervisor-explore-ephemeral → P8_IMPL_PLAN, P9_SLICE, P10_CODE_REVIEW (ephemeral explore + review)
 #   C-integration-points      → P8_IMPL_PLAN (given: "decomposing IMPL_PLAN in Phase 8")
 #   C-slice-review-before-close → P9_SLICE, P10_CODE_REVIEW (given: "slice implementation is done")
 #   C-max-review-cycles       → P10_CODE_REVIEW (given: "counting review-fix iterations")
@@ -321,8 +321,8 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         "C-vertical-slices",
         # Supervisor must not implement directly
         "C-supervisor-no-impl",
-        # Supervisor must use Cartographers for p8 exploration
-        "C-supervisor-cartographers",
+        # Supervisor must use ephemeral Explore subagents for p8 exploration
+        "C-supervisor-explore-ephemeral",
         # Supervisor must document integration points in p8
         "C-integration-points",
         # Each slice must have leaf tasks
@@ -339,8 +339,8 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         "C-supervisor-no-impl",
         # Slice tasks still need leaf tasks tracked
         "C-slice-leaf-tasks",
-        # Cartographers persist from p8 into p9/p10 — no shutdown between phases
-        "C-supervisor-cartographers",
+        # Ephemeral explore/review pattern applies across p8-p10
+        "C-supervisor-explore-ephemeral",
         # Slices must be reviewed before closure; workers notify, supervisor closes
         "C-slice-review-before-close",
     }),
@@ -361,8 +361,8 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         "C-followup-lifecycle",
         # Follow-up leaf adoption
         "C-followup-leaf-adoption",
-        # Cartographers switch to reviewer role in p10
-        "C-supervisor-cartographers",
+        # Ephemeral reviewers spawned for per-slice review in p10
+        "C-supervisor-explore-ephemeral",
         # Slices reviewed before closure — supervisor closes after review passes
         "C-slice-review-before-close",
         # Review-fix cycles capped at 3; remaining IMPORTANTs move to FOLLOWUP

@@ -108,7 +108,7 @@ _Example (anti-pattern)_
 - Given: an agent is launched for a new phase (especially p7 to p8 handoff)
 - When: composing the launch prompt
 - Then: prompt MUST start with Skill(/aura:{role}) invocation directive so the agent loads its role instructions
-- Should not: launch agents without skill invocation — they skip role-critical procedures like explore team setup and leaf task creation
+- Should not: launch agents without skill invocation — they skip role-critical procedures like ephemeral exploration and leaf task creation
 
 **[C-proposal-naming]**
 - Given: a new or revised proposal
@@ -504,10 +504,9 @@ The handoff skill guides you through:
 2. Launching supervisor via `aura-swarm start --swarm-mode intree --role supervisor -n 1` or `aura-swarm start --epic <id>`
 
 **CRITICAL:** The supervisor launch prompt MUST:
-1. **Start with `Skill(/aura:supervisor)`** — this loads the supervisor's role instructions, including leaf task creation and explore team setup
+1. **Start with `Skill(/aura:supervisor)`** — this loads the supervisor's role instructions, including leaf task creation
 2. Include all Beads task IDs (REQUEST, URD, RATIFIED PROPOSAL, HANDOFF)
 3. Include the handoff document path
-4. Remind the supervisor to create a standing explore team and leaf tasks for every slice
 
 **DO NOT** create implementation tasks yourself - the supervisor creates vertical slice tasks from the ratified plan.
 

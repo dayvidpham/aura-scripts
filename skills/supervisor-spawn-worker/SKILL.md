@@ -6,48 +6,48 @@
 ```text
 Phase 8: PLAN
   ├─ Read RATIFIED_PLAN + URD
-  ├─ Spawn 3 Cartographers (TeamCreate, /aura:explore)
-  ├─ Query Cartographers to map codebase
+  ├─ Spawn ephemeral Explore subagents (Task tool, scoped queries)
+  ├─ Use Explore findings to map codebase
   ├─ Decompose into vertical slices + integration points
   └─ Create leaf tasks for every slice
 
 Phase 9: BUILD
-  ├─ Spawn N Workers into same team (TeamCreate, /aura:worker)
+  ├─ Spawn N Workers for parallel slice implementation
   ├─ Workers implement their slices in parallel
   └─ Workers do NOT shut down when finished
 
-Phase 10: REVIEW + FIX CYCLES (max 3)
+Phase 10: REVIEW + FIX CYCLES (max 3 per slice)
   ├─ Cycle 1:
-  │   ├─ Cartographers switch to /aura:reviewer-review-code
-  │   ├─ Cartographers review ALL slices (severity tree: BLOCKER/IMPORTANT/MINOR)
+  │   ├─ Spawn ephemeral reviewers (Task tool, per-slice review)
+  │   ├─ Reviewers review ALL slices (severity tree: BLOCKER/IMPORTANT/MINOR)
   │   ├─ Create FOLLOWUP epic if ANY IMPORTANT/MINOR findings
-  │   ├─ Workers fix BLOCKERs + IMPORTANTs
-  │   └─ Cartographers re-review
+  │   ├─ Workers fix BLOCKERs + IMPORTANTs with atomic commits
+  │   └─ Spawn new ephemeral reviewers for re-review
   ├─ Cycle 2 (if needed): same pattern
   ├─ Cycle 3 (if needed): same pattern
-  └─ After 3 cycles: remaining IMPORTANT → FOLLOWUP, proceed to UAT
+  └─ After 3 cycles per slice: escalate to architect for re-planning
 
 DONE → Phase 11 (UAT)
-  └─ Shut down Cartographers + Workers
+  └─ Shut down Workers
 
 Cycle Exit Conditions:
-  All reviewers ACCEPT, no open BLOCKERs    → Proceed to Phase 11 (UAT)
-  BLOCKERs or IMPORTANT remain, cycles < 3  → Workers fix, Cartographers re-review
-  3 cycles exhausted, IMPORTANT remain      → Track in FOLLOWUP, proceed to Phase 11
-  3 cycles exhausted, BLOCKERs remain       → STOP — escalate to user, do NOT proceed
+  All reviewers ACCEPT, no open BLOCKERs              → Proceed to Phase 11 (UAT)
+  BLOCKERs or IMPORTANTs remain, cycles < 3 per slice → Workers fix, spawn new ephemeral reviewers
+  3 cycles exhausted, IMPORTANT remain                → Track in FOLLOWUP, proceed to Phase 11
+  3 cycles exhausted per slice, BLOCKERs remain       → Escalate to architect for re-planning
 
 ```
 <!-- END GENERATED FROM aura schema -->
 
 # Supervisor: Spawn Worker — Ride the Wave
 
-Launch the wave of workers for parallel vertical slice implementation, reviewed by persistent Cartographers.
+Launch the wave of workers for parallel vertical slice implementation, reviewed by ephemeral reviewers.
 
 **-> [Full workflow in PROCESS.md](../protocol/PROCESS.md#phase-9-worker-slices)** <- Phase 9
 
 ## When to Use
 
-Implementation tasks ready. Cartographers already spawned and standing by (see supervisor SKILL.md § Cartographers).
+Implementation tasks ready. Ephemeral reviewers will be spawned per-slice during review phase.
 
 ## Ride the Wave — Overview
 
@@ -55,20 +55,20 @@ The supervisor executes Phases 8-10 as a single coordinated cycle called **Ride 
 
 ```
 1. PLAN  → supervisor-plan-tasks: decompose into slices + integration points
-2. MAP   → 3 Cartographers (TeamCreate, /aura:explore): map codebase, persist
-3. BUILD → N Workers (TeamCreate, /aura:worker): implement slices in parallel, persist
-4. REVIEW → Cartographers switch to /aura:reviewer: review ALL slices
-5. FIX   → Workers fix BLOCKERs + IMPORTANTs from review
-6. RE-REVIEW → Cartographers re-review fixed slices
-7. REPEAT → Steps 5-6 up to MAX 3 cycles total
+2. EXPLORE → Ephemeral Explore subagents (Task tool): map codebase, short-lived
+3. BUILD → N Workers: implement slices in parallel
+4. REVIEW → Ephemeral reviewers (Task tool): review per-slice
+5. FIX   → Workers fix BLOCKERs + IMPORTANTs with atomic commits
+6. RE-REVIEW → Spawn new ephemeral reviewers for re-review
+7. REPEAT → Steps 5-6 up to MAX 3 cycles per slice
 8. TRACK → IMPORTANT/MINOR findings → FOLLOWUP epic
-9. NEXT  → If clean or 3 cycles exhausted → Phase 11 (UAT)
+9. NEXT  → If clean or 3 cycles exhausted → Phase 11 (UAT) or escalate to architect
 ```
 
 **Key rules:**
-- Cartographers and workers are **never shut down** between stages — they persist for the full wave
+- Reviewers are ephemeral (spawned per review cycle via Task tool)
 - Slices are **never closed** until reviewed at least once
-- Max **3 worker-reviewer cycles** — remaining IMPORTANT goes to FOLLOWUP
+- Max **3 review cycles per slice** — escalate to architect after cycle 3 if BLOCKERs remain
 
 ## Given/When/Then/Should
 
@@ -80,9 +80,9 @@ The supervisor executes Phases 8-10 as a single coordinated cycle called **Ride 
 
 **Given** worker handoff **when** creating **then** store at `.git/.aura/handoff/<request-task-id>/supervisor-to-worker-<N>.md` **should never** skip handoff document
 
-**Given** workers complete their slices **when** first wave finishes **then** do NOT close slices — Cartographers must review ALL slices first **should never** close a slice that has not been reviewed at least once
+**Given** workers complete their slices **when** first wave finishes **then** do NOT close slices — ephemeral reviewers must review ALL slices first **should never** close a slice that has not been reviewed at least once
 
-**Given** Cartographers finish reviewing **when** BLOCKERs or IMPORTANT findings exist **then** send findings to workers for fixing, then have Cartographers re-review **should never** skip re-review after fixes
+**Given** reviewers finish reviewing **when** BLOCKERs or IMPORTANT findings exist **then** send findings to workers for fixing, then spawn new ephemeral reviewers for re-review **should never** skip re-review after fixes
 
 **Given** worker-reviewer cycle **when** counting iterations **then** limit to a MAXIMUM of 3 cycles **should never** exceed 3 cycles — if IMPORTANT findings remain after cycle 3, move to UAT and track remaining in FOLLOWUP epic
 
@@ -176,7 +176,7 @@ Key references (run bd show on each for full context):
 Read the handoff doc and your Beads task before starting implementation.
 
 IMPORTANT: Do NOT shut down after completing implementation. You will receive
-review feedback from Cartographers and may need to fix BLOCKERs and IMPORTANT
+review feedback from ephemeral reviewers and may need to fix BLOCKERs and IMPORTANT
 findings. Stay alive for the full Ride the Wave cycle.`,
   summary: "SLICE-1 assignment with Beads context"
 })
@@ -190,10 +190,10 @@ Workers are **never shut down** after completing their first implementation pass
 
 1. Worker completes slice → notifies supervisor
 2. Supervisor does **NOT** close the slice or shut down the worker
-3. Cartographers review the slice
+3. Ephemeral reviewers review the slice
 4. If BLOCKERs or IMPORTANT findings: supervisor sends fix assignment to worker
 5. Worker fixes issues → notifies supervisor
-6. Cartographers re-review
+6. New ephemeral reviewers re-review
 7. Repeat steps 4-6 up to MAX 3 cycles total
 8. After 3 cycles or all clean: supervisor shuts down worker
 
@@ -214,7 +214,7 @@ IMPORTANT (must fix this cycle):
 After fixing all items:
   bd comments add <slice-id> "Fixes applied for review cycle <N>"
 
-Do NOT shut down. Cartographers will re-review.`,
+Do NOT shut down. Ephemeral reviewers will re-review.`,
   summary: "Review cycle <N> fixes for SLICE-1"
 })
 ```
