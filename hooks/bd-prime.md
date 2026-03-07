@@ -63,6 +63,33 @@ REQUEST
 URD ← referenced via frontmatter in (REQUEST, ELICIT, PROPOSAL, IMPL_PLAN, UAT)
 ```
 
+### Labels
+
+Labels flags are inconsistent across commands. This reference prevents errors.
+
+**Creating issues** (`--labels`, plural, `-l`):
+- `bd create --labels="a,b"` or `bd create -l a,b` — set labels at creation
+- `bd q --labels="a,b"` or `bd q -l a,b` — same for quick capture
+- `bd create --no-inherit-labels` — skip inheriting parent's labels
+
+**Updating labels** (`bd update` uses `--add-label`, `--remove-label`, `--set-labels`):
+- `bd update <id> --add-label=x --add-label=y` — add labels (repeatable)
+- `bd update <id> --remove-label=x` — remove labels (repeatable)
+- `bd update <id> --set-labels=x,y` — replace all existing labels
+
+**Filtering issues** (`--label`, singular, `-l`; shared by `bd list`, `bd ready`, `bd search`, `bd count`):
+- `--label=x,y` or `-l x,y` — AND filter (must have ALL)
+- `--label-any=x,y` — OR filter (must have AT LEAST ONE)
+- `bd list` only: `--label-pattern="tech-*"` (glob), `--label-regex="tech-(debt|legacy)"` (regex)
+- `bd migrate issues --label=x` — filter by labels (no `-l` shorthand, no `--label-any`)
+
+**Direct label management** (`bd label` subcommand, positional args only):
+- `bd label add <id...> <label>` — add label to issue(s)
+- `bd label remove <id...> <label>` — remove label from issue(s)
+- `bd label list <id>` — list labels for an issue
+- `bd label list-all` — list all unique labels in the DB
+- `bd label propagate <parent-id> <label>` — push label to all direct children
+
 ### Sync & Collaboration
 - `bd search <query>` - Search issues by keyword
 
