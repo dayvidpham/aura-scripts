@@ -152,7 +152,7 @@ def _resolve_conn(args: argparse.Namespace) -> object:
 async def _cmd_query_state(args: argparse.Namespace) -> None:
     """aura-msg query state — query epoch state from EpochWorkflow."""
     from temporalio.client import Client
-    from temporalio.exceptions import WorkflowNotFoundError
+    from temporalio.service import RPCError, RPCStatusCode
     from aura_protocol.workflow import EpochWorkflow
 
     conn = _resolve_conn(args)
@@ -176,12 +176,28 @@ async def _cmd_query_state(args: argparse.Namespace) -> None:
     try:
         handle = client.get_workflow_handle(args.epoch_id)
         result = await handle.query(EpochWorkflow.full_state)
+    except RPCError as exc:
+        if exc.status == RPCStatusCode.NOT_FOUND:
+            print(
+                f"aura-msg: workflow error — workflow '{args.epoch_id}' not found\n"
+                f"  Where:  {conn.server_address} (namespace={conn.namespace})\n"
+                f"  Why:    No running workflow with ID '{args.epoch_id}'\n"
+                f"  Fix:    Check epoch-id or start the epoch with 'aura-msg epoch start'",
+                file=sys.stderr,
+            )
+            sys.exit(3)
+        print(
+            f"aura-msg: workflow error — {exc}\n"
+            f"  Where:  epoch-id={args.epoch_id}\n"
+            f"  Fix:    Check workflow status in Temporal UI",
+            file=sys.stderr,
+        )
+        sys.exit(3)
     except Exception as exc:
         exc_str = str(exc)
-        # WorkflowNotFound is a 3; connection errors at query time are also possible
         if "not found" in exc_str.lower() or "does not exist" in exc_str.lower():
             print(
-                f"aura-msg: workflow not found — epoch-id '{args.epoch_id}' does not exist\n"
+                f"aura-msg: workflow error — workflow '{args.epoch_id}' not found\n"
                 f"  Where:  {conn.server_address} (namespace={conn.namespace})\n"
                 f"  Why:    No running workflow with ID '{args.epoch_id}'\n"
                 f"  Fix:    Check epoch-id or start the epoch with 'aura-msg epoch start'",
