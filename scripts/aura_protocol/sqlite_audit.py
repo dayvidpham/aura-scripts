@@ -33,7 +33,7 @@ from aura_protocol.types import AuditEvent, PhaseId, RoleId
 logger = logging.getLogger(__name__)
 
 
-def _ensure_schema(db_path: Path) -> None:
+def ensure_schema(db_path: Path) -> None:
     """Create the audit_events table if it does not exist.
 
     This is a synchronous helper called at startup before the async worker
@@ -86,7 +86,7 @@ class SqliteAuditTrail:
     """SQLite-backed AuditTrail implementation (SLICE-5).
 
     Persists AuditEvent records to a SQLite database via aiosqlite so the
-    aurad worker loop remains non-blocking. _ensure_schema() is called
+    aurad worker loop remains non-blocking. ensure_schema() is called
     synchronously at startup before the async event loop starts.
 
     Implements: AuditTrail Protocol from aura_protocol.interfaces
@@ -161,7 +161,7 @@ class SqliteAuditTrail:
         Raises:
             RuntimeError: If the database is unavailable.
                           Where: SqliteAuditTrail.query_events at {db_path}
-                          Fix: Ensure DB file exists (run _ensure_schema first).
+                          Fix: Ensure DB file exists (run ensure_schema first).
         """
         import aiosqlite
 

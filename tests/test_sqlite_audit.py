@@ -1,7 +1,7 @@
 """Tests for scripts/aura_protocol/sqlite_audit.py — SLICE-5-L2.
 
 BDD Acceptance Criteria (D25):
-    AC-S1: _ensure_schema() creates audit_events table with correct columns
+    AC-S1: ensure_schema() creates audit_events table with correct columns
     AC-S2: record_event() stores all AuditEvent fields in DB
     AC-S3: query_events(epoch_id="E1") returns only E1 events
     AC-S4: query_events(phase=PhaseId.P9_SLICE) filters by phase.value
@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from aura_protocol.sqlite_audit import SqliteAuditTrail, _ensure_schema
+from aura_protocol.sqlite_audit import SqliteAuditTrail, ensure_schema
 from aura_protocol.types import AuditEvent, PhaseId, RoleId
 
 
@@ -43,15 +43,15 @@ def _make_event(
     )
 
 
-# ─── AC-S1: _ensure_schema ────────────────────────────────────────────────────
+# ─── AC-S1: ensure_schema ────────────────────────────────────────────────────
 
 
 class TestEnsureSchema:
-    """AC-S1: _ensure_schema creates table with correct columns."""
+    """AC-S1: ensure_schema creates table with correct columns."""
 
     def test_creates_table(self, tmp_path: Path) -> None:
         db_path = tmp_path / "audit.db"
-        _ensure_schema(db_path)
+        ensure_schema(db_path)
 
         with sqlite3.connect(str(db_path)) as conn:
             cursor = conn.execute(
@@ -61,7 +61,7 @@ class TestEnsureSchema:
 
     def test_table_has_required_columns(self, tmp_path: Path) -> None:
         db_path = tmp_path / "audit.db"
-        _ensure_schema(db_path)
+        ensure_schema(db_path)
 
         with sqlite3.connect(str(db_path)) as conn:
             cursor = conn.execute("PRAGMA table_info(audit_events)")
@@ -71,14 +71,14 @@ class TestEnsureSchema:
         assert required.issubset(columns), f"Missing columns: {required - columns}"
 
     def test_idempotent_double_call(self, tmp_path: Path) -> None:
-        """Calling _ensure_schema twice must not raise."""
+        """Calling ensure_schema twice must not raise."""
         db_path = tmp_path / "audit.db"
-        _ensure_schema(db_path)
-        _ensure_schema(db_path)  # Second call must be a no-op
+        ensure_schema(db_path)
+        ensure_schema(db_path)  # Second call must be a no-op
 
     def test_creates_parent_dirs(self, tmp_path: Path) -> None:
         db_path = tmp_path / "nested" / "deep" / "audit.db"
-        _ensure_schema(db_path)
+        ensure_schema(db_path)
         assert db_path.exists()
 
 
@@ -91,7 +91,7 @@ class TestRecordEvent:
 
     async def test_stores_epoch_id(self, tmp_path: Path) -> None:
         db_path = tmp_path / "audit.db"
-        _ensure_schema(db_path)
+        ensure_schema(db_path)
         trail = SqliteAuditTrail(db_path=db_path)
         event = _make_event(epoch_id="ep-x")
 
@@ -104,7 +104,7 @@ class TestRecordEvent:
 
     async def test_stores_all_fields(self, tmp_path: Path) -> None:
         db_path = tmp_path / "audit.db"
-        _ensure_schema(db_path)
+        ensure_schema(db_path)
         trail = SqliteAuditTrail(db_path=db_path)
         event = _make_event(
             epoch_id="ep-all",
@@ -127,7 +127,7 @@ class TestRecordEvent:
 
     async def test_multiple_events_all_stored(self, tmp_path: Path) -> None:
         db_path = tmp_path / "audit.db"
-        _ensure_schema(db_path)
+        ensure_schema(db_path)
         trail = SqliteAuditTrail(db_path=db_path)
 
         for i in range(3):
@@ -149,7 +149,7 @@ class TestQueryEvents:
     async def _seed(self, tmp_path: Path) -> None:
         """Seed the database with 3 events across 2 epochs + 2 phases."""
         db_path = tmp_path / "audit.db"
-        _ensure_schema(db_path)
+        ensure_schema(db_path)
         self.trail = SqliteAuditTrail(db_path=db_path)
         self.db_path = db_path
 

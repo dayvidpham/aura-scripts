@@ -62,7 +62,7 @@ class TestAuradConfig:
     def test_defaults(self) -> None:
         cfg = AuradConfig()
         assert cfg.connection == ConnectionConfig()
-        assert cfg.audit_trail == "in-memory"
+        assert cfg.audit_trail == "memory"
 
     def test_frozen(self) -> None:
         cfg = AuradConfig()

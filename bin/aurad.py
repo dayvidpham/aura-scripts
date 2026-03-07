@@ -44,7 +44,7 @@ from aura_protocol.audit_activities import (
     query_audit_events,
     record_audit_event,
 )
-from aura_protocol.sqlite_audit import SqliteAuditTrail, _ensure_schema
+from aura_protocol.sqlite_audit import SqliteAuditTrail, ensure_schema
 from aura_protocol.workflow import (
     EpochWorkflow,
     ReviewPhaseWorkflow,
@@ -182,26 +182,12 @@ async def main() -> None:
     """Parse args, initialize audit trail, and start the worker."""
     args = parse_args()
 
-    # Resolve connection config using shared config module.
-    # parse_args() already handles CLI > env via argparse defaults;
-    # passing its results as cli_args ensures they take priority over YAML.
-    config_path = default_config_path()
-    yaml_section = load_yaml_section(config_path, "aurad")
-    conn = resolve_connection(
-        cli_args={
-            "namespace": args.namespace,
-            "task_queue": args.task_queue,
-            "server_address": args.server_address,
-        },
-        yaml_section=yaml_section,
-    )
-
     # Initialize the audit trail before the worker starts.
     # --audit-trail memory (default): in-process, lost on restart
     # --audit-trail sqlite: durable, persisted to XDG data dir
     if args.audit_trail == "sqlite":
         db_path = Path.home() / ".local" / "share" / "aura" / "plugin" / "audit.db"
-        _ensure_schema(db_path)
+        ensure_schema(db_path)
         trail = SqliteAuditTrail(db_path=db_path)
         init_audit_trail(trail)
         logger.info("Audit trail initialized (SqliteAuditTrail at %s).", db_path)
@@ -210,9 +196,9 @@ async def main() -> None:
         logger.info("Audit trail initialized (InMemoryAuditTrail).")
 
     await run_worker(
-        namespace=conn.namespace,
-        task_queue=conn.task_queue,
-        server_address=conn.server_address,
+        namespace=args.namespace,
+        task_queue=args.task_queue,
+        server_address=args.server_address,
     )
 
 

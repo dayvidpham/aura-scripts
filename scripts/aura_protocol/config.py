@@ -47,7 +47,7 @@ class AuradConfig:
     """Configuration for the aurad Temporal worker daemon."""
 
     connection: ConnectionConfig = field(default_factory=ConnectionConfig)
-    audit_trail: str = "in-memory"
+    audit_trail: str = "memory"
 
 
 @dataclass(frozen=True)
