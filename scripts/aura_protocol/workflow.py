@@ -222,6 +222,30 @@ class ReviewPhaseResult:
     vote_result: dict[ReviewAxis, VoteType] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class QueryStateResult:
+    """DTO returned by aura-msg query-state (SLICE-3).
+
+    Flattens EpochState into a serializable form for CLI output.
+
+    current_phase: current phase identifier string (e.g. "p9")
+    current_role: current role identifier string (e.g. "worker")
+    transition_history: list of TransitionRecord objects (audit trail)
+    votes: mapping of ReviewAxis → VoteType for current phase
+    last_error: last error message if any, None otherwise
+    available_transitions: list of valid next Transition objects
+    active_session_count: number of active registered sessions (default 0)
+    """
+
+    current_phase: str
+    current_role: str
+    transition_history: list
+    votes: dict
+    last_error: str | None
+    available_transitions: list
+    active_session_count: int = 0
+
+
 # ─── Activities ───────────────────────────────────────────────────────────────
 # Activities handle non-deterministic operations so the workflow remains
 # deterministic and replayable.

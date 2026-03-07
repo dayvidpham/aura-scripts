@@ -1,47 +1,123 @@
 #!/usr/bin/env python3
-"""aura-msg — CLI stub for Aura Protocol model harness hooks.
+"""aura-msg — Aura Protocol model harness CLI.
 
-Planned subcommands (not yet implemented):
-    start-epoch    — Start a new Aura epoch
-    signal-vote    — Signal a review vote on an axis
-    query-state    — Query current workflow state
-    advance-phase  — Request a phase advance
+Subcommand groups:
+    query    — Read workflow state (query-state)
+    signal   — Send signals (signal-vote, signal-complete)
+    phase    — Phase transitions (advance-phase)
+    epoch    — Epoch lifecycle (start-epoch)
+    session  — Session registration (session-register)
 
 Usage:
     aura-msg --help
-    aura-msg <subcommand> --help
+    aura-msg <group> --help
+    aura-msg <group> <subcommand> --help
 """
 
 import argparse
 import sys
 
 
+def _add_connection_args(parser: argparse.ArgumentParser) -> None:
+    """Add shared Temporal connection arguments to a subcommand parser."""
+    parser.add_argument("--epoch-id", required=True, help="Epoch workflow ID")
+    parser.add_argument(
+        "--namespace",
+        default=None,
+        help="Temporal namespace (overrides config/env)",
+    )
+    parser.add_argument(
+        "--task-queue",
+        default=None,
+        help="Temporal task queue (overrides config/env)",
+    )
+    parser.add_argument(
+        "--server-address",
+        default=None,
+        help="Temporal server address (overrides config/env)",
+    )
+    parser.add_argument(
+        "--config",
+        default=None,
+        metavar="PATH",
+        help="Path to YAML config file (default: ~/.config/aura/plugins/aurad.config.yaml)",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="aura-msg",
-        description=(
-            "CLI stub for Aura Protocol model harness hooks. "
-            "All subcommands are planned and not yet implemented."
-        ),
+        description="Aura Protocol model harness CLI.",
     )
-    subparsers = parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+    subparsers = parser.add_subparsers(dest="group", metavar="<group>")
 
-    subparsers.add_parser(
-        "start-epoch",
-        help="Start a new Aura epoch (not implemented)",
+    # ── query group ───────────────────────────────────────────────────────────
+    query_p = subparsers.add_parser("query", help="Read workflow state")
+    query_sub = query_p.add_subparsers(dest="subcommand", metavar="<subcommand>")
+
+    qs = query_sub.add_parser("state", help="Query current epoch state")
+    _add_connection_args(qs)
+    qs.add_argument(
+        "--format",
+        choices=["json", "text"],
+        default="json",
+        help="Output format (default: json)",
     )
-    subparsers.add_parser(
-        "signal-vote",
-        help="Signal a review vote on an axis (not implemented)",
+
+    # ── signal group ──────────────────────────────────────────────────────────
+    signal_p = subparsers.add_parser("signal", help="Send signals to a workflow")
+    signal_sub = signal_p.add_subparsers(dest="subcommand", metavar="<subcommand>")
+
+    sv = signal_sub.add_parser("vote", help="Submit a reviewer vote")
+    _add_connection_args(sv)
+    sv.add_argument(
+        "--axis",
+        required=True,
+        choices=["correctness", "test_quality", "elegance"],
+        help="Review axis",
     )
-    subparsers.add_parser(
-        "query-state",
-        help="Query current workflow state (not implemented)",
+    sv.add_argument(
+        "--vote",
+        required=True,
+        choices=["accept", "revise"],
+        help="Vote value",
     )
-    subparsers.add_parser(
-        "advance-phase",
-        help="Request a phase advance (not implemented)",
-    )
+    sv.add_argument("--reviewer-id", required=True, help="Unique reviewer identifier")
+
+    sc = signal_sub.add_parser("complete", help="Signal slice completion")
+    _add_connection_args(sc)
+    sc.add_argument("--slice-id", required=True, help="Slice identifier")
+
+    # ── phase group ───────────────────────────────────────────────────────────
+    phase_p = subparsers.add_parser("phase", help="Phase transition commands")
+    phase_sub = phase_p.add_subparsers(dest="subcommand", metavar="<subcommand>")
+
+    pa = phase_sub.add_parser("advance", help="Request a phase transition")
+    _add_connection_args(pa)
+    pa.add_argument("--to-phase", required=True, help="Target phase (e.g. p10)")
+    pa.add_argument("--triggered-by", required=True, help="Who triggered this")
+    pa.add_argument("--condition", required=True, help="Condition string from transition table")
+
+    # ── epoch group ───────────────────────────────────────────────────────────
+    epoch_p = subparsers.add_parser("epoch", help="Epoch lifecycle commands")
+    epoch_sub = epoch_p.add_subparsers(dest="subcommand", metavar="<subcommand>")
+
+    es = epoch_sub.add_parser("start", help="Start a new epoch workflow")
+    es.add_argument("--epoch-id", required=True, help="Unique epoch identifier")
+    es.add_argument("--description", required=True, help="Human-readable epoch description")
+    es.add_argument("--namespace", default=None, help="Temporal namespace")
+    es.add_argument("--task-queue", default=None, help="Temporal task queue")
+    es.add_argument("--server-address", default=None, help="Temporal server address")
+    es.add_argument("--config", default=None, metavar="PATH", help="Config file path")
+
+    # ── session group ─────────────────────────────────────────────────────────
+    session_p = subparsers.add_parser("session", help="Session registration commands")
+    session_sub = session_p.add_subparsers(dest="subcommand", metavar="<subcommand>")
+
+    sr = session_sub.add_parser("register", help="Register a Claude Code session")
+    _add_connection_args(sr)
+    sr.add_argument("--role", required=True, help="Agent role (e.g. worker, reviewer)")
+    sr.add_argument("--session-id", required=True, help="Unique session identifier")
 
     return parser
 
@@ -50,11 +126,22 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    if args.subcommand is None:
+    if args.group is None:
         parser.print_help()
         sys.exit(0)
 
-    print(f"aura-msg: '{args.subcommand}' is not implemented", file=sys.stderr)
+    # Dispatch to group handlers (not yet implemented)
+    group = args.group
+    subcommand = getattr(args, "subcommand", None)
+    if subcommand is None:
+        # Show group help
+        parser.parse_args([group, "--help"])
+        sys.exit(0)
+
+    print(
+        f"aura-msg: '{group} {subcommand}' is not yet implemented",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 
