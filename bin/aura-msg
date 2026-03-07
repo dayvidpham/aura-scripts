@@ -61,23 +61,43 @@ def build_parser() -> argparse.ArgumentParser:
     # ── epoch group ──────────────────────────────────────────────────────
     epoch_parser = groups.add_parser("epoch", help="Epoch lifecycle management")
     epoch_sub = epoch_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
-    epoch_sub.add_parser("start", help="Start a new epoch (not implemented)")
+    epoch_start = epoch_sub.add_parser("start", help="Start a new epoch (not implemented)")
+    epoch_start.add_argument("--epoch-id", required=True, help="Epoch ID")
+    epoch_start.add_argument("--description", required=True, help="Epoch description")
 
     # ── signal group ─────────────────────────────────────────────────────
     signal_parser = groups.add_parser("signal", help="Send signals to workflows")
     signal_sub = signal_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
-    signal_sub.add_parser("vote", help="Signal a review vote (not implemented)")
-    signal_sub.add_parser("complete", help="Signal slice completion (not implemented)")
+
+    signal_vote = signal_sub.add_parser("vote", help="Signal a review vote (not implemented)")
+    signal_vote.add_argument("--epoch-id", required=True, help="Epoch ID")
+    signal_vote.add_argument("--axis", required=True, help="Review axis")
+    signal_vote.add_argument("--vote", required=True, help="Vote value")
+    signal_vote.add_argument("--reviewer-id", required=True, help="Reviewer ID")
+
+    signal_complete = signal_sub.add_parser("complete", help="Signal slice completion (not implemented)")
+    signal_complete.add_argument("--epoch-id", required=True, help="Epoch ID")
+    signal_complete.add_argument("--slice-id", required=True, help="Slice ID")
+    complete_group = signal_complete.add_mutually_exclusive_group()
+    complete_group.add_argument("--output", default=None, help="Completion output")
+    complete_group.add_argument("--error", default=None, help="Completion error")
 
     # ── phase group ──────────────────────────────────────────────────────
     phase_parser = groups.add_parser("phase", help="Phase management")
     phase_sub = phase_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
-    phase_sub.add_parser("advance", help="Advance to next phase (not implemented)")
+    phase_advance = phase_sub.add_parser("advance", help="Advance to next phase (not implemented)")
+    phase_advance.add_argument("--epoch-id", required=True, help="Epoch ID")
+    phase_advance.add_argument("--to-phase", required=True, help="Target phase")
+    phase_advance.add_argument("--triggered-by", required=True, help="Triggering entity")
+    phase_advance.add_argument("--condition", required=True, help="Condition met")
 
     # ── session group ────────────────────────────────────────────────────
     session_parser = groups.add_parser("session", help="Session registration")
     session_sub = session_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
-    session_sub.add_parser("register", help="Register a session (not implemented)")
+    session_register = session_sub.add_parser("register", help="Register a session (not implemented)")
+    session_register.add_argument("--epoch-id", required=True, help="Epoch ID")
+    session_register.add_argument("--session-id", required=True, help="Session ID")
+    session_register.add_argument("--role", required=True, help="Session role")
 
     return parser
 

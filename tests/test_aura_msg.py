@@ -144,12 +144,12 @@ class TestBuildParserGroups:
     def test_query_state_has_format(self, aura_msg: ModuleType) -> None:
         parser = aura_msg.build_parser()
         args = parser.parse_args(["query", "state", "--epoch-id", "E1", "--format", "text"])
-        assert args.format == "text"
+        assert args.output_format == "text"
 
-    def test_query_state_default_format_json(self, aura_msg: ModuleType) -> None:
+    def test_query_state_default_format_text(self, aura_msg: ModuleType) -> None:
         parser = aura_msg.build_parser()
         args = parser.parse_args(["query", "state", "--epoch-id", "E1"])
-        assert args.format == "json"
+        assert args.output_format == "text"
 
     def test_signal_complete_mutually_exclusive(self, aura_msg: ModuleType) -> None:
         parser = aura_msg.build_parser()

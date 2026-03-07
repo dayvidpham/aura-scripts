@@ -525,21 +525,13 @@ class EpochWorkflow:
         aura-msg query state. Uses state.review_votes per D20.
         """
         if self._sm is None:
-            return QueryStateResult(
-                current_phase="",
-                current_role="",
-                transition_history=[],
-                votes={},
-                last_error=None,
-                available_transitions=[],
-                active_session_count=0,
-            )
+            raise RuntimeError("Workflow not yet initialized — run() has not started.")
         state = self._sm.state
         return QueryStateResult(
-            current_phase=state.current_phase.value,
-            current_role=state.current_role.value,
+            current_phase=state.current_phase,
+            current_role=state.current_role,
             transition_history=list(state.transition_history),
-            votes={k.value: v.value for k, v in state.review_votes.items()},
+            votes=dict(state.review_votes),
             last_error=state.last_error,
             available_transitions=list(self._sm.available_transitions),
             active_session_count=0,  # updated by session_register in SLICE-7
