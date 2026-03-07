@@ -309,6 +309,8 @@
 {"issue_id":"aura-plugins-6r7u","label":"aura:p10-impl:s10-review"}
 {"issue_id":"aura-plugins-6r7u","label":"aura:severity:important"}
 {"issue_id":"aura-plugins-6ts2","label":"aura:p9-impl:s9-slice"}
+{"issue_id":"aura-plugins-6ujr","label":"aura:epic-deferred"}
+{"issue_id":"aura-plugins-6ujr","label":"aura:p1-user:s1_1-classify"}
 {"issue_id":"aura-plugins-6v80","label":"aura:p9-impl:s9-slice"}
 {"issue_id":"aura-plugins-6wg","label":"aura:p10-impl:s10-review"}
 {"issue_id":"aura-plugins-6wg","label":"aura:severity:important"}
