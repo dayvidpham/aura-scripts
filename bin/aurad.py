@@ -35,6 +35,8 @@ import os
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from pathlib import Path
+
 from aura_protocol.config import default_config_path, load_yaml_section, resolve_connection
 from aura_protocol.audit_activities import (
     InMemoryAuditTrail,
@@ -42,6 +44,7 @@ from aura_protocol.audit_activities import (
     query_audit_events,
     record_audit_event,
 )
+from aura_protocol.sqlite_audit import SqliteAuditTrail, _ensure_schema
 from aura_protocol.workflow import (
     EpochWorkflow,
     ReviewPhaseWorkflow,
@@ -101,6 +104,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="ADDR",
         help="Temporal server address (env: TEMPORAL_ADDRESS, default: 'localhost:7233')",
     )
+    parser.add_argument(
+        "--audit-trail",
+        choices=["memory", "sqlite"],
+        default=os.environ.get("AURAD_AUDIT_TRAIL", "memory"),
+        metavar="BACKEND",
+        help=(
+            "Audit trail backend: 'memory' (default, in-process) or 'sqlite' "
+            "(durable, XDG path ~/.local/share/aura/plugin/audit.db). "
+            "Env: AURAD_AUDIT_TRAIL."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -156,10 +170,17 @@ async def main() -> None:
     )
 
     # Initialize the audit trail before the worker starts.
-    # InMemoryAuditTrail is used for development; swap for a Temporal-backed
-    # or Beads-backed implementation for production deployments.
-    init_audit_trail(InMemoryAuditTrail())
-    logger.info("Audit trail initialized (InMemoryAuditTrail).")
+    # --audit-trail memory (default): in-process, lost on restart
+    # --audit-trail sqlite: durable, persisted to XDG data dir
+    if args.audit_trail == "sqlite":
+        db_path = Path.home() / ".local" / "share" / "aura" / "plugin" / "audit.db"
+        _ensure_schema(db_path)
+        trail = SqliteAuditTrail(db_path=db_path)
+        init_audit_trail(trail)
+        logger.info("Audit trail initialized (SqliteAuditTrail at %s).", db_path)
+    else:
+        init_audit_trail(InMemoryAuditTrail())
+        logger.info("Audit trail initialized (InMemoryAuditTrail).")
 
     await run_worker(
         namespace=conn.namespace,

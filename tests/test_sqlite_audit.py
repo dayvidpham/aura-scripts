@@ -145,7 +145,7 @@ class TestRecordEvent:
 class TestQueryEvents:
     """AC-S3/S4/S5/S6: query_events filters."""
 
-    @pytest.fixture(autouse=True)
+    @pytest_asyncio.fixture(autouse=True)
     async def _seed(self, tmp_path: Path) -> None:
         """Seed the database with 3 events across 2 epochs + 2 phases."""
         db_path = tmp_path / "audit.db"

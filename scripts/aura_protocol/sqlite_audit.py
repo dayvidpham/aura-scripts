@@ -110,7 +110,33 @@ class SqliteAuditTrail:
                           Why: aiosqlite write failed
                           Fix: Ensure aiosqlite is installed and DB path is writable.
         """
-        ...
+        import aiosqlite
+
+        timestamp = datetime.now(UTC).isoformat()
+        payload_json = json.dumps(event.payload)
+
+        async with aiosqlite.connect(str(self._db_path)) as db:
+            await db.execute(
+                """
+                INSERT INTO audit_events (epoch_id, phase, role, event_type, payload, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event.epoch_id,
+                    event.phase.value,
+                    event.role.value,
+                    event.event_type,
+                    payload_json,
+                    timestamp,
+                ),
+            )
+            await db.commit()
+        logger.debug(
+            "SqliteAuditTrail: recorded %s event for epoch=%s phase=%s",
+            event.event_type,
+            event.epoch_id,
+            event.phase.value,
+        )
 
     async def query_events(
         self,
@@ -120,6 +146,9 @@ class SqliteAuditTrail:
         role: RoleId | None = None,
     ) -> list[AuditEvent]:
         """Query recorded audit events with optional filters.
+
+        Each active filter becomes a WHERE clause. Enum fields use .value so
+        the SQL compares against the string stored at record_event() time.
 
         Args:
             epoch_id: Optional epoch filter.
@@ -134,4 +163,38 @@ class SqliteAuditTrail:
                           Where: SqliteAuditTrail.query_events at {db_path}
                           Fix: Ensure DB file exists (run _ensure_schema first).
         """
-        ...
+        import aiosqlite
+
+        clauses: list[str] = []
+        params: list[str] = []
+
+        if epoch_id is not None:
+            clauses.append("epoch_id = ?")
+            params.append(epoch_id)
+        if phase is not None:
+            clauses.append("phase = ?")
+            params.append(phase.value)
+        if role is not None:
+            clauses.append("role = ?")
+            params.append(role.value)
+
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        sql = f"SELECT epoch_id, event_type, phase, role, payload FROM audit_events {where} ORDER BY id"
+
+        async with aiosqlite.connect(str(self._db_path)) as db:
+            async with db.execute(sql, params) as cursor:
+                rows = await cursor.fetchall()
+
+        events: list[AuditEvent] = []
+        for row in rows:
+            epoch_id_col, event_type_col, phase_col, role_col, payload_col = row
+            events.append(
+                AuditEvent(
+                    epoch_id=epoch_id_col,
+                    event_type=event_type_col,
+                    phase=PhaseId(phase_col),
+                    role=RoleId(role_col),
+                    payload=json.loads(payload_col),
+                )
+            )
+        return events
