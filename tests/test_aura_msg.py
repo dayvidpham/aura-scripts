@@ -1,4 +1,4 @@
-"""Tests for bin/aura-msg.py — Aura Protocol model harness CLI stub (SLICE-2-L2).
+"""Tests for bin/aura-msg — Aura Protocol model harness CLI stub (SLICE-2-L2).
 
 BDD Acceptance Criteria:
     AC-M1: Given bin/aura-msg.py exists, when checked, then the file is present
@@ -32,6 +32,7 @@ DI approach:
 
 from __future__ import annotations
 
+import importlib.machinery
 import importlib.util
 import subprocess
 import sys
@@ -42,7 +43,7 @@ import pytest
 
 # ─── Constants ─────────────────────────────────────────────────────────────────
 
-AURA_MSG_PATH = Path(__file__).parent.parent / "bin" / "aura-msg.py"
+AURA_MSG_PATH = Path(__file__).parent.parent / "bin" / "aura-msg"
 PYTHON = sys.executable
 
 PLANNED_SUBCOMMANDS = [
@@ -56,16 +57,16 @@ PLANNED_SUBCOMMANDS = [
 
 
 def _load_aura_msg() -> ModuleType:
-    """Load bin/aura-msg.py as a Python module via importlib.
+    """Load bin/aura-msg as a Python module via importlib.
 
     Returns a fresh module (re-executed each call) for test isolation.
-    aura-msg.py has no project-internal imports so no PYTHONPATH setup needed.
+    Uses SourceFileLoader because the file has no .py extension.
     """
-    spec = importlib.util.spec_from_file_location("aura_msg", AURA_MSG_PATH)
+    loader = importlib.machinery.SourceFileLoader("aura_msg", str(AURA_MSG_PATH))
+    spec = importlib.util.spec_from_loader("aura_msg", loader, origin=str(AURA_MSG_PATH))
     assert spec is not None, f"Could not create module spec for {AURA_MSG_PATH}"
-    assert spec.loader is not None, "Module spec has no loader"
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    loader.exec_module(module)
     return module
 
 
@@ -81,7 +82,7 @@ class TestAuraMsgFile:
     """AC-M1: file exists and has correct shebang."""
 
     def test_file_exists(self) -> None:
-        assert AURA_MSG_PATH.exists(), f"bin/aura-msg.py not found at {AURA_MSG_PATH}"
+        assert AURA_MSG_PATH.exists(), f"bin/aura-msg not found at {AURA_MSG_PATH}"
 
     def test_file_has_python3_shebang(self) -> None:
         first_line = AURA_MSG_PATH.read_text().splitlines()[0]

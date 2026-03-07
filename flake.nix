@@ -65,7 +65,7 @@
         aurad = pkgs.writeShellApplication {
           name = "aurad";
           runtimeInputs = [
-            (pkgs.python3.withPackages (ps: [ ps.temporalio ]))
+            (pkgs.python3.withPackages (ps: [ ps.temporalio ps.pyyaml ps.aiosqlite ]))
           ];
           text = ''
             PYTHONPATH="${self}/scripts" exec python3 "${self}/bin/aurad.py" "$@"
@@ -75,10 +75,10 @@
         aura-msg = pkgs.writeShellApplication {
           name = "aura-msg";
           runtimeInputs = [
-            pkgs.python3
+            (pkgs.python3.withPackages (ps: [ ps.temporalio ps.pyyaml ]))
           ];
           text = ''
-            exec python3 "${self}/bin/aura-msg.py" "$@"
+            PYTHONPATH="${self}/scripts" exec python3 "${self}/bin/aura-msg" "$@"
           '';
         };
 
