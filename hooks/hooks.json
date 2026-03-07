@@ -10,6 +10,15 @@
             "command": "cat ${CLAUDE_PLUGIN_ROOT}/hooks/bd-prime.md 2>&1"
           }
         ]
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-register.sh"
+          }
+        ]
       }
     ],
     "PreCompact": [

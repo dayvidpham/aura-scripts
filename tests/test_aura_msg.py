@@ -60,6 +60,7 @@ IMPLEMENTED_SUBCOMMANDS = {
     ("signal", "complete"),
     ("phase", "advance"),
     ("epoch", "start"),
+    ("session", "register"),
 }
 
 # Subcommands not yet implemented (exit 1 with "not implemented" message).

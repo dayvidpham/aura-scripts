@@ -94,7 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     # ── session group ────────────────────────────────────────────────────
     session_parser = groups.add_parser("session", help="Session registration")
     session_sub = session_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
-    session_register = session_sub.add_parser("register", help="Register a session (not implemented)")
+    session_register = session_sub.add_parser("register", help="Register a session with an epoch")
     session_register.add_argument("--epoch-id", required=True, help="Epoch ID")
     session_register.add_argument("--session-id", required=True, help="Session ID")
     session_register.add_argument("--role", required=True, help="Session role")
@@ -128,6 +128,7 @@ def main() -> None:
         ("signal", "complete"): _cmd_signal_complete,
         ("phase", "advance"): _cmd_phase_advance,
         ("epoch", "start"): _cmd_epoch_start,
+        ("session", "register"): _cmd_session_register,
     }
     key = (args.group, args.subcommand)
     handler = dispatch.get(key)
@@ -438,6 +439,54 @@ async def _cmd_epoch_start(args: argparse.Namespace) -> int:
         return 3
 
     print(format_start_result(handle.id, handle.result_run_id, "text"))
+    return 0
+
+
+async def _cmd_session_register(args: argparse.Namespace) -> int:
+    """Handle: aura-msg session register --epoch-id E --session-id S --role R
+
+    Sends SessionRegisterSignal to the EpochWorkflow identified by epoch_id.
+    Returns exit code: 0=success, 2=connection error, 3=workflow error.
+    """
+    from temporalio.service import RPCError
+
+    from aura_protocol.formatters import format_signal_result
+    from aura_protocol.workflow import EpochWorkflow, SessionRegisterSignal
+
+    signal = SessionRegisterSignal(
+        epoch_id=args.epoch_id,
+        session_id=args.session_id,
+        role=args.role,
+    )
+
+    conn = _connect_args()
+    try:
+        client = await _get_client(conn)
+    except Exception as e:
+        print(
+            f"connection error: failed to connect to Temporal at "
+            f"{conn['server_address']}: {e}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        handle = client.get_workflow_handle(args.epoch_id)
+        await handle.signal(EpochWorkflow.register_session, signal)
+    except RPCError as e:
+        print(
+            f"workflow error: workflow '{args.epoch_id}' not found: {e}",
+            file=sys.stderr,
+        )
+        return 3
+    except Exception as e:
+        print(
+            f"workflow error: signal failed for '{args.epoch_id}': {e}",
+            file=sys.stderr,
+        )
+        return 3
+
+    print(format_signal_result(True, "text"))
     return 0
 
 

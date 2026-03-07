@@ -165,6 +165,23 @@ class ReviewVoteSignal:
 
 
 @dataclass(frozen=True)
+class SessionRegisterSignal:
+    """Signal payload for EpochWorkflow.register_session().
+
+    Registers a Claude Code session with the active epoch for tracking.
+    Idempotent: duplicate session_id registrations are silently ignored.
+
+    epoch_id: the epoch this session belongs to
+    session_id: unique identifier for the Claude Code session
+    role: session role (e.g. "worker", "supervisor", "reviewer")
+    """
+
+    epoch_id: str
+    session_id: str
+    role: str = ""
+
+
+@dataclass(frozen=True)
 class SliceProgressSignal:
     """Signal from SliceWorkflow → EpochWorkflow reporting per-leaf-task progress.
 
@@ -257,7 +274,7 @@ class QueryStateResult:
 
     Provides a serialization-safe snapshot of epoch state for CLI consumers.
     The votes field is sourced from EpochState.review_votes (D20).
-    active_session_count is a placeholder (populated by SLICE-7).
+    active_session_count is populated from register_session signals (SLICE-7).
     """
 
     current_phase: PhaseId
@@ -358,6 +375,8 @@ class EpochWorkflow:
         # Slice progress log — appended by slice_progress signal handler.
         # R12 stub: log is in-memory only; v2 will persist to beads/audit store.
         self._slice_progress_log: list[SliceProgressSignal] = []
+        # Active sessions — registered via register_session signal (SLICE-7).
+        self._active_sessions: list[SessionRegisterSignal] = []
 
     # ── Run ───────────────────────────────────────────────────────────────────
 
@@ -516,6 +535,18 @@ class EpochWorkflow:
         """
         self._slice_progress_log.append(signal)
 
+    @workflow.signal
+    def register_session(self, signal: SessionRegisterSignal) -> None:
+        """Signal: register a Claude Code session with this epoch (SLICE-7).
+
+        Idempotent: if a session with the same session_id is already
+        registered, the duplicate is silently ignored.
+        """
+        for existing in self._active_sessions:
+            if existing.session_id == signal.session_id:
+                return
+        self._active_sessions.append(signal)
+
     # ── Queries ───────────────────────────────────────────────────────────────
 
     @workflow.query
@@ -558,7 +589,7 @@ class EpochWorkflow:
             votes=dict(state.review_votes),
             last_error=state.last_error,
             available_transitions=list(self._sm.available_transitions),
-            active_session_count=0,  # updated by session_register in SLICE-7
+            active_session_count=len(self._active_sessions),
         )
 
     @workflow.query
@@ -572,6 +603,15 @@ class EpochWorkflow:
         R12 stub: log is in-memory; empty until SliceWorkflow children signal.
         """
         return list(self._slice_progress_log)
+
+    @workflow.query
+    def active_sessions(self) -> list[SessionRegisterSignal]:
+        """Query: return all registered sessions for this epoch (SLICE-7).
+
+        Returns the list of SessionRegisterSignal events received via
+        register_session signal. Used by active_session_count in full_state().
+        """
+        return list(self._active_sessions)
 
     # ── P9 Slice Execution ────────────────────────────────────────────────────
 
