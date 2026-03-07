@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.7] - 2026-03-07
+
+### Documentation
+- docs(hooks): add beads label flags reference to bd-prime
+
+### Other
+- Merge branch 'fix--hooks--bd-prime'
+
 ## [0.9.6] - 2026-03-07
 
 ### Fixed

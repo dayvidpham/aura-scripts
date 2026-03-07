@@ -1,6 +1,6 @@
 [project]
 name = "aura-plugins"
-version = "0.9.6"
+version = "0.9.7"
 description = "Parallel agent launcher for Aura multi-agent workflows"
 requires-python = ">=3.10"
 license = "MIT"
