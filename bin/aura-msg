@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""aura-msg -- CLI for Aura Protocol model harness hooks.
+
+Subcommand groups:
+    query     -- Query workflow state
+    epoch     -- Epoch lifecycle management
+    signal    -- Send signals to workflows
+    phase     -- Phase management
+    session   -- Session registration
+
+Usage:
+    aura-msg --help
+    aura-msg <group> <subcommand> [options]
+
+Exit codes:
+    0 — success
+    1 — not implemented / usage error
+    2 — connection error (Temporal server unreachable)
+    3 — workflow error (workflow not found, query failed)
+"""
+
+import argparse
+import asyncio
+import os
+import sys
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="aura-msg",
+        description="CLI for Aura Protocol model harness hooks.",
+    )
+    groups = parser.add_subparsers(dest="group", metavar="<group>")
+
+    # ── query group ──────────────────────────────────────────────────────
+    query_parser = groups.add_parser("query", help="Query workflow state")
+    query_sub = query_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+
+    state_parser = query_sub.add_parser("state", help="Query current epoch state")
+    state_parser.add_argument(
+        "--epoch-id", required=True, help="Epoch workflow ID to query"
+    )
+    state_parser.add_argument(
+        "--format",
+        choices=["json", "text"],
+        default="text",
+        dest="output_format",
+        help="Output format (default: text)",
+    )
+    state_parser.add_argument(
+        "--server-address",
+        default=None,
+        help="Temporal server address (overrides config)",
+    )
+    state_parser.add_argument(
+        "--namespace",
+        default=None,
+        help="Temporal namespace (overrides config)",
+    )
+
+    # ── epoch group ──────────────────────────────────────────────────────
+    epoch_parser = groups.add_parser("epoch", help="Epoch lifecycle management")
+    epoch_sub = epoch_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+    epoch_sub.add_parser("start", help="Start a new epoch (not implemented)")
+
+    # ── signal group ─────────────────────────────────────────────────────
+    signal_parser = groups.add_parser("signal", help="Send signals to workflows")
+    signal_sub = signal_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+    signal_sub.add_parser("vote", help="Signal a review vote (not implemented)")
+    signal_sub.add_parser("complete", help="Signal slice completion (not implemented)")
+
+    # ── phase group ──────────────────────────────────────────────────────
+    phase_parser = groups.add_parser("phase", help="Phase management")
+    phase_sub = phase_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+    phase_sub.add_parser("advance", help="Advance to next phase (not implemented)")
+
+    # ── session group ────────────────────────────────────────────────────
+    session_parser = groups.add_parser("session", help="Session registration")
+    session_sub = session_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+    session_sub.add_parser("register", help="Register a session (not implemented)")
+
+    return parser
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments. Accepts explicit argv for testability."""
+    parser = build_parser()
+    return parser.parse_args(argv)
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if args.group is None:
+        parser.print_help()
+        sys.exit(0)
+
+    if not hasattr(args, "subcommand") or args.subcommand is None:
+        # Group given but no subcommand — print group help
+        parser.parse_args([args.group, "--help"])
+        sys.exit(0)
+
+    # Dispatch implemented subcommands
+    if args.group == "query" and args.subcommand == "state":
+        sys.exit(asyncio.run(_cmd_query_state(args)))
+
+    print(f"aura-msg: '{args.group} {args.subcommand}' is not implemented", file=sys.stderr)
+    sys.exit(1)
+
+
+async def _cmd_query_state(args: argparse.Namespace) -> int:
+    """Handle: aura-msg query state --epoch-id <id> [--format json|text]
+
+    Returns exit code: 0=success, 2=connection error, 3=workflow error.
+    """
+    from temporalio.client import Client
+    from temporalio.service import RPCError
+
+    from aura_protocol.config import (
+        default_config_path,
+        load_yaml_section,
+        resolve_connection,
+    )
+    from aura_protocol.formatters import format_epoch_state
+    from aura_protocol.workflow import EpochWorkflow
+
+    # Resolve connection config: CLI > env > YAML > defaults
+    cli_args: dict[str, str] = {}
+    if args.server_address is not None:
+        cli_args["server_address"] = args.server_address
+    if args.namespace is not None:
+        cli_args["namespace"] = args.namespace
+
+    yaml_section = load_yaml_section(default_config_path(), "aura-msg")
+    conn = resolve_connection(
+        cli_args=cli_args,
+        env_dict=dict(os.environ),
+        yaml_section=yaml_section,
+    )
+
+    # Connect to Temporal
+    try:
+        client = await Client.connect(
+            conn.server_address, namespace=conn.namespace
+        )
+    except Exception as e:
+        print(
+            f"connection error: failed to connect to Temporal at "
+            f"{conn.server_address}: {e}",
+            file=sys.stderr,
+        )
+        return 2
+
+    # Query workflow
+    try:
+        handle = client.get_workflow_handle(args.epoch_id)
+        result = await handle.query(EpochWorkflow.full_state)
+    except RPCError as e:
+        print(
+            f"workflow error: workflow '{args.epoch_id}' not found: {e}",
+            file=sys.stderr,
+        )
+        return 3
+    except Exception as e:
+        print(
+            f"workflow error: query failed for '{args.epoch_id}': {e}",
+            file=sys.stderr,
+        )
+        return 3
+
+    # Format and output
+    output = format_epoch_state(result, args.output_format)
+    print(output)
+    return 0
+
+
+if __name__ == "__main__":
+    main()

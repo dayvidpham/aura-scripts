@@ -55,7 +55,7 @@ from aura_protocol.state_machine import (
     TransitionError,
     TransitionRecord,
 )
-from aura_protocol.types import PhaseId, ReviewAxis, Transition, VoteType, PHASE_DOMAIN
+from aura_protocol.types import PhaseId, ReviewAxis, RoleId, Transition, VoteType, PHASE_DOMAIN
 
 # ─── Search Attribute Keys ────────────────────────────────────────────────────
 # These keys are registered in the Temporal namespace and used for forensic
@@ -220,6 +220,27 @@ class ReviewPhaseResult:
     phase_id: str
     success: bool
     vote_result: dict[ReviewAxis, VoteType] = field(default_factory=dict)
+
+
+# ─── Query Result Types ──────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class QueryStateResult:
+    """Frozen DTO returned by EpochWorkflow.full_state() query.
+
+    Provides a serialization-safe snapshot of epoch state for CLI consumers.
+    The votes field is sourced from EpochState.review_votes (D20).
+    active_session_count is a placeholder (populated by SLICE-7).
+    """
+
+    current_phase: PhaseId
+    current_role: RoleId
+    transition_history: list[TransitionRecord]
+    votes: dict[ReviewAxis, VoteType]
+    last_error: str | None
+    available_transitions: list[Transition]
+    active_session_count: int = 0
 
 
 # ─── Activities ───────────────────────────────────────────────────────────────
@@ -505,6 +526,26 @@ class EpochWorkflow:
         R12 stub: log is in-memory; empty until SliceWorkflow children signal.
         """
         return list(self._slice_progress_log)
+
+    @workflow.query
+    def full_state(self) -> QueryStateResult:
+        """Query: return a serialization-safe snapshot of epoch state.
+
+        Returns a frozen QueryStateResult DTO with all fields needed by
+        aura-msg query state. Uses state.review_votes (D20) for the votes field.
+        """
+        if self._sm is None:
+            raise RuntimeError("Workflow not yet initialized — run() has not started.")
+        state = self._sm.state
+        return QueryStateResult(
+            current_phase=state.current_phase,
+            current_role=state.current_role,
+            transition_history=list(state.transition_history),
+            votes=dict(state.review_votes),
+            last_error=state.last_error,
+            available_transitions=self._sm.available_transitions,
+            active_session_count=0,
+        )
 
     # ── P9 Slice Execution ────────────────────────────────────────────────────
 
