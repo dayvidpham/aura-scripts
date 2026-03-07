@@ -76,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     signal_vote.add_argument("--reviewer-id", default="", help="Reviewer ID")
 
     signal_complete = signal_sub.add_parser("complete", help="Signal slice completion")
-    signal_complete.add_argument("--epoch-id", required=True, help="Epoch ID")
+    signal_complete.add_argument("--epoch-id", required=False, default=None, help="Epoch ID (unused — handle is slice-id)")
     signal_complete.add_argument("--slice-id", required=True, help="Slice ID")
     complete_group = signal_complete.add_mutually_exclusive_group()
     complete_group.add_argument("--output", default=None, help="Completion output")
@@ -241,9 +241,22 @@ async def _cmd_signal_vote(args: argparse.Namespace) -> int:
     from aura_protocol.types import ReviewAxis, VoteType
     from aura_protocol.workflow import EpochWorkflow, ReviewVoteSignal
 
-    vote = VoteType(args.vote.upper())
+    try:
+        vote = VoteType(args.vote.upper())
+    except ValueError:
+        valid = ", ".join(v.value for v in VoteType)
+        print(f"validation error: '{args.vote}' is not a valid vote. Valid votes: {valid}", file=sys.stderr)
+        return 1
+
+    try:
+        axis = ReviewAxis(args.axis)
+    except ValueError:
+        valid = ", ".join(a.value for a in ReviewAxis)
+        print(f"validation error: '{args.axis}' is not a valid axis. Valid axes: {valid}", file=sys.stderr)
+        return 1
+
     signal = ReviewVoteSignal(
-        axis=ReviewAxis(args.axis),
+        axis=axis,
         vote=vote,
         reviewer_id=args.reviewer_id,
     )

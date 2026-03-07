@@ -48,7 +48,7 @@ SUBCOMMAND_CASES = [
     ("query", "state", ["--epoch-id", "E1"]),
     ("epoch", "start", ["--epoch-id", "E1", "--description", "test"]),
     ("signal", "vote", ["--epoch-id", "E1", "--axis", "correctness", "--vote", "accept", "--reviewer-id", "R1"]),
-    ("signal", "complete", ["--epoch-id", "E1", "--slice-id", "S1"]),
+    ("signal", "complete", ["--slice-id", "S1"]),
     ("phase", "advance", ["--epoch-id", "E1", "--to-phase", "p10", "--triggered-by", "w1", "--condition", "done"]),
     ("session", "register", ["--epoch-id", "E1", "--session-id", "sess-1", "--role", "worker"]),
 ]
@@ -401,6 +401,76 @@ class TestSignalCompleteBDD:
         )
         assert args.output is None
         assert args.error is None
+
+
+class TestSignalVoteValidation:
+    """I-4.1: _cmd_signal_vote must validate VoteType and ReviewAxis."""
+
+    def test_invalid_vote_exits_one(self) -> None:
+        """Invalid --vote exits 1 with 'validation error' in stderr."""
+        result = subprocess.run(
+            [PYTHON, str(AURA_MSG_PATH), "signal", "vote",
+             "--epoch-id", "E", "--axis", "correctness", "--vote", "BOGUS"],
+            capture_output=True,
+            text=True,
+            env={"PYTHONPATH": str(SCRIPTS_DIR), "PATH": "/usr/bin:/bin"},
+        )
+        assert result.returncode == 1, (
+            f"Expected exit 1 for invalid vote, got {result.returncode}.\n"
+            f"stderr: {result.stderr!r}"
+        )
+        assert "validation error" in result.stderr, (
+            f"Expected 'validation error' in stderr.\nstderr: {result.stderr!r}"
+        )
+        assert "BOGUS" in result.stderr, (
+            f"Expected invalid vote value in stderr.\nstderr: {result.stderr!r}"
+        )
+        assert "ACCEPT" in result.stderr, (
+            f"Expected valid votes listed in stderr.\nstderr: {result.stderr!r}"
+        )
+
+    def test_invalid_axis_exits_one(self) -> None:
+        """Invalid --axis exits 1 with 'validation error' in stderr."""
+        result = subprocess.run(
+            [PYTHON, str(AURA_MSG_PATH), "signal", "vote",
+             "--epoch-id", "E", "--axis", "nonexistent", "--vote", "accept"],
+            capture_output=True,
+            text=True,
+            env={"PYTHONPATH": str(SCRIPTS_DIR), "PATH": "/usr/bin:/bin"},
+        )
+        assert result.returncode == 1, (
+            f"Expected exit 1 for invalid axis, got {result.returncode}.\n"
+            f"stderr: {result.stderr!r}"
+        )
+        assert "validation error" in result.stderr, (
+            f"Expected 'validation error' in stderr.\nstderr: {result.stderr!r}"
+        )
+        assert "nonexistent" in result.stderr, (
+            f"Expected invalid axis value in stderr.\nstderr: {result.stderr!r}"
+        )
+        assert "correctness" in result.stderr, (
+            f"Expected valid axes listed in stderr.\nstderr: {result.stderr!r}"
+        )
+
+
+class TestSignalCompleteEpochIdOptional:
+    """I-4.2: --epoch-id is optional for signal complete (handle is slice-id)."""
+
+    def test_signal_complete_without_epoch_id(self, aura_msg: ModuleType) -> None:
+        """signal complete parses successfully without --epoch-id."""
+        args = aura_msg.parse_args(
+            ["signal", "complete", "--slice-id", "S1"]
+        )
+        assert args.slice_id == "S1"
+        assert args.epoch_id is None
+
+    def test_signal_complete_with_epoch_id_still_accepted(self, aura_msg: ModuleType) -> None:
+        """signal complete still accepts --epoch-id for backward compatibility."""
+        args = aura_msg.parse_args(
+            ["signal", "complete", "--epoch-id", "E", "--slice-id", "S1"]
+        )
+        assert args.epoch_id == "E"
+        assert args.slice_id == "S1"
 
 
 class TestEpochStartParser:
