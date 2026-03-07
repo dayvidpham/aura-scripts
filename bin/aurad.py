@@ -141,16 +141,17 @@ async def main() -> None:
     """Parse args, initialize audit trail, and start the worker."""
     args = parse_args()
 
-    # Resolve connection config: CLI > env > YAML > defaults.
+    # Resolve connection config using shared config module.
+    # parse_args() already handles CLI > env via argparse defaults;
+    # passing its results as cli_args ensures they take priority over YAML.
     config_path = default_config_path()
     yaml_section = load_yaml_section(config_path, "aurad")
     conn = resolve_connection(
         cli_args={
-            "namespace": args.namespace if args.namespace != os.environ.get("TEMPORAL_NAMESPACE", "default") else None,
-            "task_queue": args.task_queue if args.task_queue != os.environ.get("TEMPORAL_TASK_QUEUE", "aura") else None,
-            "server_address": args.server_address if args.server_address != os.environ.get("TEMPORAL_ADDRESS", "localhost:7233") else None,
+            "namespace": args.namespace,
+            "task_queue": args.task_queue,
+            "server_address": args.server_address,
         },
-        env_dict=dict(os.environ),
         yaml_section=yaml_section,
     )
 
