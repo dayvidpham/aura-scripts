@@ -1,0 +1,27 @@
+{
+  "description": "Aura plugin hooks — injects beads workflow context on session start and before compaction",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat ${CLAUDE_PLUGIN_ROOT}/hooks/bd-prime.md 2>&1"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat ${CLAUDE_PLUGIN_ROOT}/hooks/bd-prime.md 2>&1"
+          }
+        ]
+      }
+    ]
+  }
+}
