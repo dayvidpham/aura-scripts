@@ -53,10 +53,18 @@ SUBCOMMAND_CASES = [
     ("session", "register", ["--epoch-id", "E1", "--session-id", "sess-1", "--role", "worker"]),
 ]
 
+# Implemented subcommands (exit 2/3 on Temporal errors, not exit 1).
+IMPLEMENTED_SUBCOMMANDS = {
+    ("query", "state"),
+    ("signal", "vote"),
+    ("signal", "complete"),
+    ("phase", "advance"),
+    ("epoch", "start"),
+}
+
 # Subcommands not yet implemented (exit 1 with "not implemented" message).
-# query state is implemented (exits 2/3); exclude it.
 UNIMPLEMENTED_SUBCOMMAND_CASES = [
-    c for c in SUBCOMMAND_CASES if c[:2] != ("query", "state")
+    c for c in SUBCOMMAND_CASES if c[:2] not in IMPLEMENTED_SUBCOMMANDS
 ]
 
 GROUPS = ["query", "epoch", "signal", "phase", "session"]
@@ -279,3 +287,132 @@ class TestAuraMsgSubprocess:
             f"'{group} {subcommand}': expected subcommand or 'not' in output.\n"
             f"stderr: {result.stderr!r}"
         )
+
+
+# ─── SLICE-4 Tests ─────────────────────────────────────────────────────────────
+
+
+class TestSignalVoteNormalization:
+    """D13: VoteType .upper() normalization at CLI boundary."""
+
+    def test_vote_uppercase_normalization(self, aura_msg: ModuleType) -> None:
+        """parse_args for signal vote with lowercase vote → .upper() == 'ACCEPT'."""
+        args = aura_msg.parse_args(
+            ["signal", "vote", "--epoch-id", "E", "--axis", "correctness", "--vote", "accept"]
+        )
+        assert args.vote.upper() == "ACCEPT"
+
+    def test_vote_mixed_case_normalization(self, aura_msg: ModuleType) -> None:
+        """parse_args for signal vote with mixed-case vote → .upper() == 'REVISE'."""
+        args = aura_msg.parse_args(
+            ["signal", "vote", "--epoch-id", "E", "--axis", "correctness", "--vote", "Revise"]
+        )
+        assert args.vote.upper() == "REVISE"
+
+    def test_reviewer_id_optional(self, aura_msg: ModuleType) -> None:
+        """--reviewer-id is optional, defaults to empty string."""
+        args = aura_msg.parse_args(
+            ["signal", "vote", "--epoch-id", "E", "--axis", "correctness", "--vote", "accept"]
+        )
+        assert args.reviewer_id == ""
+
+
+class TestPhaseAdvanceValidation:
+    """D15: PhaseId validation for phase advance subcommand."""
+
+    def test_invalid_phase_exits_one(self) -> None:
+        """Invalid --to-phase exits 1 with valid phases listed in stderr."""
+        result = subprocess.run(
+            [PYTHON, str(AURA_MSG_PATH), "phase", "advance", "--epoch-id", "E", "--to-phase", "invalid-phase"],
+            capture_output=True,
+            text=True,
+            env={"PYTHONPATH": str(SCRIPTS_DIR), "PATH": "/usr/bin:/bin"},
+        )
+        assert result.returncode == 1, (
+            f"Expected exit 1 for invalid phase, got {result.returncode}.\n"
+            f"stderr: {result.stderr!r}"
+        )
+        assert "invalid-phase" in result.stderr, (
+            f"Expected invalid phase name in stderr.\nstderr: {result.stderr!r}"
+        )
+        # Valid phases should be listed
+        assert "p1" in result.stderr, (
+            f"Expected valid phase values listed in stderr.\nstderr: {result.stderr!r}"
+        )
+
+    def test_valid_phase_parses(self, aura_msg: ModuleType) -> None:
+        """Valid --to-phase is accepted by the parser."""
+        args = aura_msg.parse_args(
+            ["phase", "advance", "--epoch-id", "E", "--to-phase", "p10"]
+        )
+        assert args.to_phase == "p10"
+
+    def test_triggered_by_optional(self, aura_msg: ModuleType) -> None:
+        """--triggered-by is optional, defaults to empty string."""
+        args = aura_msg.parse_args(
+            ["phase", "advance", "--epoch-id", "E", "--to-phase", "p10"]
+        )
+        assert args.triggered_by == ""
+
+    def test_condition_optional(self, aura_msg: ModuleType) -> None:
+        """--condition is optional, defaults to empty string."""
+        args = aura_msg.parse_args(
+            ["phase", "advance", "--epoch-id", "E", "--to-phase", "p10"]
+        )
+        assert args.condition == ""
+
+
+class TestSignalCompleteBDD:
+    """BDD criteria for signal complete subcommand."""
+
+    def test_output_flag_creates_success_signal(self, aura_msg: ModuleType) -> None:
+        """--output done → SliceCompleteSignal(success=True, output='done')."""
+        args = aura_msg.parse_args(
+            ["signal", "complete", "--epoch-id", "E", "--slice-id", "S1", "--output", "done"]
+        )
+        assert args.output == "done"
+        assert args.error is None
+
+    def test_error_flag_creates_failure_signal(self, aura_msg: ModuleType) -> None:
+        """--error failed → SliceCompleteSignal(success=False, error='failed')."""
+        args = aura_msg.parse_args(
+            ["signal", "complete", "--epoch-id", "E", "--slice-id", "S1", "--error", "failed"]
+        )
+        assert args.error == "failed"
+        assert args.output is None
+
+    def test_missing_slice_id_exits_with_error(self) -> None:
+        """Without --slice-id → exits with usage error."""
+        result = subprocess.run(
+            [PYTHON, str(AURA_MSG_PATH), "signal", "complete", "--epoch-id", "E"],
+            capture_output=True,
+            text=True,
+            env={"PYTHONPATH": str(SCRIPTS_DIR), "PATH": "/usr/bin:/bin"},
+        )
+        assert result.returncode != 0, (
+            f"Expected non-zero exit for missing --slice-id, got {result.returncode}"
+        )
+
+    def test_default_success_when_no_output_or_error(self, aura_msg: ModuleType) -> None:
+        """Neither --output nor --error → defaults to success=True, output=''."""
+        args = aura_msg.parse_args(
+            ["signal", "complete", "--epoch-id", "E", "--slice-id", "S1"]
+        )
+        assert args.output is None
+        assert args.error is None
+
+
+class TestEpochStartParser:
+    """Parser tests for epoch start subcommand."""
+
+    def test_description_optional(self, aura_msg: ModuleType) -> None:
+        """--description is optional, defaults to empty string."""
+        args = aura_msg.parse_args(["epoch", "start", "--epoch-id", "E"])
+        assert args.description == ""
+
+    def test_description_provided(self, aura_msg: ModuleType) -> None:
+        """--description value is preserved."""
+        args = aura_msg.parse_args(
+            ["epoch", "start", "--epoch-id", "E", "--description", "Test epoch"]
+        )
+        assert args.description == "Test epoch"
