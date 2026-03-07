@@ -84,7 +84,19 @@ def load_yaml_section(path: Path, section: str) -> dict[str, Any]:
     Returns:
         Dict of values under the section key, or {} on any error.
     """
-    ...
+    try:
+        import yaml
+
+        text = path.read_text()
+        data = yaml.safe_load(text)
+        if not isinstance(data, dict):
+            return {}
+        section_data = data.get(section)
+        if not isinstance(section_data, dict):
+            return {}
+        return section_data
+    except Exception:
+        return {}
 
 
 def resolve_connection(
@@ -93,6 +105,9 @@ def resolve_connection(
     yaml_section: dict[str, Any] | None = None,
 ) -> ConnectionConfig:
     """Resolve Temporal connection parameters with CLI > env > YAML > defaults.
+
+    Each field is resolved independently.  The first non-None source wins:
+        CLI flag → environment variable → YAML value → built-in default.
 
     Args:
         cli_args:     Mapping with keys "namespace", "task_queue",
@@ -105,4 +120,26 @@ def resolve_connection(
         Resolved ConnectionConfig with the highest-priority non-None value
         for each field.
     """
-    ...
+    cli = cli_args or {}
+    env = env_dict or {}
+    yaml = yaml_section or {}
+
+    _defaults = ConnectionConfig()
+
+    def _resolve(cli_key: str, env_key: str, yaml_key: str, default: str) -> str:
+        cli_val = cli.get(cli_key)
+        if cli_val is not None:
+            return cli_val
+        env_val = env.get(env_key)
+        if env_val is not None:
+            return env_val
+        yaml_val = yaml.get(yaml_key)
+        if yaml_val is not None:
+            return str(yaml_val)
+        return default
+
+    return ConnectionConfig(
+        namespace=_resolve("namespace", "TEMPORAL_NAMESPACE", "namespace", _defaults.namespace),
+        task_queue=_resolve("task_queue", "TEMPORAL_TASK_QUEUE", "task_queue", _defaults.task_queue),
+        server_address=_resolve("server_address", "TEMPORAL_ADDRESS", "server_address", _defaults.server_address),
+    )

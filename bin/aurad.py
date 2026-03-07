@@ -35,6 +35,7 @@ import os
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from aura_protocol.config import default_config_path, load_yaml_section, resolve_connection
 from aura_protocol.audit_activities import (
     InMemoryAuditTrail,
     init_audit_trail,
@@ -140,6 +141,19 @@ async def main() -> None:
     """Parse args, initialize audit trail, and start the worker."""
     args = parse_args()
 
+    # Resolve connection config: CLI > env > YAML > defaults.
+    config_path = default_config_path()
+    yaml_section = load_yaml_section(config_path, "aurad")
+    conn = resolve_connection(
+        cli_args={
+            "namespace": args.namespace if args.namespace != os.environ.get("TEMPORAL_NAMESPACE", "default") else None,
+            "task_queue": args.task_queue if args.task_queue != os.environ.get("TEMPORAL_TASK_QUEUE", "aura") else None,
+            "server_address": args.server_address if args.server_address != os.environ.get("TEMPORAL_ADDRESS", "localhost:7233") else None,
+        },
+        env_dict=dict(os.environ),
+        yaml_section=yaml_section,
+    )
+
     # Initialize the audit trail before the worker starts.
     # InMemoryAuditTrail is used for development; swap for a Temporal-backed
     # or Beads-backed implementation for production deployments.
@@ -147,9 +161,9 @@ async def main() -> None:
     logger.info("Audit trail initialized (InMemoryAuditTrail).")
 
     await run_worker(
-        namespace=args.namespace,
-        task_queue=args.task_queue,
-        server_address=args.server_address,
+        namespace=conn.namespace,
+        task_queue=conn.task_queue,
+        server_address=conn.server_address,
     )
 
 
