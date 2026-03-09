@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.2] - 2026-03-09
+
+### Fixed
+- fix(aura-swarm): update enum references to PascalCase after SLICE-A migration
+
+### Other
+- Merge branch 'fix--aura-swarm--intree'
+
 ## [0.10.1] - 2026-03-09
 
 ### Added
