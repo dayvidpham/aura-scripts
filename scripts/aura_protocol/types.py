@@ -3126,7 +3126,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                     ),
                     ExitCondition(
                         type=ExitConditionType.Continue,
-                        condition="BLOCKERs or IMPORTANTs remain, cycles < 3 per slice — workers fix, spawn new reviewers",
+                        condition="BLOCKERs or IMPORTANTs remain, cycles < 3 per slice — workers fix, spawn new ephemeral reviewers",
                     ),
                     ExitCondition(
                         type=ExitConditionType.Proceed,

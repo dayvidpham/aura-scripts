@@ -331,7 +331,7 @@ DONE → Phase 11 (UAT)
   └─ Shut down Workers
 
 Cycle Exit Conditions:
-  All reviewers ACCEPT, no open BLOCKERs              → Proceed to Phase 11 (UAT)
+  All reviewers ACCEPT, 0 BLOCKERs + 0 IMPORTANTs     → Proceed to Phase 11 (UAT)
   BLOCKERs or IMPORTANTs remain, cycles < 3 per slice → Workers fix, spawn new ephemeral reviewers
   3 cycles exhausted, IMPORTANT remain                → Track in FOLLOWUP, proceed to Phase 11
   3 cycles exhausted per slice, BLOCKERs remain       → Escalate to architect for re-planning

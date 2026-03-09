@@ -13,9 +13,12 @@ wheels = [
 
 [[package]]
 name = "aura-plugins"
-version = "0.9.8"
+version = "0.9.9"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiosqlite" },
+    { name = "jinja2" },
+    { name = "pyyaml" },
     { name = "temporalio" },
 ]
 
@@ -30,15 +33,18 @@ dev = [
 dev = [
     { name = "aiosqlite" },
     { name = "jinja2" },
+    { name = "pytest" },
     { name = "pytest-asyncio" },
-    { name = "pyyaml" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "aiosqlite", specifier = ">=0.22.1" },
+    { name = "jinja2", specifier = ">=3.1.6" },
     { name = "pymysql", marker = "extra == 'dev'", specifier = ">=1.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "temporalio", specifier = ">=1.9.0" },
 ]
 provides-extras = ["dev"]
@@ -47,8 +53,8 @@ provides-extras = ["dev"]
 dev = [
     { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "jinja2", specifier = ">=3.1.6" },
+    { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 
 [[package]]
