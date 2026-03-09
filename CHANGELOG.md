@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.9] - 2026-03-09
+
+### Added
+- feat(protocol): remove Cartographers, add ephemeral subagents + agent definition generator
+
+### Other
+- Merge branch 'feat--agent-roles'
+- chore: beads backup
+
 ## [0.9.8] - 2026-03-07
 
 ### Fixed
