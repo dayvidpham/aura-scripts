@@ -180,11 +180,11 @@ class TestRoleContextAbsence:
         ids = {c.id for c in ctx.constraints}
         assert "C-severity-eager" not in ids
 
-    def test_worker_excludes_c_supervisor_cartographers(self) -> None:
-        """WORKER has no Cartographers responsibility."""
+    def test_worker_excludes_c_supervisor_explore_ephemeral(self) -> None:
+        """WORKER has no ephemeral explore responsibility."""
         ctx = get_role_context(RoleId.WORKER)
         ids = {c.id for c in ctx.constraints}
-        assert "C-supervisor-cartographers" not in ids
+        assert "C-supervisor-explore-ephemeral" not in ids
 
     def test_worker_excludes_c_review_consensus(self) -> None:
         """WORKER does not gate review consensus."""
@@ -654,13 +654,13 @@ class TestEpochRideTheWaveConstraints:
     No indirect XML assertions or count comparisons are used.
     """
 
-    def test_epoch_includes_c_supervisor_cartographers(self) -> None:
-        """EPOCH must include C-supervisor-cartographers (delegates exploration to Cartographers)."""
+    def test_epoch_includes_c_supervisor_explore_ephemeral(self) -> None:
+        """EPOCH must include C-supervisor-explore-ephemeral (delegates exploration to ephemeral subagents)."""
         ctx = get_role_context(RoleId.EPOCH)
         ids = {c.id for c in ctx.constraints}
-        assert "C-supervisor-cartographers" in ids, (
-            "EPOCH context must include C-supervisor-cartographers — "
-            "Epoch delegates p8/p10 exploration+review to 3 Cartographers (Ride the Wave)."
+        assert "C-supervisor-explore-ephemeral" in ids, (
+            "EPOCH context must include C-supervisor-explore-ephemeral — "
+            "Epoch delegates exploration to ephemeral Explore subagents (Ride the Wave)."
         )
 
     def test_epoch_includes_c_integration_points(self) -> None:

@@ -509,7 +509,7 @@ class TestConstraintRolePhaseRefs:
 
         # Ride the Wave constraints shared between epoch and supervisor
         ride_the_wave_constraints = [
-            "C-supervisor-cartographers",
+            "C-supervisor-explore-ephemeral",
             "C-integration-points",
             "C-slice-review-before-close",
             "C-max-review-cycles",
@@ -1048,11 +1048,11 @@ class TestSlugPinLiterals:
             "If this step was renamed, update StepSlug.Supervisor.CallSkill to reflect the new name."
         )
 
-    def test_supervisor_cartographers_slug(self) -> None:
-        """StepSlug.Supervisor.Cartographers must exist as a supervisor procedure step."""
-        assert any(s.id == StepSlug.Supervisor.Cartographers for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
-            f"Expected step {StepSlug.Supervisor.Cartographers!r} in PROCEDURE_STEPS[SUPERVISOR]. "
-            "If this step was renamed, update StepSlug.Supervisor.Cartographers to reflect the new name."
+    def test_supervisor_explore_ephemeral_slug(self) -> None:
+        """StepSlug.Supervisor.ExploreEphemeral must exist as a supervisor procedure step."""
+        assert any(s.id == StepSlug.Supervisor.ExploreEphemeral for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+            f"Expected step {StepSlug.Supervisor.ExploreEphemeral!r} in PROCEDURE_STEPS[SUPERVISOR]. "
+            "If this step was renamed, update StepSlug.Supervisor.ExploreEphemeral to reflect the new name."
         )
 
     def test_worker_types_slug(self) -> None:

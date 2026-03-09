@@ -1,0 +1,84 @@
+---
+name: {{ role.id.value }}
+description: {{ role.description }}
+tools: {{ role.tools | join(', ') }}
+model: {{ role.model }}
+{% if role.thinking %}thinking: {{ role.thinking }}
+{% endif %}---
+
+# {{ role.name }} Agent
+
+You are a **{{ role.name }}** agent in the Aura Protocol.
+
+{% if role.introduction %}{{ role.introduction }}
+
+{% endif %}
+{% if phases_detail %}
+## Owned Phases
+
+| Phase | Name | Domain |
+|-------|------|--------|
+{% for phase in phases_detail %}
+| `{{ phase_slug[phase.id] }}` | {{ phase.name }} | {{ phase.domain.value }} |
+{% endfor %}
+{% endif %}
+{% if constraints %}
+## Constraints
+
+{% for c in constraints %}
+**[{{ c.id }}]**
+- Given: {{ c.given }}
+- When: {{ c.when }}
+- Then: {{ c.then }}
+- Should not: {{ c.should_not }}
+
+{% endfor %}
+{% endif %}
+{% if behaviors %}
+## Behaviors
+
+{% for b in behaviors %}
+**[{{ b.id }}]**
+- Given: {{ b.given }}
+- When: {{ b.when }}
+- Then: {{ b.then }}
+- Should not: {{ b.should_not }}
+
+{% endfor %}
+{% endif %}
+{% if checklists %}
+## Completion Checklist
+
+{% for cl in checklists %}
+**{{ cl.gate.value }} gates:**
+{% for item in cl.items %}
+- [ ] {{ item.text }}
+{% endfor %}
+
+{% endfor %}
+{% endif %}
+{% if workflows %}
+## Workflows
+
+{% for wf in workflows %}
+### {{ wf.name }}
+
+{{ wf.description }}
+
+{% for stage in wf.stages %}
+**Stage {{ stage.order }}: {{ stage.name }}** _({{ stage.execution.value }})_
+
+{% for action in stage.actions %}
+- {{ action.instruction }}{% if action.command %} (`{{ action.command }}`){% endif %}
+
+{% endfor %}
+{% if stage.exit_conditions %}
+Exit conditions:
+{% for ec in stage.exit_conditions %}
+- **{{ ec.type.value }}**: {{ ec.condition }}
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+{% endfor %}
+{% endif %}

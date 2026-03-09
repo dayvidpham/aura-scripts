@@ -591,16 +591,16 @@ class TestConstraintViolationTestCaseGenerator:
     def test_exactly_twenty_five_runnable_cases(
         self, runnable: list[ConstraintViolationTestCase]
     ) -> None:
-        """25 constraints are runnable: 4 state-based + 1 transition-based + 2 audit + 14 structural + 4 naming."""
-        assert len(runnable) == 25, (
-            f"Expected exactly 25 runnable constraint cases, got {len(runnable)}: "
+        """27 constraints are runnable: 4 state-based + 1 transition-based + 2 audit + 16 structural + 4 naming."""
+        assert len(runnable) == 27, (
+            f"Expected exactly 27 runnable constraint cases, got {len(runnable)}: "
             f"{[tc.constraint_id for tc in runnable]}"
         )
 
     def test_runnable_constraint_ids_are_expected(
         self, runnable: list[ConstraintViolationTestCase]
     ) -> None:
-        """All 25 runnable constraints are present."""
+        """All 27 runnable constraints are present."""
         expected = {
             # State-based (4)
             "C-review-consensus",
@@ -612,14 +612,16 @@ class TestConstraintViolationTestCaseGenerator:
             # Audit with transition_history (2)
             "C-audit-never-delete",
             "C-audit-dep-chain",
-            # Structural via violation_method (14)
+            # Structural via violation_method (16)
             "C-review-binary",
             "C-dep-direction",
             "C-blocker-dual-parent",
             "C-followup-timing",
             "C-vertical-slices",
             "C-supervisor-no-impl",
-            "C-supervisor-cartographers",
+            "C-clean-review-exit",
+            "C-autonomous-progression",
+            "C-supervisor-explore-ephemeral",
             "C-integration-points",
             "C-slice-review-before-close",
             "C-max-review-cycles",

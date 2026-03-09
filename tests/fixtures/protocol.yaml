@@ -782,11 +782,23 @@ constraint_violations:
     violation_method: check_supervisor_no_impl
     violation_args: { role: "supervisor", action_type: "file_edit" }
 
-  C-supervisor-cartographers:
+  C-clean-review-exit:
     description: >
-      Supervisor at p8 without an explore team — cartographers required.
-    violation_method: check_supervisor_cartographers
-    violation_args: { phase: "p8", has_explore_team: false }
+      Review cycle exiting without clean review — BLOCKERs or IMPORTANTs still outstanding.
+    violation_method: check_clean_review_exit
+    violation_args: { blockers_remaining: 1, importants_remaining: 0, exited_on_worker_wave: false }
+
+  C-autonomous-progression:
+    description: >
+      Agent asking "Should I proceed?" for a non-user-gated phase instead of proceeding autonomously.
+    violation_method: check_autonomous_progression
+    violation_args: { phase: "p3", asked_user: true }
+
+  C-supervisor-explore-ephemeral:
+    description: >
+      Supervisor at p8 without ephemeral explore subagents — ephemeral Task tool usage required.
+    violation_method: check_supervisor_explore_ephemeral
+    violation_args: { phase: "p8", exploration_method: "direct" }
 
   C-integration-points:
     description: >

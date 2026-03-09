@@ -20,7 +20,7 @@ See `../protocol/CONSTRAINTS.md` for coding standards, severity definitions, and
 4. **CONSENSUS REQUIRED** - All 3 reviewers must ACCEPT before proceeding
 5. **EAGER SEVERITY TREE** - Code reviews (Phase 10) always create 3 severity groups (BLOCKER, IMPORTANT, MINOR); empty groups closed immediately
 6. **FOLLOW-UP EPIC** - Triggered by review completion + ANY IMPORTANT/MINOR findings; NOT gated on BLOCKER resolution
-7. **RIDE THE WAVE** - Phases 8-10 form one continuous cycle: Cartographers explore (P8), workers implement (P9), Cartographers review (P10), max 3 fix cycles; workers persist throughout
+7. **RIDE THE WAVE** - Phases 8-10 form one continuous cycle: Explore subagents (P8), workers implement (P9), ephemeral reviewers review (P10), max 3 fix cycles per slice; workers persist throughout
 
 ## The 12-Phase Workflow
 
@@ -34,9 +34,9 @@ Phase 4:  aura:p4-plan       -> REVIEW (3 parallel reviewers, ACCEPT/REVISE)
 Phase 5:  aura:p5-user       -> Plan UAT (user acceptance test)
 Phase 6:  aura:p6-plan       -> Ratification (supersede old proposals)
 Phase 7:  aura:p7-plan       -> Handoff (architect -> supervisor)
-Phase 8:  aura:p8-impl       -> IMPL_PLAN (supervisor decomposes into slices; 3 Cartographers explore)
+Phase 8:  aura:p8-impl       -> IMPL_PLAN (supervisor decomposes into slices; Explore subagents)
 Phase 9:  aura:p9-impl       -> SLICE-N (parallel workers; Ride the Wave — workers persist for review)
-Phase 10: aura:p10-impl      -> Code Review (Cartographers review all slices; max 3 fix cycles)
+Phase 10: aura:p10-impl      -> Code Review (ephemeral reviewers review all slices; max 3 fix cycles per slice)
 Phase 11: aura:p11-user      -> Implementation UAT
 Phase 12: aura:p12-impl      -> Landing (commit, push, hand off)
 ```
@@ -65,7 +65,9 @@ After classification, user confirms research depth. Then s1_2 and s1_3 run in pa
 
 **Given** code review completion **when** ANY IMPORTANT or MINOR findings exist **then** Supervisor creates a follow-up epic (label `aura:epic-followup`) **should never** gate follow-up on BLOCKER resolution
 
-**Given** Phase 8 begins **when** supervisor starts IMPL_PLAN **then** always 3 Cartographers created via TeamCreate before any exploration **should never** shut down Cartographers between phases 8-10
+**Given** non-user-gated phase completes **when** transitioning **then** proceed autonomously; user-gated phases: Phase 1 s1_1 (research depth), Phase 2 (URE), Phase 5 (Plan UAT), Phase 11 (Impl UAT) **should never** ask "Should I proceed?" for autonomous phases
+
+**Given** Phase 5 UAT ACCEPT **when** transitioning to Phase 6 **then** ratify automatically **should never** ask user for ratification confirmation
 
 **Given** cross-task references **when** linking related tasks (e.g. URD to REQUEST) **then** use description frontmatter `references:` block **should never** use peer-reference commands
 

@@ -290,7 +290,7 @@ class StepSlug:
 
         CallSkill = "S-supervisor-call-skill"
         ReadPlan = "S-supervisor-read-plan"
-        Cartographers = "S-supervisor-cartographers"
+        ExploreEphemeral = "S-supervisor-explore-ephemeral"
         DecomposeSlices = "S-supervisor-decompose-slices"
         CreateLeafTasks = "S-supervisor-create-leaf-tasks"
         SpawnWorkers = "S-supervisor-spawn-workers"
@@ -491,6 +491,9 @@ class RoleSpec:
     introduction: str | None = None
     ownership_narrative: str | None = None
     behaviors: tuple[BehaviorSpec, ...] = ()
+    tools: tuple[str, ...] = ()
+    model: str | None = None
+    thinking: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1152,20 +1155,49 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         then="spawn workers for all code changes",
         should_not="implement code directly",
     ),
-    "C-supervisor-cartographers": ConstraintSpec(
-        id="C-supervisor-cartographers",
-        given="supervisor needs codebase exploration and code review",
-        when="starting Phase 8 (IMPL_PLAN) and Phase 10 (Code Review)",
+    "C-supervisor-explore-ephemeral": ConstraintSpec(
+        id="C-supervisor-explore-ephemeral",
+        given="supervisor needs codebase exploration",
+        when="starting Phase 8 (IMPL_PLAN)",
         then=(
-            "create exactly 3 Cartographers via TeamCreate with /aura:explore before any exploration; "
-            "Cartographers are dual-role: explore codebase in Phase 8, switch to /aura:reviewer in Phase 10; "
-            "Cartographers NEVER shut down between phases — persist for full Ride the Wave cycle; "
-            "max 3 worker-reviewer cycles; supervisor shuts down Cartographers after cycle 3 or all-ACCEPT"
+            "spawn ephemeral Explore subagents via Task tool for scoped codebase queries; "
+            "each subagent is short-lived and returns findings; no standing team overhead"
         ),
         should_not=(
-            "perform deep codebase exploration directly as supervisor; "
-            "shut down Cartographers between Phase 8 and Phase 10; "
-            "exceed 3 worker-reviewer cycles"
+            "explore the codebase directly as supervisor; "
+            "maintain a standing explore team"
+        ),
+    ),
+    "C-clean-review-exit": ConstraintSpec(
+        id="C-clean-review-exit",
+        given="per-slice code review",
+        when="evaluating review results",
+        then=(
+            "clean review exit requires 0 BLOCKERs AND 0 IMPORTANTs; "
+            "MINORs are acceptable and tracked in FOLLOWUP epic; "
+            "each slice has its own independent review cycle counter (max 3 cycles); "
+            "after 3 failed cycles, escalate to architect for re-planning"
+        ),
+        should_not=(
+            "accept review with open BLOCKERs or IMPORTANTs; "
+            "batch review across multiple slices; "
+            "exceed 3 cycles without escalating; "
+            "escalate to user instead of architect"
+        ),
+    ),
+    "C-autonomous-progression": ConstraintSpec(
+        id="C-autonomous-progression",
+        given="supervisor orchestrating phases",
+        when="deciding whether to proceed",
+        then=(
+            "4 user-gated phases only: (1) research depth decision, (2) URE survey, "
+            "(3) Plan UAT, (4) Impl UAT; all other phase transitions are auto-ratified "
+            "by the supervisor; after Plan UAT ACCEPT, proceed directly to ratification "
+            "without user gate"
+        ),
+        should_not=(
+            "add additional user gates beyond the 4 defined; "
+            "require user approval for ratification after UAT ACCEPT"
         ),
     ),
     "C-integration-points": ConstraintSpec(
@@ -1188,7 +1220,7 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         when="slice implementation is done",
         then=(
             "workers notify supervisor with bd comments add (not bd close); "
-            "slices must be reviewed at least once by Cartographers before closure; "
+            "slices must be reviewed at least once by ephemeral reviewers before closure; "
             "only the supervisor closes slices, after review passes"
         ),
         should_not=(
@@ -1198,16 +1230,18 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
     ),
     "C-max-review-cycles": ConstraintSpec(
         id="C-max-review-cycles",
-        given="worker-Cartographer review-fix cycles are ongoing",
-        when="counting review-fix iterations",
+        given="per-slice review-fix cycles are ongoing",
+        when="counting review-fix iterations per slice",
         then=(
-            "limit to a maximum of 3 cycles total; "
-            "after cycle 3, remaining IMPORTANT findings move to FOLLOWUP epic; "
-            "proceed to Phase 11 (UAT) regardless of remaining IMPORTANTs after cycle 3"
+            "limit to a maximum of 3 cycles per slice; "
+            "clean review exit = 0 BLOCKERs + 0 IMPORTANTs; "
+            "after cycle 3, escalate to architect for re-planning if BLOCKERs or IMPORTANTs remain; "
+            "remaining IMPORTANT findings move to FOLLOWUP epic"
         ),
         should_not=(
-            "exceed 3 worker-reviewer cycles; "
-            "block UAT on non-BLOCKER findings after 3 cycles"
+            "exceed 3 review cycles per slice; "
+            "escalate to user instead of architect; "
+            "batch review across multiple slices"
         ),
     ),
     "C-slice-leaf-tasks": ConstraintSpec(
@@ -1234,7 +1268,7 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         ),
         should_not=(
             "launch agents without skill invocation — "
-            "they skip role-critical procedures like explore team setup and leaf task creation"
+            "they skip role-critical procedures like ephemeral exploration and leaf task creation"
         ),
     ),
     "C-dep-direction": ConstraintSpec(
@@ -1482,6 +1516,9 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
             "The epoch role coordinates the complete workflow end-to-end and is the only role "
             "that spans all phases."
         ),
+        tools=("Read", "Glob", "Grep", "Bash", "Skill", "Agent", "Task"),
+        model="opus",
+        thinking="medium",
     ),
     RoleId.ARCHITECT: RoleSpec(
         id=RoleId.ARCHITECT,
@@ -1543,6 +1580,9 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
                 should_not="close or delete the proposal task",
             ),
         ),
+        tools=("Read", "Glob", "Grep", "Bash", "Skill", "Agent", "Task"),
+        model="opus",
+        thinking="medium",
     ),
     RoleId.REVIEWER: RoleSpec(
         id=RoleId.REVIEWER,
@@ -1584,12 +1624,15 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
             ),
             BehaviorSpec(
                 id="B-rev-all-slices",
+
                 given="impl review (Phase 10)",
                 when="assigned",
                 then="review ALL slices (not just one)",
                 should_not="skip any slice",
             ),
         ),
+        tools=("Read", "Glob", "Grep", "Bash", "Skill"),
+        model="sonnet",
     ),
     RoleId.SUPERVISOR: RoleSpec(
         id=RoleId.SUPERVISOR,
@@ -1608,7 +1651,7 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
             "receive handoff from architect (p7), "
             "create vertical slice decomposition IMPL_PLAN (p8), "
             "spawn workers for parallel implementation SLICE-N (p9), "
-            "spawn 3 Cartographer/reviewers for ALL slices with severity tree (p10), "
+            "spawn ephemeral reviewers for per-slice code review with severity tree (p10), "
             "coordinate user acceptance test (p11), "
             "commit, push, and hand off (p12). "
             "You NEVER implement code directly — all implementation is delegated to workers."
@@ -1636,14 +1679,14 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
                 should_not="default to haiku for complex work",
             ),
             BehaviorSpec(
-                id="B-sup-cartographer-reuse",
-                given="standing explore team exists",
+                id="B-sup-explore-ephemeral",
+                given="codebase exploration needed",
                 when="needing to understand a codebase area",
                 then=(
-                    "send a scoped query to the relevant explore agent via SendMessage; "
-                    "reuse the same agent for follow-up questions on the same topic"
+                    "spawn an ephemeral Explore subagent via Task tool with a scoped query; "
+                    "each subagent is short-lived and returns findings"
                 ),
-                should_not="spawn a new explore agent for a topic that an existing agent already covers",
+                should_not="explore the codebase directly as supervisor or maintain a standing explore team",
             ),
             BehaviorSpec(
                 id="B-sup-ride-the-wave",
@@ -1651,12 +1694,16 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
                 when="starting implementation",
                 then=(
                     "follow the Ride the Wave cycle: plan tasks with integration points, "
-                    "launch 3 Cartographers, launch the wave of workers, "
-                    "Cartographers review, workers fix, repeat max 3 cycles"
+                    "launch the wave of workers, spawn ephemeral reviewers for per-slice review "
+                    "(clean exit = 0 BLOCKERs + 0 IMPORTANTs), workers fix per-slice with atomic commits, "
+                    "max 3 cycles per slice, escalate to architect after cycle 3"
                 ),
-                should_not="skip any stage or shut down Cartographers/workers between stages",
+                should_not="skip any stage; batch review across slices; exceed 3 review cycles per slice",
             ),
         ),
+        tools=("Read", "Glob", "Grep", "Bash", "Skill", "Agent", "Task"),
+        model="opus",
+        thinking="medium",
     ),
     RoleId.WORKER: RoleSpec(
         id=RoleId.WORKER,
@@ -1712,6 +1759,8 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
                 should_not="guess or work around",
             ),
         ),
+        tools=("Read", "Glob", "Grep", "Bash", "Skill", "Edit", "Write"),
+        model="sonnet",
     ),
 }
 
@@ -2362,10 +2411,10 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
             command="bd show <ratified-plan-id> && bd show <urd-id>",
         ),
         ProcedureStep(
-            id=StepSlug.Supervisor.Cartographers,
+            id=StepSlug.Supervisor.ExploreEphemeral,
             order=3,
-            instruction="Create standing explore team via TeamCreate before any codebase exploration",
-            context="TeamCreate with /aura:explore role; minimum 3 agents",
+            instruction="Spawn ephemeral Explore subagents via Task tool for scoped codebase queries",
+            context="Each subagent is short-lived and returns findings; no standing team overhead",
         ),
         ProcedureStep(
             id=StepSlug.Supervisor.DecomposeSlices,
@@ -2635,8 +2684,8 @@ CHECKLIST_SPECS: dict[str, Checklist] = {
                 text="All workers have notified completion via bd comments add",
             ),
             ChecklistItem(
-                id="CL-sup-cartographers-assigned",
-                text="All 3 Cartographers assigned review of ALL slices",
+                id="CL-sup-reviewers-assigned",
+                text="Ephemeral reviewers spawned for all slices",
             ),
             ChecklistItem(
                 id="CL-sup-severity-groups-created",
@@ -2764,8 +2813,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
         role_ref=RoleId.SUPERVISOR,
         description=(
             "Coordinated Phase 8-10 execution pattern. The supervisor orchestrates "
-            "the full cycle: plan slices, launch Cartographers, launch workers, "
-            "Cartographers review, workers fix, repeat max 3 cycles."
+            "the full cycle: plan slices, launch workers, "
+            "spawn ephemeral reviewers for per-slice review, workers fix, repeat max 3 cycles per slice."
         ),
         stages=(
             WorkflowStage(
@@ -2781,12 +2830,12 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                         command="bd show <ratified-plan-id> && bd show <urd-id>",
                     ),
                     WorkflowAction(
-                        id="rtw-plan-cartographers",
-                        instruction="Spawn 3 Cartographers via TeamCreate with /aura:explore",
+                        id="rtw-plan-explore",
+                        instruction="Spawn ephemeral Explore subagents via Task tool to map codebase areas",
                     ),
                     WorkflowAction(
                         id="rtw-plan-decompose",
-                        instruction="Query Cartographers to map codebase, then decompose into vertical slices with integration points",
+                        instruction="Use Explore findings to decompose into vertical slices with integration points",
                     ),
                     WorkflowAction(
                         id="rtw-plan-leaf-tasks",
@@ -2810,7 +2859,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 actions=(
                     WorkflowAction(
                         id="rtw-build-spawn",
-                        instruction="Spawn N workers into same team as Cartographers",
+                        instruction="Spawn N workers for parallel slice implementation",
                         command="aura-swarm start --epic <epic-id>",
                     ),
                     WorkflowAction(
@@ -2834,12 +2883,12 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 phase_ref=PhaseId.P10_CODE_REVIEW,
                 actions=(
                     WorkflowAction(
-                        id="rtw-review-switch",
-                        instruction="Send Cartographers review assignment (switch to /aura:reviewer-review-code)",
+                        id="rtw-review-spawn",
+                        instruction="Spawn ephemeral reviewers via Task tool for per-slice code review",
                     ),
                     WorkflowAction(
                         id="rtw-review-severity",
-                        instruction="Cartographers create severity groups (BLOCKER/IMPORTANT/MINOR) per slice",
+                        instruction="Reviewers create severity groups (BLOCKER/IMPORTANT/MINOR) per slice",
                     ),
                     WorkflowAction(
                         id="rtw-review-followup",
@@ -2857,7 +2906,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                     ),
                     ExitCondition(
                         type=ExitConditionType.CONTINUE,
-                        condition="BLOCKERs or IMPORTANT remain, cycles < 3 — workers fix, Cartographers re-review",
+                        condition="BLOCKERs or IMPORTANTs remain, cycles < 3 per slice — workers fix, spawn new ephemeral reviewers",
                     ),
                     ExitCondition(
                         type=ExitConditionType.PROCEED,
@@ -2865,7 +2914,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                     ),
                     ExitCondition(
                         type=ExitConditionType.ESCALATE,
-                        condition="3 cycles exhausted, BLOCKERs remain — stop and escalate to user",
+                        condition="3 cycles exhausted per slice, BLOCKERs remain — escalate to architect for re-planning",
                     ),
                 ),
             ),
