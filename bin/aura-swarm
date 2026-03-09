@@ -78,9 +78,9 @@ VALID_ROLES = frozenset(SessionRole)
 VALID_MODELS = frozenset(ModelTier)
 VALID_PERMISSION_MODES = frozenset(PermissionMode)
 AURA_PROMPT_STATE_DIR = Path.home() / ".local" / "share" / "aura" / "aura-swarm" / "prompts"
-DEFAULT_WORKTREE_DIR = SwarmMode.WORKTREE
-DEFAULT_ROLE = SessionRole.SUPERVISOR
-DEFAULT_MODEL = ModelTier.SONNET
+DEFAULT_WORKTREE_DIR = SwarmMode.Worktree
+DEFAULT_ROLE = SessionRole.Supervisor
+DEFAULT_MODEL = ModelTier.Sonnet
 
 _interrupted = False
 
@@ -252,7 +252,7 @@ def check_prerequisites(swarm_mode: str, has_epic: bool) -> list[str]:
     """
     errors: list[str] = []
     required = ["git", "tmux"]
-    if swarm_mode == SwarmMode.WORKTREE or has_epic:
+    if swarm_mode == SwarmMode.Worktree or has_epic:
         required.append("bd")
 
     for tool in required:
@@ -299,8 +299,8 @@ def detect_parent_permission(registry: YAMLSessionRegistry) -> str | None:
     # Look up parent in registry
     for record in registry.list_active():
         if record.tmux_session == parent_session_name:
-            if record.permission_mode == PermissionMode.BYPASS_PERMISSIONS:
-                return PermissionMode.BYPASS_PERMISSIONS
+            if record.permission_mode == PermissionMode.BypassPermissions:
+                return PermissionMode.BypassPermissions
             break
 
     return None
@@ -592,7 +592,7 @@ def launch_tmux_session(
     instructions_path: Path,
     prompt: str,
     model: str,
-    permission_mode: str = PermissionMode.ACCEPT_EDITS,
+    permission_mode: str = PermissionMode.AcceptEdits,
 ) -> LaunchResult:
     """Launch a Claude agent in a detached tmux session."""
     try:
@@ -628,7 +628,7 @@ def launch_in_tmux_window(
     instructions_path: Path,
     prompt: str,
     model: str,
-    permission_mode: str = PermissionMode.ACCEPT_EDITS,
+    permission_mode: str = PermissionMode.AcceptEdits,
 ) -> LaunchResult:
     """Launch a Claude agent as a window in an existing (or new) tmux session.
 
@@ -721,7 +721,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     # did NOT explicitly pass --tmux-dest, default to WINDOW in the current
     # session instead of creating a new detached session.
     current_tmux_session: str | None = None
-    if tmux_dest_explicit is None and swarm_mode == SwarmMode.INTREE:
+    if tmux_dest_explicit is None and swarm_mode == SwarmMode.Intree:
         tmux_env = os.environ.get("TMUX")
         if tmux_env:
             result = run_command(
@@ -730,18 +730,18 @@ def cmd_start(args: argparse.Namespace) -> int:
             )
             if result.returncode == 0 and result.stdout.strip():
                 current_tmux_session = result.stdout.strip()
-                tmux_dest = TmuxDest.WINDOW
+                tmux_dest = TmuxDest.Window
                 print(f"  Auto-detected tmux session: {current_tmux_session} (using window mode)")
             else:
-                tmux_dest = TmuxDest.SESSION
+                tmux_dest = TmuxDest.Session
         else:
-            tmux_dest = TmuxDest.SESSION
+            tmux_dest = TmuxDest.Session
     else:
-        tmux_dest = tmux_dest_explicit if tmux_dest_explicit is not None else TmuxDest.SESSION
+        tmux_dest = tmux_dest_explicit if tmux_dest_explicit is not None else TmuxDest.Session
 
     # ── Mode-specific validation ──
 
-    if swarm_mode == SwarmMode.WORKTREE:
+    if swarm_mode == SwarmMode.Worktree:
         if not epic_id:
             print("Error: --epic is required for worktree mode", file=sys.stderr)
             return 1
@@ -918,7 +918,7 @@ def _start_worktree(
         instructions_path=instructions_path,
         prompt=prompt,
         permission_mode=permission_mode,
-        swarm_mode=SwarmMode.WORKTREE,
+        swarm_mode=SwarmMode.Worktree,
         git_branch=epic_branch,
         task_ids=[t.id for t in tasks],
         session_name_override=session_name_override,
@@ -997,8 +997,8 @@ def _start_intree(
                 name = session_name_override if njobs == 1 else f"{session_name_override}--{i + 1}"
             else:
                 name = f"{role}-{epic_suffix}--{i + 1}--<hex4>"
-            print(f"Would create {'window' if tmux_dest == TmuxDest.WINDOW else 'session'}: {name}")
-            print(f"  tmux {'new-window' if tmux_dest == TmuxDest.WINDOW else 'new-session'} \\")
+            print(f"Would create {'window' if tmux_dest == TmuxDest.Window else 'session'}: {name}")
+            print(f"  tmux {'new-window' if tmux_dest == TmuxDest.Window else 'new-session'} \\")
             print(f"    claude --model {model} --append-system-prompt <role-instructions> \\")
             print(f"           --permission-mode {permission_mode} '<prompt>'")
             results.append(LaunchResult(name, success=True))
@@ -1007,7 +1007,7 @@ def _start_intree(
         # Generate names
         if session_name_override:
             session_name = session_name_override if njobs == 1 else f"{session_name_override}--{i + 1}"
-        elif tmux_dest == TmuxDest.WINDOW:
+        elif tmux_dest == TmuxDest.Window:
             session_name = current_tmux_session if current_tmux_session else f"swarm-{epic_suffix}"
         else:
             try:
@@ -1019,7 +1019,7 @@ def _start_intree(
         window_name = generate_window_name(role, i + 1, session_task_id)
 
         # Launch
-        if tmux_dest == TmuxDest.WINDOW:
+        if tmux_dest == TmuxDest.Window:
             lr = launch_in_tmux_window(
                 tmux_session=session_name,
                 window_name=window_name,
@@ -1041,7 +1041,7 @@ def _start_intree(
         results.append(lr)
 
         if lr.success:
-            print(f"  Started: {session_name}" + (f" (window: {window_name})" if tmux_dest == TmuxDest.WINDOW else ""))
+            print(f"  Started: {session_name}" + (f" (window: {window_name})" if tmux_dest == TmuxDest.Window else ""))
             if first_session_name is None:
                 first_session_name = session_name
 
@@ -1051,7 +1051,7 @@ def _start_intree(
             git_branch = current_branch_result.stdout.strip() if current_branch_result.returncode == 0 else ""
 
             record = SessionRecord(
-                session_id=f"{session_name}--{window_name}" if tmux_dest == TmuxDest.WINDOW else session_name,
+                session_id=f"{session_name}--{window_name}" if tmux_dest == TmuxDest.Window else session_name,
                 permission_mode=permission_mode,
                 model=model,
                 pid=_get_tmux_pane_pid(session_name),
@@ -1060,10 +1060,10 @@ def _start_intree(
                 parent_session_id="",
                 role=role,
                 epic_id=epic_id or "",
-                swarm_mode=SwarmMode.INTREE,
+                swarm_mode=SwarmMode.Intree,
                 tmux_session=session_name,
-                tmux_window=window_name if tmux_dest == TmuxDest.WINDOW else "",
-                status=SessionStatus.RUNNING,
+                tmux_window=window_name if tmux_dest == TmuxDest.Window else "",
+                status=SessionStatus.Running,
                 last_activity_at=datetime.now(timezone.utc).isoformat(),
                 prompt_hash=prompt_hash,
                 git_branch=git_branch,
@@ -1102,7 +1102,7 @@ def _start_intree(
 
         if successful > 0:
             print()
-            if tmux_dest == TmuxDest.WINDOW:
+            if tmux_dest == TmuxDest.Window:
                 print(f"  All agents in tmux session: swarm-{epic_suffix}")
                 print(f"  Attach: tmux attach -t swarm-{epic_suffix}")
             else:
@@ -1151,7 +1151,7 @@ def _launch_agents(
 
         if session_name_override:
             session_name = session_name_override if njobs == 1 else f"{session_name_override}--{i + 1}"
-        elif tmux_dest == TmuxDest.WINDOW:
+        elif tmux_dest == TmuxDest.Window:
             session_name = f"swarm-{epic_suffix}"
         else:
             try:
@@ -1165,7 +1165,7 @@ def _launch_agents(
         print(f"\nLaunching Claude ({model}, role={role})...")
         print(f"  Role instructions: {instructions_path}")
 
-        if tmux_dest == TmuxDest.WINDOW:
+        if tmux_dest == TmuxDest.Window:
             lr = launch_in_tmux_window(
                 tmux_session=session_name,
                 window_name=window_name,
@@ -1187,13 +1187,13 @@ def _launch_agents(
         results.append(lr)
 
         if lr.success:
-            print(f"  Started: {session_name}" + (f" (window: {window_name})" if tmux_dest == TmuxDest.WINDOW else ""))
+            print(f"  Started: {session_name}" + (f" (window: {window_name})" if tmux_dest == TmuxDest.Window else ""))
             if first_session_name is None:
                 first_session_name = session_name
 
             prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
             record = SessionRecord(
-                session_id=f"{session_name}--{window_name}" if tmux_dest == TmuxDest.WINDOW else session_name,
+                session_id=f"{session_name}--{window_name}" if tmux_dest == TmuxDest.Window else session_name,
                 permission_mode=permission_mode,
                 model=model,
                 pid=_get_tmux_pane_pid(session_name),
@@ -1204,8 +1204,8 @@ def _launch_agents(
                 epic_id=epic_id,
                 swarm_mode=swarm_mode,
                 tmux_session=session_name,
-                tmux_window=window_name if tmux_dest == TmuxDest.WINDOW else "",
-                status=SessionStatus.RUNNING,
+                tmux_window=window_name if tmux_dest == TmuxDest.Window else "",
+                status=SessionStatus.Running,
                 last_activity_at=datetime.now(timezone.utc).isoformat(),
                 prompt_hash=prompt_hash,
                 git_branch=git_branch,
@@ -1348,7 +1348,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
         if not dry_run:
             registry.remove(entry.session_id)
             print(f"Removed session record: {entry.session_id}")
-            if entry.swarm_mode == SwarmMode.WORKTREE:
+            if entry.swarm_mode == SwarmMode.Worktree:
                 print(f"  Worktree preserved at: {entry.working_dir}")
 
     return 0
@@ -1369,7 +1369,7 @@ def cmd_merge(args: argparse.Namespace) -> int:
     registry = YAMLSessionRegistry()
     sessions = registry.find_by_epic(epic_id)
     for entry in sessions:
-        if entry.swarm_mode == SwarmMode.INTREE:
+        if entry.swarm_mode == SwarmMode.Intree:
             if not dry_run:
                 print(f"Note: Epic {epic_id} has intree sessions — merge is a no-op for intree mode.")
                 return 0
@@ -1546,7 +1546,7 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
 
         targets = []
         for s in all_sessions:
-            if s.swarm_mode == SwarmMode.WORKTREE:
+            if s.swarm_mode == SwarmMode.Worktree:
                 epic_branch = f"epic/{s.epic_id}"
                 if branch_merged_into_main(epic_branch, cwd=git_root):
                     targets.append(s)
@@ -1578,7 +1578,7 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
         print(f"The following {len(all_sessions)} session(s) will be removed:")
         for s in all_sessions:
             flags = []
-            if s.swarm_mode == SwarmMode.WORKTREE and Path(s.working_dir).exists() and worktree_is_dirty(Path(s.working_dir)):
+            if s.swarm_mode == SwarmMode.Worktree and Path(s.working_dir).exists() and worktree_is_dirty(Path(s.working_dir)):
                 flags.append("DIRTY")
             if check_tmux_session_exists(s.tmux_session):
                 flags.append("tmux alive")
@@ -1599,7 +1599,7 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     errors = 0
     for entry in targets:
         # Only handle worktree cleanup for worktree mode
-        if entry.swarm_mode == SwarmMode.WORKTREE:
+        if entry.swarm_mode == SwarmMode.Worktree:
             worktree_path = Path(entry.working_dir)
             epic_branch = f"epic/{entry.epic_id}"
 
@@ -1718,8 +1718,8 @@ def build_parser() -> argparse.ArgumentParser:
     # ── start ──
     start_p = subparsers.add_parser("start", parents=[shared], help="Launch Claude agent(s) in worktree or intree mode")
     start_p.add_argument("--epic", default=None, help="Epic beads ID (required for worktree mode, optional for intree)")
-    start_p.add_argument("--swarm-mode", default=SwarmMode.WORKTREE, choices=[SwarmMode.WORKTREE, SwarmMode.INTREE], help="Operation mode (default: worktree)")
-    start_p.add_argument("--tmux-dest", default=None, choices=[TmuxDest.SESSION, TmuxDest.WINDOW], help="Tmux launch target (default: session; intree inside tmux defaults to window)")
+    start_p.add_argument("--swarm-mode", default=SwarmMode.Worktree, choices=[SwarmMode.Worktree, SwarmMode.Intree], help="Operation mode (default: worktree)")
+    start_p.add_argument("--tmux-dest", default=None, choices=[TmuxDest.Session, TmuxDest.Window], help="Tmux launch target (default: session; intree inside tmux defaults to window)")
     start_p.add_argument("-n", "--njobs", type=int, default=1, help="Number of parallel agents (default: 1)")
     start_p.add_argument("--role", default=DEFAULT_ROLE, choices=sorted(VALID_ROLES), help=f"Agent role (default: {DEFAULT_ROLE})")
     start_p.add_argument("--model", default=DEFAULT_MODEL, choices=sorted(VALID_MODELS), help=f"Model to use (default: {DEFAULT_MODEL})")
@@ -1728,7 +1728,7 @@ def build_parser() -> argparse.ArgumentParser:
     start_p.add_argument("--prompt", default=None, help="Prompt text (required for intree mode)")
     start_p.add_argument("--prompt-file", type=Path, default=None, help="Read prompt from file (mutually exclusive with --prompt)")
     start_p.add_argument("--prompt-addon", default=None, help="Additional instructions appended to auto-generated prompt (worktree mode)")
-    start_p.add_argument("--permission-mode", default=PermissionMode.ACCEPT_EDITS, choices=sorted(VALID_PERMISSION_MODES), help=f"Claude permission mode (default: {PermissionMode.ACCEPT_EDITS})")
+    start_p.add_argument("--permission-mode", default=PermissionMode.AcceptEdits, choices=sorted(VALID_PERMISSION_MODES), help=f"Claude permission mode (default: {PermissionMode.AcceptEdits})")
     start_p.add_argument("--urd", help="User Requirements Document beads ID (auto-discovered if not set)")
     start_p.add_argument("--task-id", action="append", help="Beads task ID (repeatable). Intree: distributed 1:1 across agents")
     start_p.add_argument("--session-name", default=None, help="Override tmux session name")
@@ -1826,7 +1826,7 @@ def main() -> int:
     args = parser.parse_args(_hoist_global_flags(sys.argv[1:]))
 
     # Determine mode for prerequisite check
-    swarm_mode = getattr(args, "swarm_mode", SwarmMode.WORKTREE)
+    swarm_mode = getattr(args, "swarm_mode", SwarmMode.Worktree)
     has_epic = bool(getattr(args, "epic", None))
 
     prereq_errors = check_prerequisites(swarm_mode, has_epic)
