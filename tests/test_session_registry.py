@@ -43,18 +43,18 @@ def _make_record(**overrides: object) -> SessionRecord:
     """Create a SessionRecord with sensible defaults, overriding any fields."""
     defaults: dict[str, object] = {
         "session_id": "supervisor-test--a1b2",
-        "permission_mode": PermissionMode.ACCEPT_EDITS,
-        "model": ModelTier.SONNET,
+        "permission_mode": PermissionMode.AcceptEdits,
+        "model": ModelTier.Sonnet,
         "pid": 12345,
         "working_dir": "/home/user/project",
         "started_at": "2026-03-01T12:00:00Z",
         "parent_session_id": "",
-        "role": SessionRole.SUPERVISOR,
+        "role": SessionRole.Supervisor,
         "epic_id": "aura-test-001",
-        "swarm_mode": SwarmMode.WORKTREE,
+        "swarm_mode": SwarmMode.Worktree,
         "tmux_session": "swarm-test",
         "tmux_window": "",
-        "status": SessionStatus.RUNNING,
+        "status": SessionStatus.Running,
         "last_activity_at": "2026-03-01T12:00:00Z",
         "prompt_hash": "abc123def456",
         "git_branch": "epic/aura-test-001",
@@ -81,13 +81,13 @@ def registry(tmp_path: Path) -> YAMLSessionRegistry:
 class TestEnums:
     def test_permission_mode_values(self) -> None:
         assert set(PermissionMode) == {
-            PermissionMode.DEFAULT,
-            PermissionMode.ACCEPT_EDITS,
-            PermissionMode.BYPASS_PERMISSIONS,
-            PermissionMode.PLAN,
+            PermissionMode.Default,
+            PermissionMode.AcceptEdits,
+            PermissionMode.BypassPermissions,
+            PermissionMode.Plan,
         }
-        assert PermissionMode.ACCEPT_EDITS == "acceptEdits"
-        assert PermissionMode.BYPASS_PERMISSIONS == "bypassPermissions"
+        assert PermissionMode.AcceptEdits == "acceptEdits"
+        assert PermissionMode.BypassPermissions == "bypassPermissions"
 
     def test_permission_mode_excludes_dangerous(self) -> None:
         for mode in PermissionMode:
@@ -95,34 +95,34 @@ class TestEnums:
             assert "skip" not in mode.lower()
 
     def test_model_tier_values(self) -> None:
-        assert set(ModelTier) == {ModelTier.SONNET, ModelTier.OPUS, ModelTier.HAIKU}
+        assert set(ModelTier) == {ModelTier.Sonnet, ModelTier.Opus, ModelTier.Haiku}
 
     def test_session_role_values(self) -> None:
         assert set(SessionRole) == {
-            SessionRole.ARCHITECT,
-            SessionRole.SUPERVISOR,
-            SessionRole.REVIEWER,
-            SessionRole.WORKER,
+            SessionRole.Architect,
+            SessionRole.Supervisor,
+            SessionRole.Reviewer,
+            SessionRole.Worker,
         }
 
     def test_swarm_mode_values(self) -> None:
-        assert set(SwarmMode) == {SwarmMode.WORKTREE, SwarmMode.INTREE}
+        assert set(SwarmMode) == {SwarmMode.Worktree, SwarmMode.Intree}
 
     def test_tmux_dest_values(self) -> None:
-        assert set(TmuxDest) == {TmuxDest.SESSION, TmuxDest.WINDOW}
+        assert set(TmuxDest) == {TmuxDest.Session, TmuxDest.Window}
 
     def test_session_status_values(self) -> None:
         assert set(SessionStatus) == {
-            SessionStatus.RUNNING,
-            SessionStatus.STOPPED,
-            SessionStatus.UNKNOWN,
+            SessionStatus.Running,
+            SessionStatus.Stopped,
+            SessionStatus.Unknown,
         }
 
     def test_enums_are_str(self) -> None:
         """All enums should be usable as plain strings."""
-        assert f"mode={PermissionMode.DEFAULT}" == "mode=default"
-        assert f"model={ModelTier.OPUS}" == "model=opus"
-        assert f"role={SessionRole.WORKER}" == "role=worker"
+        assert f"mode={PermissionMode.Default}" == "mode=default"
+        assert f"model={ModelTier.Opus}" == "model=opus"
+        assert f"role={SessionRole.Worker}" == "role=worker"
 
 
 # ─── SessionRecord Tests ─────────────────────────────────────────────────────
@@ -281,10 +281,10 @@ class TestYAMLSessionRegistry:
         self, registry: YAMLSessionRegistry, sample_record: SessionRecord
     ) -> None:
         registry.register(sample_record)
-        registry.update(sample_record.session_id, status=SessionStatus.STOPPED)
+        registry.update(sample_record.session_id, status=SessionStatus.Stopped)
         updated = registry.get(sample_record.session_id)
         assert updated is not None
-        assert updated.status == SessionStatus.STOPPED
+        assert updated.status == SessionStatus.Stopped
         # Other fields unchanged
         assert updated.pid == sample_record.pid
 

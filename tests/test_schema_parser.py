@@ -105,18 +105,18 @@ class TestSchemaParserRoles:
         assert set(parsed_spec.roles.keys()) == expected
 
     def test_supervisor_owned_phases(self, parsed_spec: SchemaSpec) -> None:
-        sup = parsed_spec.roles[RoleId.SUPERVISOR]
+        sup = parsed_spec.roles[RoleId.Supervisor]
         # Supervisor owns p7..p12
-        assert PhaseId.P7_HANDOFF in sup.owned_phases
-        assert PhaseId.P8_IMPL_PLAN in sup.owned_phases
-        assert PhaseId.P12_LANDING in sup.owned_phases
+        assert PhaseId.P7_Handoff in sup.owned_phases
+        assert PhaseId.P8_ImplPlan in sup.owned_phases
+        assert PhaseId.P12_Landing in sup.owned_phases
 
     def test_worker_owned_phases(self, parsed_spec: SchemaSpec) -> None:
-        worker = parsed_spec.roles[RoleId.WORKER]
-        assert worker.owned_phases == frozenset({PhaseId.P9_SLICE})
+        worker = parsed_spec.roles[RoleId.Worker]
+        assert worker.owned_phases == frozenset({PhaseId.P9_Slice})
 
     def test_epoch_owns_all_phases(self, parsed_spec: SchemaSpec) -> None:
-        epoch = parsed_spec.roles[RoleId.EPOCH]
+        epoch = parsed_spec.roles[RoleId.Epoch]
         assert len(epoch.owned_phases) == 12
 
 
@@ -126,13 +126,13 @@ class TestSchemaParserCommands:
     def test_cmd_worker_present(self, parsed_spec: SchemaSpec) -> None:
         assert "cmd-worker" in parsed_spec.commands
         cmd = parsed_spec.commands["cmd-worker"]
-        assert cmd.role_ref == RoleId.WORKER
+        assert cmd.role_ref == RoleId.Worker
         assert "p9" in cmd.phases
 
     def test_cmd_supervisor_present(self, parsed_spec: SchemaSpec) -> None:
         assert "cmd-supervisor" in parsed_spec.commands
         cmd = parsed_spec.commands["cmd-supervisor"]
-        assert cmd.role_ref == RoleId.SUPERVISOR
+        assert cmd.role_ref == RoleId.Supervisor
 
     def test_cmd_status_no_role(self, parsed_spec: SchemaSpec) -> None:
         """cmd-status has no role-ref in schema.xml."""
@@ -146,12 +146,12 @@ class TestSchemaParserHandoffs:
 
     def test_h1_content_level_full_provenance(self, parsed_spec: SchemaSpec) -> None:
         h1 = parsed_spec.handoffs["h1"]
-        assert h1.content_level == ContentLevel.FULL_PROVENANCE
+        assert h1.content_level == ContentLevel.FullProvenance
 
     def test_h2_supervisor_to_worker(self, parsed_spec: SchemaSpec) -> None:
         h2 = parsed_spec.handoffs["h2"]
-        assert h2.source_role == RoleId.SUPERVISOR
-        assert h2.target_role == RoleId.WORKER
+        assert h2.source_role == RoleId.Supervisor
+        assert h2.target_role == RoleId.Worker
 
     def test_handoff_required_fields_not_empty(self, parsed_spec: SchemaSpec) -> None:
         for hid, h in parsed_spec.handoffs.items():
@@ -163,18 +163,18 @@ class TestSchemaParserReviewAxes:
 
     def test_axis_correctness(self, parsed_spec: SchemaSpec) -> None:
         axis = parsed_spec.review_axes["axis-correctness"]
-        assert axis.letter == ReviewAxis.CORRECTNESS
+        assert axis.letter == ReviewAxis.Correctness
         assert axis.name == "Correctness"
         assert len(axis.key_questions) >= 3
 
     def test_axis_test_quality(self, parsed_spec: SchemaSpec) -> None:
         axis = parsed_spec.review_axes["axis-test_quality"]
-        assert axis.letter == ReviewAxis.TEST_QUALITY
+        assert axis.letter == ReviewAxis.TestQuality
         assert "Test quality" in axis.name
 
     def test_axis_elegance(self, parsed_spec: SchemaSpec) -> None:
         axis = parsed_spec.review_axes["axis-elegance"]
-        assert axis.letter == ReviewAxis.ELEGANCE
+        assert axis.letter == ReviewAxis.Elegance
         assert axis.name == "Elegance"
 
 
@@ -211,20 +211,20 @@ class TestSchemaParserProcedureSteps:
     """Procedure steps extracted for supervisor and worker."""
 
     def test_supervisor_has_steps(self, parsed_spec: SchemaSpec) -> None:
-        steps = parsed_spec.procedure_steps[RoleId.SUPERVISOR]
+        steps = parsed_spec.procedure_steps[RoleId.Supervisor]
         assert len(steps) > 0, "Supervisor should have procedure steps"
 
     def test_supervisor_steps_ordered(self, parsed_spec: SchemaSpec) -> None:
-        steps = parsed_spec.procedure_steps[RoleId.SUPERVISOR]
+        steps = parsed_spec.procedure_steps[RoleId.Supervisor]
         orders = [s.order for s in steps]
         assert orders == sorted(orders), "Supervisor steps should be in order"
 
     def test_worker_has_steps(self, parsed_spec: SchemaSpec) -> None:
-        steps = parsed_spec.procedure_steps[RoleId.WORKER]
+        steps = parsed_spec.procedure_steps[RoleId.Worker]
         assert len(steps) > 0, "Worker should have TDD layer steps"
 
     def test_other_roles_empty(self, parsed_spec: SchemaSpec) -> None:
-        for role in [RoleId.EPOCH, RoleId.ARCHITECT, RoleId.REVIEWER]:
+        for role in [RoleId.Epoch, RoleId.Architect, RoleId.Reviewer]:
             steps = parsed_spec.procedure_steps[role]
             assert steps == (), f"Role {role} should have empty procedure steps"
 
@@ -500,7 +500,7 @@ class TestSchemaParserChecklists:
 
     def test_worker_completion_role_ref(self, parsed_spec: SchemaSpec) -> None:
         cl = parsed_spec.checklists["worker-completion"]
-        assert cl.role_ref == RoleId.WORKER
+        assert cl.role_ref == RoleId.Worker
 
     def test_supervisor_landing_has_items(self, parsed_spec: SchemaSpec) -> None:
         cl = parsed_spec.checklists["supervisor-landing"]
@@ -533,12 +533,12 @@ class TestSchemaParserCoordinationCommands:
 
     def test_worker_specific_close_command(self, parsed_spec: SchemaSpec) -> None:
         cmd = parsed_spec.coordination_commands["cmd-coord-close"]
-        assert cmd.role_ref == RoleId.WORKER
+        assert cmd.role_ref == RoleId.Worker
         assert cmd.shared is False
 
     def test_supervisor_dep_add_command(self, parsed_spec: SchemaSpec) -> None:
         cmd = parsed_spec.coordination_commands["cmd-coord-dep-add"]
-        assert cmd.role_ref == RoleId.SUPERVISOR
+        assert cmd.role_ref == RoleId.Supervisor
 
     def test_shared_commands_have_no_role_ref(self, parsed_spec: SchemaSpec) -> None:
         for cid, cmd in parsed_spec.coordination_commands.items():
@@ -565,7 +565,7 @@ class TestSchemaParserWorkflows:
 
     def test_layer_cake_worker_role(self, parsed_spec: SchemaSpec) -> None:
         wf = parsed_spec.workflows["layer-cake"]
-        assert wf.role_ref == RoleId.WORKER
+        assert wf.role_ref == RoleId.Worker
 
     def test_architect_state_flow_seven_stages(self, parsed_spec: SchemaSpec) -> None:
         wf = parsed_spec.workflows["architect-state-flow"]
@@ -741,8 +741,8 @@ class TestSchemaParserCommandRefs:
 
     def test_layer_cake_has_sup_plan_command_ref(self, parsed_spec: SchemaSpec) -> None:
         """LAYER_CAKE figure references cmd-sup-plan."""
-        fig = parsed_spec.figures[FigureId.LAYER_CAKE]
-        assert CommandId.SUP_PLAN in fig.command_refs, (
+        fig = parsed_spec.figures[FigureId.LayerCake]
+        assert CommandId.SupPlan in fig.command_refs, (
             f"LAYER_CAKE command_refs should include SUP_PLAN, got {fig.command_refs}"
         )
 
@@ -750,8 +750,8 @@ class TestSchemaParserCommandRefs:
         self, parsed_spec: SchemaSpec
     ) -> None:
         """RIDE_THE_WAVE figure references cmd-sup-spawn."""
-        fig = parsed_spec.figures[FigureId.RIDE_THE_WAVE]
-        assert CommandId.SUP_SPAWN in fig.command_refs, (
+        fig = parsed_spec.figures[FigureId.RideTheWave]
+        assert CommandId.SupSpawn in fig.command_refs, (
             f"RIDE_THE_WAVE command_refs should include SUP_SPAWN, got {fig.command_refs}"
         )
 
@@ -759,7 +759,7 @@ class TestSchemaParserCommandRefs:
         self, parsed_spec: SchemaSpec
     ) -> None:
         """ARCHITECT_STATE_FLOW figure has no command-ref elements."""
-        fig = parsed_spec.figures[FigureId.ARCHITECT_STATE_FLOW]
+        fig = parsed_spec.figures[FigureId.ArchitectStateFlow]
         assert fig.command_refs == frozenset(), (
             f"ARCHITECT_STATE_FLOW should have empty command_refs, got {fig.command_refs}"
         )

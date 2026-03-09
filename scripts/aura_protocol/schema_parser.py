@@ -291,7 +291,7 @@ def _parse_procedure_steps(
                     next_state=next_state,
                 ))
             sup_steps.sort(key=lambda s: s.order)
-            steps[RoleId.SUPERVISOR] = tuple(sup_steps)
+            steps[RoleId.Supervisor] = tuple(sup_steps)
         break
 
     # Worker: TDD layer descriptions from phase p9 <tdd-layers>
@@ -315,7 +315,7 @@ def _parse_procedure_steps(
             step_id = _worker_ids[num - 1] if 1 <= num <= len(_worker_ids) else f"S-worker-step{num}"
             worker_steps.append(ProcedureStep(id=step_id, order=num, instruction=desc))
         worker_steps.sort(key=lambda s: s.order)
-        steps[RoleId.WORKER] = tuple(worker_steps)
+        steps[RoleId.Worker] = tuple(worker_steps)
         break
 
     return steps

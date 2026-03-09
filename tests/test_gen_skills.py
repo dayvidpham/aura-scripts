@@ -31,10 +31,10 @@ from aura_protocol.types import CommandId, RoleId
 
 # The 4 roles the generator must support (AC8)
 ALL_ROLES = [
-    RoleId.SUPERVISOR,
-    RoleId.WORKER,
-    RoleId.REVIEWER,
-    RoleId.ARCHITECT,
+    RoleId.Supervisor,
+    RoleId.Worker,
+    RoleId.Reviewer,
+    RoleId.Architect,
 ]
 
 # Template directory relative to the repo root (resolved at import time)
@@ -88,7 +88,7 @@ class TestHeaderUpdatedBodyPreserved:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -108,15 +108,15 @@ class TestHeaderUpdatedBodyPreserved:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
             write=False,
         )
 
-        assert RoleId.WORKER.value in result, (
-            f"Generated header should contain role id '{RoleId.WORKER.value}'."
+        assert RoleId.Worker.value in result, (
+            f"Generated header should contain role id '{RoleId.Worker.value}'."
         )
 
     def test_markers_present_in_output(
@@ -128,7 +128,7 @@ class TestHeaderUpdatedBodyPreserved:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -147,7 +147,7 @@ class TestHeaderUpdatedBodyPreserved:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -170,7 +170,7 @@ class TestHeaderUpdatedBodyPreserved:
         skill_path = _make_skill_file(tmp_path, content)
 
         generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -190,7 +190,7 @@ class TestHeaderUpdatedBodyPreserved:
         skill_path = _make_skill_file(tmp_path, content)
 
         generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -216,7 +216,7 @@ class TestMarkerErrorMissingMarkers:
 
         with pytest.raises(MarkerError):
             generate_skill(
-                RoleId.SUPERVISOR,
+                RoleId.Supervisor,
                 skill_path,
                 template_dir=TEMPLATE_DIR,
                 diff=False,
@@ -233,7 +233,7 @@ class TestMarkerErrorMissingMarkers:
 
         with pytest.raises(MarkerError):
             generate_skill(
-                RoleId.SUPERVISOR,
+                RoleId.Supervisor,
                 skill_path,
                 template_dir=TEMPLATE_DIR,
                 diff=False,
@@ -250,7 +250,7 @@ class TestMarkerErrorMissingMarkers:
 
         with pytest.raises(MarkerError):
             generate_skill(
-                RoleId.SUPERVISOR,
+                RoleId.Supervisor,
                 skill_path,
                 template_dir=TEMPLATE_DIR,
                 diff=False,
@@ -267,7 +267,7 @@ class TestMarkerErrorMissingMarkers:
 
         with pytest.raises(MarkerError, match=r"(?i)(marker|begin|end)"):
             generate_skill(
-                RoleId.SUPERVISOR,
+                RoleId.Supervisor,
                 skill_path,
                 template_dir=TEMPLATE_DIR,
                 diff=False,
@@ -296,7 +296,7 @@ class TestMarkerErrorMalformedMarkers:
 
         with pytest.raises(MarkerError):
             generate_skill(
-                RoleId.SUPERVISOR,
+                RoleId.Supervisor,
                 skill_path,
                 template_dir=TEMPLATE_DIR,
                 diff=False,
@@ -319,7 +319,7 @@ class TestMarkerErrorMalformedMarkers:
 
         with pytest.raises(MarkerError):
             generate_skill(
-                RoleId.SUPERVISOR,
+                RoleId.Supervisor,
                 skill_path,
                 template_dir=TEMPLATE_DIR,
                 diff=False,
@@ -342,7 +342,7 @@ class TestMarkerErrorMalformedMarkers:
 
         with pytest.raises(MarkerError):
             generate_skill(
-                RoleId.SUPERVISOR,
+                RoleId.Supervisor,
                 skill_path,
                 template_dir=TEMPLATE_DIR,
                 diff=False,
@@ -372,7 +372,7 @@ class TestDiffOutput:
         skill_path = _make_skill_file(tmp_path, content)
 
         generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=True,
@@ -405,7 +405,7 @@ class TestDiffOutput:
 
         # First generation to get the real output
         first_result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -418,7 +418,7 @@ class TestDiffOutput:
 
         # Second generation — content should match, no diff expected
         generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=True,
@@ -441,7 +441,7 @@ class TestDiffOutput:
         skill_path = _make_skill_file(tmp_path, content)
 
         generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -568,7 +568,7 @@ class TestStartupSequenceSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -588,7 +588,7 @@ class TestStartupSequenceSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -608,7 +608,7 @@ class TestStartupSequenceSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -632,14 +632,14 @@ class TestStartupSequenceSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
             write=False,
         )
 
-        # Step 4 has next_state=PhaseId.P8_IMPL_PLAN so should render → `p8`
+        # Step 4 has next_state=PhaseId.P8_ImplPlan so should render → `p8`
         assert "→ `p8`" in result, (
             "Supervisor step 4 must render '→ `p8`' transition."
         )
@@ -653,14 +653,14 @@ class TestStartupSequenceSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
             write=False,
         )
 
-        # Step 3 has next_state=PhaseId.P9_SLICE so should render → `p9`
+        # Step 3 has next_state=PhaseId.P9_Slice so should render → `p9`
         assert "→ `p9`" in result, (
             "Worker step 3 must render '→ `p9`' transition."
         )
@@ -674,7 +674,7 @@ class TestStartupSequenceSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.REVIEWER,
+            RoleId.Reviewer,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -724,7 +724,7 @@ class TestStrictUndefined:
         # generate_skill() must raise UndefinedError because skill_header.j2
         # references {{ undefined_var }} which is not provided to the render context.
         with pytest.raises(jinja2.UndefinedError):
-            generate_skill(RoleId.SUPERVISOR, skill_path, template_dir=template_dir)
+            generate_skill(RoleId.Supervisor, skill_path, template_dir=template_dir)
 
 
 # ─── Marker string values ─────────────────────────────────────────────────────
@@ -769,7 +769,7 @@ class TestInitMode:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -796,7 +796,7 @@ class TestInitMode:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -820,7 +820,7 @@ class TestInitMode:
 
         with pytest.raises(MarkerError):
             generate_skill(
-                RoleId.SUPERVISOR,
+                RoleId.Supervisor,
                 skill_path,
                 template_dir=TEMPLATE_DIR,
                 diff=False,
@@ -837,7 +837,7 @@ class TestInitMode:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -866,7 +866,7 @@ class TestProcedureStepsInGeneratedHeader:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -892,7 +892,7 @@ class TestProcedureStepsInGeneratedHeader:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -927,7 +927,7 @@ class TestProcedureStepFormatting:
         skill_path = _make_skill_file(tmp_path, content)
 
         output = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -952,7 +952,7 @@ class TestProcedureStepFormatting:
         skill_path = _make_skill_file(tmp_path, content)
 
         output = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1012,7 +1012,7 @@ class TestIntroductionSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1100,7 +1100,7 @@ class TestRoleBehaviorsSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1122,7 +1122,7 @@ class TestCompletionChecklistSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1142,7 +1142,7 @@ class TestCompletionChecklistSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1162,7 +1162,7 @@ class TestCompletionChecklistSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1182,7 +1182,7 @@ class TestCompletionChecklistSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1228,7 +1228,7 @@ class TestInterAgentCoordinationSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1250,7 +1250,7 @@ class TestInterAgentCoordinationSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1276,7 +1276,7 @@ class TestWorkflowsSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1296,7 +1296,7 @@ class TestWorkflowsSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1316,7 +1316,7 @@ class TestWorkflowsSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.ARCHITECT,
+            RoleId.Architect,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1340,7 +1340,7 @@ class TestWorkflowsSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1370,7 +1370,7 @@ class TestReviewAxesSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.REVIEWER,
+            RoleId.Reviewer,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1381,7 +1381,7 @@ class TestReviewAxesSection:
             "Reviewer must have '### Review Axes' section."
         )
 
-    @pytest.mark.parametrize("role_id", [RoleId.WORKER, RoleId.SUPERVISOR, RoleId.ARCHITECT])
+    @pytest.mark.parametrize("role_id", [RoleId.Worker, RoleId.Supervisor, RoleId.Architect])
     def test_non_reviewer_roles_have_no_review_axes_section(
         self,
         role_id: RoleId,
@@ -1413,7 +1413,7 @@ class TestReviewAxesSection:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.REVIEWER,
+            RoleId.Reviewer,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1440,7 +1440,7 @@ class TestConstraintCodeExamplesSection:
 
         # Check if any role has constraints with examples
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1478,7 +1478,7 @@ class TestFigurePositionalRendering:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.SUPERVISOR,
+            RoleId.Supervisor,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1505,7 +1505,7 @@ class TestFigurePositionalRendering:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1530,7 +1530,7 @@ class TestFigurePositionalRendering:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_skill(
-            RoleId.ARCHITECT,
+            RoleId.Architect,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1555,7 +1555,7 @@ class TestSubSkillFigureRendering:
 
     def test_sub_skill_rendering_includes_markers(self) -> None:
         """_render_sub_skill_header output must be wrapped in BEGIN/END markers."""
-        rendered = _render_sub_skill_header(CommandId.SUP_PLAN, TEMPLATE_DIR)
+        rendered = _render_sub_skill_header(CommandId.SupPlan, TEMPLATE_DIR)
 
         assert GENERATED_BEGIN in rendered, (
             "Sub-skill header must contain BEGIN marker."
@@ -1568,8 +1568,8 @@ class TestSubSkillFigureRendering:
         """Sub-skill header must include the command name and description."""
         from aura_protocol.types import COMMAND_SPECS
 
-        rendered = _render_sub_skill_header(CommandId.SUP_PLAN, TEMPLATE_DIR)
-        spec = COMMAND_SPECS[CommandId.SUP_PLAN]
+        rendered = _render_sub_skill_header(CommandId.SupPlan, TEMPLATE_DIR)
+        spec = COMMAND_SPECS[CommandId.SupPlan]
 
         assert spec.name in rendered, (
             f"Sub-skill header must contain command name '{spec.name}'."
@@ -1580,7 +1580,7 @@ class TestSubSkillFigureRendering:
 
     def test_sub_skill_sup_plan_renders_layer_cake_figure(self) -> None:
         """SUP_PLAN sub-skill must render the Layer Cake figure."""
-        rendered = _render_sub_skill_header(CommandId.SUP_PLAN, TEMPLATE_DIR)
+        rendered = _render_sub_skill_header(CommandId.SupPlan, TEMPLATE_DIR)
 
         assert "Layer Cake" in rendered, (
             "SUP_PLAN sub-skill must render the Layer Cake figure title."
@@ -1591,7 +1591,7 @@ class TestSubSkillFigureRendering:
 
     def test_sub_skill_sup_spawn_renders_ride_the_wave_figure(self) -> None:
         """SUP_SPAWN sub-skill must render the Ride the Wave figure."""
-        rendered = _render_sub_skill_header(CommandId.SUP_SPAWN, TEMPLATE_DIR)
+        rendered = _render_sub_skill_header(CommandId.SupSpawn, TEMPLATE_DIR)
 
         assert "Ride the Wave" in rendered, (
             "SUP_SPAWN sub-skill must render the Ride the Wave figure title."
@@ -1627,7 +1627,7 @@ class TestSubSkillFileGeneration:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_sub_skill(
-            CommandId.SUP_PLAN,
+            CommandId.SupPlan,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1656,7 +1656,7 @@ class TestSubSkillFileGeneration:
         skill_path = _make_skill_file(tmp_path, content)
 
         result = generate_sub_skill(
-            CommandId.SUP_SPAWN,
+            CommandId.SupSpawn,
             skill_path,
             template_dir=TEMPLATE_DIR,
             diff=False,
@@ -1678,7 +1678,7 @@ class TestLayerCakeLMContent:
         from aura_protocol.types import FigureId
 
         figures_dir = _REPO_ROOT / "skills" / "protocol" / "figures"
-        content = _load_figure_content(FigureId.LAYER_CAKE, figures_dir)
+        content = _load_figure_content(FigureId.LayerCake, figures_dir)
 
         # Must NOT contain the hardcoded "Layer 3"
         assert "Layer 3" not in content, (
@@ -1692,7 +1692,7 @@ class TestLayerCakeLMContent:
         from aura_protocol.types import FigureId
 
         figures_dir = _REPO_ROOT / "skills" / "protocol" / "figures"
-        content = _load_figure_content(FigureId.LAYER_CAKE, figures_dir)
+        content = _load_figure_content(FigureId.LayerCake, figures_dir)
 
         assert "Layer M" in content, (
             "layer-cake.yaml must contain 'Layer M' (variable number of implementation layers)."
@@ -1704,7 +1704,7 @@ class TestLayerCakeLMContent:
         from aura_protocol.types import FigureId
 
         figures_dir = _REPO_ROOT / "skills" / "protocol" / "figures"
-        content = _load_figure_content(FigureId.LAYER_CAKE, figures_dir)
+        content = _load_figure_content(FigureId.LayerCake, figures_dir)
 
         # Must have an indication of variable layers (e.g. "..." between L2 and LM)
         assert "..." in content, (
@@ -1717,7 +1717,7 @@ class TestLayerCakeLMContent:
         from aura_protocol.types import FigureId
 
         figures_dir = _REPO_ROOT / "skills" / "protocol" / "figures"
-        content = _load_figure_content(FigureId.LAYER_CAKE, figures_dir)
+        content = _load_figure_content(FigureId.LayerCake, figures_dir)
 
         # Check for "L3" references in test requirements section
         # After the L{M} change, references should be "L{M}" or "later layers"

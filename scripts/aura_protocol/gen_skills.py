@@ -615,18 +615,18 @@ def generate_sub_skill(
 
 # Mapping from RoleId → skill directory name (relative to skills/)
 _ROLE_SKILL_DIRS: dict[RoleId, str] = {
-    RoleId.SUPERVISOR: "supervisor",
-    RoleId.WORKER: "worker",
-    RoleId.REVIEWER: "reviewer",
-    RoleId.ARCHITECT: "architect",
+    RoleId.Supervisor: "supervisor",
+    RoleId.Worker: "worker",
+    RoleId.Reviewer: "reviewer",
+    RoleId.Architect: "architect",
 }
 
 # Mapping from CommandId → skill directory name (relative to skills/).
 # Only commands whose FIGURE_SPECS entries have command_refs pointing at them
 # need sub-skill header generation. Others have no generated figures.
 _COMMAND_SKILL_DIRS: dict[CommandId, str] = {
-    CommandId.SUP_PLAN: "supervisor-plan-tasks",
-    CommandId.SUP_SPAWN: "supervisor-spawn-worker",
+    CommandId.SupPlan: "supervisor-plan-tasks",
+    CommandId.SupSpawn: "supervisor-spawn-worker",
 }
 
 

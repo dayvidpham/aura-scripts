@@ -1,0 +1,607 @@
+#!/usr/bin/env python3
+"""aura-msg -- CLI for Aura Protocol model harness hooks.
+
+Subcommand groups:
+    query     -- Query workflow state
+    epoch     -- Epoch lifecycle management
+    signal    -- Send signals to workflows
+    phase     -- Phase management
+    session   -- Session registration
+
+Usage:
+    aura-msg --help
+    aura-msg <group> <subcommand> [options]
+
+Exit codes:
+    0 — success
+    1 — not implemented / usage error
+    2 — connection error (Temporal server unreachable)
+    3 — workflow error (workflow not found, query failed)
+"""
+
+import argparse
+import asyncio
+import os
+import sys
+
+from aura_protocol.config import (
+    AuraMsgConfig,
+    default_config_path,
+    load_yaml_section,
+    resolve_aura_msg_config,
+)
+from aura_protocol.errors import ErrorCategory, report_error
+from aura_protocol.types import CmdGroup, OutputFormat, SubCommand
+
+
+def _add_format_arg(parser: argparse.ArgumentParser) -> None:
+    """Add --format flag to a subparser. Default is None (resolved from config)."""
+    parser.add_argument(
+        "--format",
+        choices=[f.value for f in OutputFormat],
+        default=None,
+        dest="output_format",
+        help="Output format (default: text)",
+    )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="aura-msg",
+        description="CLI for Aura Protocol model harness hooks.",
+    )
+    groups = parser.add_subparsers(dest="group", metavar="<group>")
+
+    # ── query group ──────────────────────────────────────────────────────
+    query_parser = groups.add_parser("query", help="Query workflow state")
+    query_sub = query_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+
+    state_parser = query_sub.add_parser("state", help="Query current epoch state")
+    state_parser.add_argument(
+        "--epoch-id", required=True, help="Epoch workflow ID to query"
+    )
+    _add_format_arg(state_parser)
+    state_parser.add_argument(
+        "--server-address",
+        default=None,
+        help=(
+            "Temporal server host:port -- point to a remote cluster for "
+            "shared/production use. (env: TEMPORAL_ADDRESS, default: 'localhost:7233')"
+        ),
+    )
+    state_parser.add_argument(
+        "--namespace",
+        default=None,
+        help=(
+            "Temporal namespace -- isolates workflows from other teams/environments. "
+            "Use a different namespace for dev vs prod. "
+            "(env: TEMPORAL_NAMESPACE, default: 'default')"
+        ),
+    )
+
+    # ── epoch group ──────────────────────────────────────────────────────
+    epoch_parser = groups.add_parser("epoch", help="Epoch lifecycle management")
+    epoch_sub = epoch_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+    epoch_start = epoch_sub.add_parser("start", help="Start a new epoch")
+    epoch_start.add_argument("--epoch-id", required=True, help="Epoch ID")
+    epoch_start.add_argument("--description", default="", help="Epoch description")
+    _add_format_arg(epoch_start)
+
+    # ── signal group ─────────────────────────────────────────────────────
+    signal_parser = groups.add_parser("signal", help="Send signals to workflows")
+    signal_sub = signal_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+
+    signal_vote = signal_sub.add_parser("vote", help="Signal a review vote")
+    signal_vote.add_argument("--epoch-id", required=True, help="Epoch ID")
+    signal_vote.add_argument("--axis", required=True, help="Review axis")
+    signal_vote.add_argument("--vote", required=True, help="Vote value")
+    signal_vote.add_argument("--reviewer-id", default="", help="Reviewer ID")
+    _add_format_arg(signal_vote)
+
+    signal_complete = signal_sub.add_parser("complete", help="Signal slice completion")
+    signal_complete.add_argument("--epoch-id", required=True, help="Epoch ID")
+    signal_complete.add_argument("--slice-id", required=True, help="Slice ID")
+    complete_group = signal_complete.add_mutually_exclusive_group()
+    complete_group.add_argument("--output", default=None, help="Completion output")
+    complete_group.add_argument("--error", default=None, help="Completion error")
+    _add_format_arg(signal_complete)
+
+    # ── phase group ──────────────────────────────────────────────────────
+    phase_parser = groups.add_parser("phase", help="Phase management")
+    phase_sub = phase_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+    phase_advance = phase_sub.add_parser("advance", help="Advance to next phase")
+    phase_advance.add_argument("--epoch-id", required=True, help="Epoch ID")
+    phase_advance.add_argument("--to-phase", required=True, help="Target phase")
+    phase_advance.add_argument("--triggered-by", default="", help="Triggering entity")
+    phase_advance.add_argument("--condition", default="", help="Condition met")
+    _add_format_arg(phase_advance)
+
+    # ── session group ────────────────────────────────────────────────────
+    session_parser = groups.add_parser("session", help="Session registration")
+    session_sub = session_parser.add_subparsers(dest="subcommand", metavar="<subcommand>")
+    session_register = session_sub.add_parser("register", help="Register a session with an epoch")
+    session_register.add_argument("--epoch-id", required=True, help="Epoch ID")
+    session_register.add_argument("--session-id", required=True, help="Session ID")
+    session_register.add_argument("--role", required=True, help="Session role")
+    session_register.add_argument("--model-harness", default="", help="Model harness name (e.g. claude-code)")
+    session_register.add_argument("--model", default="", help="Model name (e.g. claude-sonnet-4)")
+    _add_format_arg(session_register)
+
+    return parser
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments. Accepts explicit argv for testability."""
+    parser = build_parser()
+    return parser.parse_args(argv)
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if args.group is None:
+        parser.print_help()
+        sys.exit(0)
+
+    if getattr(args, "subcommand", None) is None:
+        # Group given but no subcommand — print group help
+        parser.parse_args([args.group, "--help"])
+        sys.exit(0)
+
+    # Resolve config once: CLI > env > YAML > defaults
+    cli_args: dict[str, str] = {}
+    ns = getattr(args, "server_address", None)
+    if ns is not None:
+        cli_args["server_address"] = ns
+    ns2 = getattr(args, "namespace", None)
+    if ns2 is not None:
+        cli_args["namespace"] = ns2
+
+    yaml_section = load_yaml_section(default_config_path(), "aura-msg")
+    config = resolve_aura_msg_config(
+        cli_args=cli_args,
+        env_dict=dict(os.environ),
+        yaml_section=yaml_section,
+    )
+
+    # Format resolution (no .value round-trip):
+    fmt = (
+        OutputFormat(args.output_format)
+        if args.output_format
+        else config.default_format
+    )
+
+    # Dispatch implemented subcommands
+    dispatch = {
+        (CmdGroup.Query, SubCommand.State): _cmd_query_state,
+        (CmdGroup.Signal, SubCommand.Vote): _cmd_signal_vote,
+        (CmdGroup.Signal, SubCommand.Complete): _cmd_signal_complete,
+        (CmdGroup.Phase, SubCommand.Advance): _cmd_phase_advance,
+        (CmdGroup.Epoch, SubCommand.Start): _cmd_epoch_start,
+        (CmdGroup.Session, SubCommand.Register): _cmd_session_register,
+    }
+    key = (CmdGroup(args.group), SubCommand(args.subcommand))
+    handler = dispatch.get(key)
+    if handler is not None:
+        sys.exit(asyncio.run(handler(args, config, fmt)))
+
+    print(f"aura-msg: '{args.group} {args.subcommand}' is not implemented", file=sys.stderr)
+    sys.exit(1)
+
+
+async def _cmd_query_state(
+    args: argparse.Namespace, config: AuraMsgConfig, fmt: OutputFormat
+) -> int:
+    """Handle: aura-msg query state --epoch-id <id> [--format json|text]
+
+    Returns exit code: 0=success, 2=connection error, 3=workflow error.
+    """
+    from temporalio.client import Client
+    from temporalio.service import RPCError
+
+    from aura_protocol.formatters import format_epoch_state
+    from aura_protocol.workflow import EpochWorkflow
+
+    conn = config.connection
+
+    # Connect to Temporal
+    try:
+        client = await Client.connect(
+            conn.server_address, namespace=conn.namespace
+        )
+    except Exception as e:
+        report_error(
+            ErrorCategory.Connection,
+            what=f"failed to connect to Temporal at {conn.server_address}",
+            why=str(e),
+            impact="command cannot reach the Temporal server",
+            fix="ensure aurad is running and Temporal is reachable",
+        )
+        return 2
+
+    # Query workflow
+    try:
+        handle = client.get_workflow_handle(args.epoch_id)
+        result = await handle.query(EpochWorkflow.full_state)
+    except RPCError as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"workflow '{args.epoch_id}' not found",
+            why=str(e),
+            impact="cannot query epoch state",
+            fix=f"verify epoch ID '{args.epoch_id}' exists and is running",
+        )
+        return 3
+    except Exception as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"query failed for '{args.epoch_id}'",
+            why=str(e),
+            impact="cannot retrieve epoch state",
+            fix="check Temporal server logs for details",
+        )
+        return 3
+
+    # Format and output
+    output = format_epoch_state(result, fmt)
+    print(output)
+    return 0
+
+
+async def _cmd_signal_vote(
+    args: argparse.Namespace, config: AuraMsgConfig, fmt: OutputFormat
+) -> int:
+    """Handle: aura-msg signal vote --epoch-id E --axis A --vote V [--reviewer-id R]
+
+    D13: normalize vote with VoteType(args.vote.upper()) at CLI boundary.
+    Returns exit code: 0=success, 2=connection error, 3=workflow error.
+    """
+    from temporalio.client import Client
+    from temporalio.service import RPCError
+
+    from aura_protocol.formatters import format_signal_result
+    from aura_protocol.types import ReviewAxis, VoteType
+    from aura_protocol.workflow import EpochWorkflow, ReviewVoteSignal
+
+    try:
+        vote = VoteType(args.vote.upper())
+    except ValueError:
+        valid = ", ".join(v.value for v in VoteType)
+        report_error(
+            ErrorCategory.Validation,
+            what=f"'{args.vote}' is not a valid vote",
+            why=f"valid votes: {valid}",
+            impact="command cannot proceed with invalid vote value",
+            fix=f"use one of: {valid}",
+        )
+        return 1
+
+    try:
+        axis = ReviewAxis(args.axis)
+    except ValueError:
+        valid = ", ".join(a.value for a in ReviewAxis)
+        report_error(
+            ErrorCategory.Validation,
+            what=f"'{args.axis}' is not a valid axis",
+            why=f"valid axes: {valid}",
+            impact="command cannot proceed with invalid axis value",
+            fix=f"use one of: {valid}",
+        )
+        return 1
+
+    signal = ReviewVoteSignal(
+        axis=axis,
+        vote=vote,
+        reviewer_id=args.reviewer_id,
+    )
+
+    conn = config.connection
+    try:
+        client = await Client.connect(
+            conn.server_address, namespace=conn.namespace
+        )
+    except Exception as e:
+        report_error(
+            ErrorCategory.Connection,
+            what=f"failed to connect to Temporal at {conn.server_address}",
+            why=str(e),
+            impact="command cannot reach the Temporal server",
+            fix="ensure aurad is running and Temporal is reachable",
+        )
+        return 2
+
+    try:
+        handle = client.get_workflow_handle(args.epoch_id)
+        await handle.signal(EpochWorkflow.submit_vote, signal)
+    except RPCError as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"workflow '{args.epoch_id}' not found",
+            why=str(e),
+            impact="cannot send vote signal",
+            fix=f"verify epoch ID '{args.epoch_id}' exists and is running",
+        )
+        return 3
+    except Exception as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"signal failed for '{args.epoch_id}'",
+            why=str(e),
+            impact="vote was not recorded",
+            fix="check Temporal server logs for details",
+        )
+        return 3
+
+    print(format_signal_result(True, fmt))
+    return 0
+
+
+async def _cmd_signal_complete(
+    args: argparse.Namespace, config: AuraMsgConfig, fmt: OutputFormat
+) -> int:
+    """Handle: aura-msg signal complete --epoch-id E --slice-id S [--output T | --error T]
+
+    Returns exit code: 0=success, 2=connection error, 3=workflow error.
+    """
+    from temporalio.client import Client
+    from temporalio.service import RPCError
+
+    from aura_protocol.formatters import format_signal_result
+    from aura_protocol.types import SliceCompleteSignal
+    from aura_protocol.workflow import SliceWorkflow
+
+    if args.error is not None:
+        signal = SliceCompleteSignal(
+            slice_id=args.slice_id, success=False, error=args.error
+        )
+    elif args.output is not None:
+        signal = SliceCompleteSignal(
+            slice_id=args.slice_id, success=True, output=args.output
+        )
+    else:
+        signal = SliceCompleteSignal(
+            slice_id=args.slice_id, success=True, output=""
+        )
+
+    conn = config.connection
+    try:
+        client = await Client.connect(
+            conn.server_address, namespace=conn.namespace
+        )
+    except Exception as e:
+        report_error(
+            ErrorCategory.Connection,
+            what=f"failed to connect to Temporal at {conn.server_address}",
+            why=str(e),
+            impact="command cannot reach the Temporal server",
+            fix="ensure aurad is running and Temporal is reachable",
+        )
+        return 2
+
+    try:
+        handle = client.get_workflow_handle(args.slice_id)
+        await handle.signal(SliceWorkflow.complete_slice, signal)
+    except RPCError as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"workflow '{args.slice_id}' not found",
+            why=str(e),
+            impact="slice completion was not signaled",
+            fix=f"verify slice ID '{args.slice_id}' exists and is running",
+        )
+        return 3
+    except Exception as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"signal failed for '{args.slice_id}'",
+            why=str(e),
+            impact="slice completion was not signaled",
+            fix="check Temporal server logs for details",
+        )
+        return 3
+
+    print(format_signal_result(True, fmt))
+    return 0
+
+
+async def _cmd_phase_advance(
+    args: argparse.Namespace, config: AuraMsgConfig, fmt: OutputFormat
+) -> int:
+    """Handle: aura-msg phase advance --epoch-id E --to-phase P [--triggered-by T] [--condition C]
+
+    D15: validate args.to_phase is a valid PhaseId.
+    Returns exit code: 0=success, 1=validation error, 2=connection error, 3=workflow error.
+    """
+    from temporalio.client import Client
+    from temporalio.service import RPCError
+
+    from aura_protocol.formatters import format_signal_result
+    from aura_protocol.types import parse_phase_id
+    from aura_protocol.workflow import EpochWorkflow, PhaseAdvanceSignal
+
+    try:
+        to_phase = parse_phase_id(args.to_phase)
+    except ValueError as e:
+        report_error(
+            ErrorCategory.Validation,
+            what=f"invalid phase '{args.to_phase}'",
+            why=str(e),
+            impact="command cannot proceed with invalid phase",
+            fix="use a valid phase ID (e.g., p1, p2, ... p12)",
+        )
+        return 1
+
+    signal = PhaseAdvanceSignal(
+        to_phase=to_phase,
+        triggered_by=args.triggered_by,
+        condition_met=args.condition,
+    )
+
+    conn = config.connection
+    try:
+        client = await Client.connect(
+            conn.server_address, namespace=conn.namespace
+        )
+    except Exception as e:
+        report_error(
+            ErrorCategory.Connection,
+            what=f"failed to connect to Temporal at {conn.server_address}",
+            why=str(e),
+            impact="command cannot reach the Temporal server",
+            fix="ensure aurad is running and Temporal is reachable",
+        )
+        return 2
+
+    try:
+        handle = client.get_workflow_handle(args.epoch_id)
+        await handle.signal(EpochWorkflow.advance_phase, signal)
+    except RPCError as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"workflow '{args.epoch_id}' not found",
+            why=str(e),
+            impact="phase advance was not signaled",
+            fix=f"verify epoch ID '{args.epoch_id}' exists and is running",
+        )
+        return 3
+    except Exception as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"signal failed for '{args.epoch_id}'",
+            why=str(e),
+            impact="phase advance was not signaled",
+            fix="check Temporal server logs for details",
+        )
+        return 3
+
+    print(format_signal_result(True, fmt))
+    return 0
+
+
+async def _cmd_epoch_start(
+    args: argparse.Namespace, config: AuraMsgConfig, fmt: OutputFormat
+) -> int:
+    """Handle: aura-msg epoch start --epoch-id E [--description D]
+
+    Returns exit code: 0=success, 2=connection error, 3=workflow error.
+    """
+    from temporalio.client import Client
+    from temporalio.service import RPCError
+
+    from aura_protocol.formatters import format_start_result
+    from aura_protocol.workflow import EpochInput, EpochWorkflow
+
+    conn = config.connection
+    try:
+        client = await Client.connect(
+            conn.server_address, namespace=conn.namespace
+        )
+    except Exception as e:
+        report_error(
+            ErrorCategory.Connection,
+            what=f"failed to connect to Temporal at {conn.server_address}",
+            why=str(e),
+            impact="command cannot reach the Temporal server",
+            fix="ensure aurad is running and Temporal is reachable",
+        )
+        return 2
+
+    try:
+        handle = await client.start_workflow(
+            EpochWorkflow.run,
+            EpochInput(
+                epoch_id=args.epoch_id,
+                request_description=args.description,
+            ),
+            id=args.epoch_id,
+            task_queue=conn.task_queue,
+        )
+    except RPCError as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"failed to start epoch '{args.epoch_id}'",
+            why=str(e),
+            impact="epoch was not started",
+            fix=f"check if epoch '{args.epoch_id}' already exists or review Temporal logs",
+        )
+        return 3
+    except Exception as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"failed to start epoch '{args.epoch_id}'",
+            why=str(e),
+            impact="epoch was not started",
+            fix="check Temporal server logs for details",
+        )
+        return 3
+
+    print(format_start_result(handle.id, handle.result_run_id, fmt))
+    return 0
+
+
+async def _cmd_session_register(
+    args: argparse.Namespace, config: AuraMsgConfig, fmt: OutputFormat
+) -> int:
+    """Handle: aura-msg session register --epoch-id E --session-id S --role R
+
+    Sends SessionRegisterSignal to the EpochWorkflow identified by epoch_id.
+    Returns exit code: 0=success, 2=connection error, 3=workflow error.
+    """
+    from temporalio.client import Client
+    from temporalio.service import RPCError
+
+    from aura_protocol.formatters import format_signal_result
+    from aura_protocol.workflow import EpochWorkflow, SessionRegisterSignal
+
+    signal = SessionRegisterSignal(
+        epoch_id=args.epoch_id,
+        session_id=args.session_id,
+        role=args.role,
+        model_harness=args.model_harness,
+        model=args.model,
+    )
+
+    conn = config.connection
+    try:
+        client = await Client.connect(
+            conn.server_address, namespace=conn.namespace
+        )
+    except Exception as e:
+        report_error(
+            ErrorCategory.Connection,
+            what=f"failed to connect to Temporal at {conn.server_address}",
+            why=str(e),
+            impact="session registration cannot reach the Temporal server",
+            fix="ensure aurad is running and Temporal is reachable",
+        )
+        return 2
+
+    try:
+        handle = client.get_workflow_handle(args.epoch_id)
+        await handle.signal(EpochWorkflow.register_session, signal)
+    except RPCError as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"workflow '{args.epoch_id}' not found",
+            why=str(e),
+            impact="session was not registered with the epoch",
+            fix=f"verify epoch ID '{args.epoch_id}' exists and is running",
+        )
+        return 3
+    except Exception as e:
+        report_error(
+            ErrorCategory.Workflow,
+            what=f"signal failed for '{args.epoch_id}'",
+            why=str(e),
+            impact="session was not registered with the epoch",
+            fix="check Temporal server logs for details",
+        )
+        return 3
+
+    print(format_signal_result(True, fmt))
+    return 0
+
+
+if __name__ == "__main__":
+    main()

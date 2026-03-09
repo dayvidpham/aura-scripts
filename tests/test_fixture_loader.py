@@ -362,21 +362,21 @@ class TestBuildVoteDict:
     def test_all_accept_returns_typed_dict(self, fixture: ProtocolFixture) -> None:
         votes = fixture.build_vote_dict("all_accept")
         assert isinstance(votes, dict)
-        assert votes[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
-        assert votes[ReviewAxis.TEST_QUALITY] == VoteType.ACCEPT
-        assert votes[ReviewAxis.ELEGANCE] == VoteType.ACCEPT
+        assert votes[ReviewAxis.Correctness] == VoteType.Accept
+        assert votes[ReviewAxis.TestQuality] == VoteType.Accept
+        assert votes[ReviewAxis.Elegance] == VoteType.Accept
 
     def test_all_revise_returns_typed_dict(self, fixture: ProtocolFixture) -> None:
         votes = fixture.build_vote_dict("all_revise")
-        assert votes[ReviewAxis.CORRECTNESS] == VoteType.REVISE
-        assert votes[ReviewAxis.TEST_QUALITY] == VoteType.REVISE
-        assert votes[ReviewAxis.ELEGANCE] == VoteType.REVISE
+        assert votes[ReviewAxis.Correctness] == VoteType.Revise
+        assert votes[ReviewAxis.TestQuality] == VoteType.Revise
+        assert votes[ReviewAxis.Elegance] == VoteType.Revise
 
     def test_partial_one_axis_returns_partial_dict(self, fixture: ProtocolFixture) -> None:
         votes = fixture.build_vote_dict("partial_one_axis")
-        assert ReviewAxis.CORRECTNESS in votes
-        assert ReviewAxis.TEST_QUALITY not in votes
-        assert ReviewAxis.ELEGANCE not in votes
+        assert ReviewAxis.Correctness in votes
+        assert ReviewAxis.TestQuality not in votes
+        assert ReviewAxis.Elegance not in votes
 
     def test_empty_returns_empty_dict(self, fixture: ProtocolFixture) -> None:
         votes = fixture.build_vote_dict("empty")

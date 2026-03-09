@@ -61,11 +61,11 @@ class TestExampleLabel:
         assert values == {"correct", "anti-pattern", "context", "template"}
 
     def test_is_str(self) -> None:
-        assert isinstance(ExampleLabel.CORRECT, str)
-        assert ExampleLabel.CORRECT == "correct"
+        assert isinstance(ExampleLabel.Correct, str)
+        assert ExampleLabel.Correct == "correct"
 
     def test_anti_pattern_value(self) -> None:
-        assert ExampleLabel.ANTI_PATTERN == "anti-pattern"
+        assert ExampleLabel.AntiPattern == "anti-pattern"
 
 
 class TestExampleLang:
@@ -74,7 +74,7 @@ class TestExampleLang:
         assert values == {"bash", "go", "python", "pseudo", "xml", "json", "markdown"}
 
     def test_is_str(self) -> None:
-        assert isinstance(ExampleLang.BASH, str)
+        assert isinstance(ExampleLang.Bash, str)
 
 
 class TestGateType:
@@ -83,7 +83,7 @@ class TestGateType:
         assert values == {"completion", "slice-closure", "review-ready", "landing"}
 
     def test_slice_closure_value(self) -> None:
-        assert GateType.SLICE_CLOSURE == "slice-closure"
+        assert GateType.SliceClosure == "slice-closure"
 
 
 class TestWorkflowExecution:
@@ -92,7 +92,7 @@ class TestWorkflowExecution:
         assert values == {"sequential", "parallel", "conditional-loop"}
 
     def test_conditional_loop_value(self) -> None:
-        assert WorkflowExecution.CONDITIONAL_LOOP == "conditional-loop"
+        assert WorkflowExecution.ConditionalLoop == "conditional-loop"
 
 
 class TestExitConditionType:
@@ -101,7 +101,7 @@ class TestExitConditionType:
         assert values == {"success", "continue", "escalate", "proceed"}
 
     def test_is_str(self) -> None:
-        assert isinstance(ExitConditionType.SUCCESS, str)
+        assert isinstance(ExitConditionType.Success, str)
 
 
 # ─── New Dataclass Tests ──────────────────────────────────────────────────────
@@ -110,28 +110,28 @@ class TestExitConditionType:
 class TestCodeExample:
     def test_frozen(self) -> None:
         ex = CodeExample(
-            id="ex-1", lang=ExampleLang.BASH, label=ExampleLabel.CORRECT, code="echo hello"
+            id="ex-1", lang=ExampleLang.Bash, label=ExampleLabel.Correct, code="echo hello"
         )
         with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
             ex.code = "changed"  # type: ignore[misc]
 
     def test_also_illustrates_defaults_none(self) -> None:
         ex = CodeExample(
-            id="ex-1", lang=ExampleLang.PYTHON, label=ExampleLabel.ANTI_PATTERN, code="pass"
+            id="ex-1", lang=ExampleLang.Python, label=ExampleLabel.AntiPattern, code="pass"
         )
         assert ex.also_illustrates is None
 
     def test_all_fields(self) -> None:
         ex = CodeExample(
             id="ex-1",
-            lang=ExampleLang.GO,
-            label=ExampleLabel.CONTEXT,
+            lang=ExampleLang.Go,
+            label=ExampleLabel.Context,
             code="package main",
             also_illustrates="C-some-constraint",
         )
         assert ex.id == "ex-1"
-        assert ex.lang == ExampleLang.GO
-        assert ex.label == ExampleLabel.CONTEXT
+        assert ex.lang == ExampleLang.Go
+        assert ex.label == ExampleLabel.Context
         assert ex.also_illustrates == "C-some-constraint"
 
 
@@ -172,13 +172,13 @@ class TestChecklistItem:
 
 class TestChecklist:
     def test_frozen(self) -> None:
-        cl = Checklist(role_ref=RoleId.WORKER, gate=GateType.COMPLETION, items=())
+        cl = Checklist(role_ref=RoleId.Worker, gate=GateType.Completion, items=())
         with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
-            cl.gate = GateType.LANDING  # type: ignore[misc]
+            cl.gate = GateType.Landing  # type: ignore[misc]
 
     def test_items_is_tuple(self) -> None:
         items = (ChecklistItem(id="CL-1", text="x"),)
-        cl = Checklist(role_ref=RoleId.WORKER, gate=GateType.COMPLETION, items=items)
+        cl = Checklist(role_ref=RoleId.Worker, gate=GateType.Completion, items=items)
         assert isinstance(cl.items, tuple)
 
 
@@ -207,17 +207,17 @@ class TestWorkflowAction:
 
 class TestExitCondition:
     def test_frozen(self) -> None:
-        ec = ExitCondition(type=ExitConditionType.SUCCESS, condition="all pass")
+        ec = ExitCondition(type=ExitConditionType.Success, condition="all pass")
         with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
             ec.condition = "changed"  # type: ignore[misc]
 
     def test_type_is_exit_condition_type_not_str(self) -> None:
         """ExitCondition.type MUST be ExitConditionType, NOT plain str."""
-        ec = ExitCondition(type=ExitConditionType.ESCALATE, condition="blockers remain")
+        ec = ExitCondition(type=ExitConditionType.Escalate, condition="blockers remain")
         assert isinstance(ec.type, ExitConditionType), (
             f"ExitCondition.type should be ExitConditionType, got {type(ec.type)}"
         )
-        assert ec.type == ExitConditionType.ESCALATE
+        assert ec.type == ExitConditionType.Escalate
 
     def test_all_exit_condition_types_usable(self) -> None:
         for ect in ExitConditionType:
@@ -228,14 +228,14 @@ class TestExitCondition:
 class TestWorkflowStage:
     def test_frozen(self) -> None:
         stage = WorkflowStage(
-            id="s-1", name="Stage", order=1, execution=WorkflowExecution.SEQUENTIAL
+            id="s-1", name="Stage", order=1, execution=WorkflowExecution.Sequential
         )
         with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
             stage.name = "changed"  # type: ignore[misc]
 
     def test_optional_fields_default(self) -> None:
         stage = WorkflowStage(
-            id="s-1", name="Stage", order=1, execution=WorkflowExecution.PARALLEL
+            id="s-1", name="Stage", order=1, execution=WorkflowExecution.Parallel
         )
         assert stage.phase_ref is None
         assert stage.actions == ()
@@ -247,7 +247,7 @@ class TestWorkflow:
         wf = Workflow(
             id="wf-1",
             name="My Workflow",
-            role_ref=RoleId.WORKER,
+            role_ref=RoleId.Worker,
             description="desc",
             stages=(),
         )
@@ -258,11 +258,11 @@ class TestWorkflow:
         wf = Workflow(
             id="wf-1",
             name="My Workflow",
-            role_ref=RoleId.SUPERVISOR,
+            role_ref=RoleId.Supervisor,
             description="desc",
             stages=(
                 WorkflowStage(
-                    id="s-1", name="Stage", order=1, execution=WorkflowExecution.SEQUENTIAL
+                    id="s-1", name="Stage", order=1, execution=WorkflowExecution.Sequential
                 ),
             ),
         )
@@ -287,7 +287,7 @@ class TestConstraintSpecBackwardCompat:
 
     def test_new_fields_usable(self) -> None:
         ex = CodeExample(
-            id="ex-1", lang=ExampleLang.BASH, label=ExampleLabel.CORRECT, code="git agent-commit"
+            id="ex-1", lang=ExampleLang.Bash, label=ExampleLabel.Correct, code="git agent-commit"
         )
         cs = ConstraintSpec(
             id="C-agent-commit",
@@ -300,7 +300,7 @@ class TestConstraintSpecBackwardCompat:
         )
         assert cs.command == "git agent-commit -m ..."
         assert len(cs.examples) == 1
-        assert cs.examples[0].lang == ExampleLang.BASH
+        assert cs.examples[0].lang == ExampleLang.Bash
 
     def test_frozen(self) -> None:
         cs = ConstraintSpec(
@@ -320,7 +320,7 @@ class TestProcedureStepBackwardCompat:
 
     def test_examples_field_usable(self) -> None:
         ex = CodeExample(
-            id="ex-1", lang=ExampleLang.BASH, label=ExampleLabel.CORRECT, code="bd show <id>"
+            id="ex-1", lang=ExampleLang.Bash, label=ExampleLabel.Correct, code="bd show <id>"
         )
         ps = ProcedureStep(
             id="S-test", order=1, instruction="check task", command="bd show <id>",
@@ -332,10 +332,10 @@ class TestProcedureStepBackwardCompat:
 class TestRoleSpecBackwardCompat:
     def test_existing_usage_still_works(self) -> None:
         rs = RoleSpec(
-            id=RoleId.WORKER,
+            id=RoleId.Worker,
             name="Worker",
             description="desc",
-            owned_phases=frozenset({PhaseId.P9_SLICE}),
+            owned_phases=frozenset({PhaseId.P9_Slice}),
         )
         assert rs.introduction is None
         assert rs.ownership_narrative is None
@@ -346,10 +346,10 @@ class TestRoleSpecBackwardCompat:
             id="B-test", given="a", when="b", then="c", should_not="d"
         )
         rs = RoleSpec(
-            id=RoleId.WORKER,
+            id=RoleId.Worker,
             name="Worker",
             description="desc",
-            owned_phases=frozenset({PhaseId.P9_SLICE}),
+            owned_phases=frozenset({PhaseId.P9_Slice}),
             introduction="You own a slice.",
             ownership_narrative="Full vertical slice ownership.",
             behaviors=(beh,),
@@ -370,8 +370,8 @@ class TestChecklistSpecs:
 
     def test_worker_completion_structure(self) -> None:
         cl = CHECKLIST_SPECS["worker-completion"]
-        assert cl.role_ref == RoleId.WORKER
-        assert cl.gate == GateType.COMPLETION
+        assert cl.role_ref == RoleId.Worker
+        assert cl.gate == GateType.Completion
         assert len(cl.items) >= 3
 
     def test_all_items_have_ids(self) -> None:
@@ -416,15 +416,15 @@ class TestWorkflowSpecs:
 
     def test_ride_the_wave_role(self) -> None:
         wf = WORKFLOW_SPECS["ride-the-wave"]
-        assert wf.role_ref == RoleId.SUPERVISOR
+        assert wf.role_ref == RoleId.Supervisor
 
     def test_layer_cake_role(self) -> None:
         wf = WORKFLOW_SPECS["layer-cake"]
-        assert wf.role_ref == RoleId.WORKER
+        assert wf.role_ref == RoleId.Worker
 
     def test_architect_state_flow_role(self) -> None:
         wf = WORKFLOW_SPECS["architect-state-flow"]
-        assert wf.role_ref == RoleId.ARCHITECT
+        assert wf.role_ref == RoleId.Architect
 
     def test_ride_the_wave_has_three_stages(self) -> None:
         wf = WORKFLOW_SPECS["ride-the-wave"]
@@ -461,16 +461,16 @@ class TestWorkflowSpecs:
 
 class TestRoleSpecsUpdated:
     def test_supervisor_has_introduction(self) -> None:
-        sup = ROLE_SPECS[RoleId.SUPERVISOR]
+        sup = ROLE_SPECS[RoleId.Supervisor]
         assert sup.introduction is not None
         assert len(sup.introduction) > 0
 
     def test_supervisor_has_ownership_narrative(self) -> None:
-        sup = ROLE_SPECS[RoleId.SUPERVISOR]
+        sup = ROLE_SPECS[RoleId.Supervisor]
         assert sup.ownership_narrative is not None
 
     _ROLES_WITH_BEHAVIORS = [
-        RoleId.SUPERVISOR, RoleId.WORKER, RoleId.ARCHITECT, RoleId.REVIEWER,
+        RoleId.Supervisor, RoleId.Worker, RoleId.Architect, RoleId.Reviewer,
     ]
 
     @pytest.mark.parametrize("role_id", _ROLES_WITH_BEHAVIORS)
@@ -500,9 +500,9 @@ class TestRoleSpecsUpdated:
 
     def test_existing_roles_still_have_correct_owned_phases(self) -> None:
         """Backward compat: owned_phases unchanged by new fields."""
-        assert PhaseId.P9_SLICE in ROLE_SPECS[RoleId.WORKER].owned_phases
-        assert PhaseId.P8_IMPL_PLAN in ROLE_SPECS[RoleId.SUPERVISOR].owned_phases
-        assert PhaseId.P3_PROPOSE in ROLE_SPECS[RoleId.ARCHITECT].owned_phases
+        assert PhaseId.P9_Slice in ROLE_SPECS[RoleId.Worker].owned_phases
+        assert PhaseId.P8_ImplPlan in ROLE_SPECS[RoleId.Supervisor].owned_phases
+        assert PhaseId.P3_Propose in ROLE_SPECS[RoleId.Architect].owned_phases
 
 
 # ─── Updated CONSTRAINT_SPECS Tests ───────────────────────────────────────────

@@ -234,9 +234,9 @@ class TestProcedureStepsSection:
         )
         sup_role = roles["supervisor"]
         steps = sup_role.findall("step")
-        assert len(steps) == len(PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+        assert len(steps) == len(PROCEDURE_STEPS[RoleId.Supervisor]), (
             f"Supervisor step count mismatch: "
-            f"XML={len(steps)}, Python={len(PROCEDURE_STEPS[RoleId.SUPERVISOR])}"
+            f"XML={len(steps)}, Python={len(PROCEDURE_STEPS[RoleId.Supervisor])}"
         )
         # Verify first step has id and order attributes, and <instruction> child element
         first_step = steps[0]
@@ -264,9 +264,9 @@ class TestProcedureStepsSection:
         )
         worker_role = roles["worker"]
         steps = worker_role.findall("step")
-        assert len(steps) == len(PROCEDURE_STEPS[RoleId.WORKER]), (
+        assert len(steps) == len(PROCEDURE_STEPS[RoleId.Worker]), (
             f"Worker step count mismatch: "
-            f"XML={len(steps)}, Python={len(PROCEDURE_STEPS[RoleId.WORKER])}"
+            f"XML={len(steps)}, Python={len(PROCEDURE_STEPS[RoleId.Worker])}"
         )
 
     def test_empty_roles_excluded(
@@ -299,7 +299,7 @@ class TestProcedureStepsSection:
         assert sup_role is not None
 
         xml_steps = sup_role.findall("step")
-        python_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        python_steps = PROCEDURE_STEPS[RoleId.Supervisor]
         for xml_step, py_step in zip(xml_steps, python_steps):
             # id and order are XML attributes
             assert xml_step.get("id") == py_step.id, (
@@ -818,8 +818,8 @@ class TestRoundTripConsistency:
         the parser round-trips id, order, instruction, command, context, and
         next_state for each step.
         """
-        python_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
-        parsed_steps = parsed_spec.procedure_steps.get(RoleId.SUPERVISOR, ())
+        python_steps = PROCEDURE_STEPS[RoleId.Supervisor]
+        parsed_steps = parsed_spec.procedure_steps.get(RoleId.Supervisor, ())
         assert len(parsed_steps) == len(python_steps), (
             f"Supervisor procedure step count mismatch: "
             f"parsed={len(parsed_steps)}, python={len(python_steps)}"
@@ -858,8 +858,8 @@ class TestRoundTripConsistency:
         intentionally does not set command, context, or next_state for worker steps
         (those fields are not present in <tdd-layers>), so each must be None.
         """
-        python_steps = PROCEDURE_STEPS[RoleId.WORKER]
-        parsed_steps = parsed_spec.procedure_steps.get(RoleId.WORKER, ())
+        python_steps = PROCEDURE_STEPS[RoleId.Worker]
+        parsed_steps = parsed_spec.procedure_steps.get(RoleId.Worker, ())
         assert len(parsed_steps) == len(python_steps), (
             f"Worker procedure step count mismatch: "
             f"parsed={len(parsed_steps)}, python={len(python_steps)}"
@@ -994,7 +994,7 @@ class TestAC10Pipeline:
         )
         from aura_protocol.types import RoleId
         skill_result = generate_skill(
-            RoleId.WORKER,
+            RoleId.Worker,
             skill_path,
             diff=False,
             write=False,
@@ -1043,21 +1043,21 @@ class TestSlugPinLiterals:
 
     def test_supervisor_call_skill_slug(self) -> None:
         """StepSlug.Supervisor.CallSkill must exist as a supervisor procedure step."""
-        assert any(s.id == StepSlug.Supervisor.CallSkill for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+        assert any(s.id == StepSlug.Supervisor.CallSkill for s in PROCEDURE_STEPS[RoleId.Supervisor]), (
             f"Expected step {StepSlug.Supervisor.CallSkill!r} in PROCEDURE_STEPS[SUPERVISOR]. "
             "If this step was renamed, update StepSlug.Supervisor.CallSkill to reflect the new name."
         )
 
     def test_supervisor_explore_ephemeral_slug(self) -> None:
         """StepSlug.Supervisor.ExploreEphemeral must exist as a supervisor procedure step."""
-        assert any(s.id == StepSlug.Supervisor.ExploreEphemeral for s in PROCEDURE_STEPS[RoleId.SUPERVISOR]), (
+        assert any(s.id == StepSlug.Supervisor.ExploreEphemeral for s in PROCEDURE_STEPS[RoleId.Supervisor]), (
             f"Expected step {StepSlug.Supervisor.ExploreEphemeral!r} in PROCEDURE_STEPS[SUPERVISOR]. "
             "If this step was renamed, update StepSlug.Supervisor.ExploreEphemeral to reflect the new name."
         )
 
     def test_worker_types_slug(self) -> None:
         """StepSlug.Worker.Types must exist as a worker procedure step."""
-        assert any(s.id == StepSlug.Worker.Types for s in PROCEDURE_STEPS[RoleId.WORKER]), (
+        assert any(s.id == StepSlug.Worker.Types for s in PROCEDURE_STEPS[RoleId.Worker]), (
             f"Expected step {StepSlug.Worker.Types!r} in PROCEDURE_STEPS[WORKER]. "
             "If this step was renamed, update StepSlug.Worker.Types to reflect the new name."
         )

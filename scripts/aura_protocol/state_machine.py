@@ -47,7 +47,7 @@ class EpochState:
     completed_phases: set[PhaseId] = field(default_factory=set)
     review_votes: dict[ReviewAxis, VoteType] = field(default_factory=dict)
     blocker_count: int = 0
-    current_role: RoleId = RoleId.EPOCH
+    current_role: RoleId = RoleId.Epoch
     severity_groups: dict[SeverityLevel, set[str]] = field(default_factory=dict)
     transition_history: list[TransitionRecord] = field(default_factory=list)
     last_error: str | None = None
@@ -99,22 +99,22 @@ _REVIEW_AXES: frozenset[ReviewAxis] = frozenset(ReviewAxis)
 # Also applies to p10→p11: both review phases enforce consensus before proceeding.
 _CONSENSUS_GATED: frozenset[tuple[PhaseId, PhaseId]] = frozenset(
     {
-        (PhaseId.P4_REVIEW, PhaseId.P5_UAT),
-        (PhaseId.P10_CODE_REVIEW, PhaseId.P11_IMPL_UAT),
+        (PhaseId.P4_Review, PhaseId.P5_Uat),
+        (PhaseId.P10_CodeReview, PhaseId.P11_ImplUat),
     }
 )
 
 # Transitions that are blocked while blocker_count > 0.
 # Derived from schema.xml: p10→p11 condition "all 3 reviewers ACCEPT, all BLOCKERs resolved".
 _BLOCKER_GATED: frozenset[tuple[PhaseId, PhaseId]] = frozenset(
-    {(PhaseId.P10_CODE_REVIEW, PhaseId.P11_IMPL_UAT)}
+    {(PhaseId.P10_CodeReview, PhaseId.P11_ImplUat)}
 )
 
 # Transitions whose availability is determined by vote state (any REVISE present).
 # When at p4 with any REVISE vote, only p3 is available (overrides forward p5 transition).
 # When at p10 with any REVISE vote, only p9 is available (overrides forward p11 transition).
 _REVISE_DRIVES_BACK_PHASES: frozenset[PhaseId] = frozenset(
-    {PhaseId.P4_REVIEW, PhaseId.P10_CODE_REVIEW}
+    {PhaseId.P4_Review, PhaseId.P10_CodeReview}
 )
 
 
@@ -126,12 +126,12 @@ class EpochStateMachine:
 
     Usage:
         sm = EpochStateMachine("epoch-123")
-        record = sm.advance(PhaseId.P2_ELICIT, triggered_by="architect",
+        record = sm.advance(PhaseId.P2_Elicit, triggered_by="architect",
                             condition_met="classification confirmed")
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
-        sm.advance(PhaseId.P5_UAT, triggered_by="reviewer", condition_met="all 3 vote ACCEPT")
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
+        sm.advance(PhaseId.P5_Uat, triggered_by="reviewer", condition_met="all 3 vote ACCEPT")
     """
 
     def __init__(
@@ -142,7 +142,7 @@ class EpochStateMachine:
         self._specs: dict[PhaseId, PhaseSpec] = specs if specs is not None else PHASE_SPECS
         self._state = EpochState(
             epoch_id=epoch_id,
-            current_phase=PhaseId.P1_REQUEST,
+            current_phase=PhaseId.P1_Request,
         )
 
     # ── Public Properties ──────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ class EpochStateMachine:
         - Returns empty list when current_phase is COMPLETE or not in specs.
         """
         current = self._state.current_phase
-        if current == PhaseId.COMPLETE or current not in self._specs:
+        if current == PhaseId.Complete or current not in self._specs:
             return []
 
         spec = self._specs[current]
@@ -264,11 +264,11 @@ class EpochStateMachine:
         # check_severity_tree() enforces that all 3 keys remain present at
         # validation time. Callers must NOT remove keys or add non-SeverityLevel
         # keys; doing so would violate this invariant and break gate checks.
-        if to_phase == PhaseId.P10_CODE_REVIEW and not self._state.severity_groups:
+        if to_phase == PhaseId.P10_CodeReview and not self._state.severity_groups:
             self._state.severity_groups = {
-                SeverityLevel.BLOCKER: set(),
-                SeverityLevel.IMPORTANT: set(),
-                SeverityLevel.MINOR: set(),
+                SeverityLevel.Blocker: set(),
+                SeverityLevel.Important: set(),
+                SeverityLevel.Minor: set(),
             }
 
         # Votes are scoped to the phase in which they were cast.
@@ -295,7 +295,7 @@ class EpochStateMachine:
         violations: list[str] = []
         current = self._state.current_phase
 
-        if current == PhaseId.COMPLETE:
+        if current == PhaseId.Complete:
             violations.append(
                 f"Epoch is already COMPLETE; no further transitions are possible."
             )
@@ -323,7 +323,7 @@ class EpochStateMachine:
             have = sorted(self._state.review_votes.keys())
             accepted = [
                 ax for ax, v in self._state.review_votes.items()
-                if v == VoteType.ACCEPT
+                if v == VoteType.Accept
             ]
             violations.append(
                 f"Consensus required for {current!r} → {to_phase!r}: "
@@ -343,8 +343,8 @@ class EpochStateMachine:
     def record_vote(self, axis: ReviewAxis, vote: VoteType) -> None:
         """Record a reviewer vote for the given axis.
 
-        axis must be a ReviewAxis member: ReviewAxis.CORRECTNESS, ReviewAxis.TEST_QUALITY,
-        or ReviewAxis.ELEGANCE. Since ReviewAxis is a StrEnum, callers passing raw strings
+        axis must be a ReviewAxis member: ReviewAxis.Correctness, ReviewAxis.TestQuality,
+        or ReviewAxis.Elegance. Since ReviewAxis is a StrEnum, callers passing raw strings
         ("correctness", "test_quality", "elegance") continue to work at runtime, but using
         ReviewAxis members ensures type-checked correctness.
 
@@ -352,14 +352,14 @@ class EpochStateMachine:
 
         Raises:
             ValueError: If axis is not a valid ReviewAxis value — must be one of
-                ReviewAxis.CORRECTNESS, ReviewAxis.TEST_QUALITY, or ReviewAxis.ELEGANCE.
+                ReviewAxis.Correctness, ReviewAxis.TestQuality, or ReviewAxis.Elegance.
                 Fix: use a ReviewAxis member or a valid string value
                 ("correctness", "test_quality", "elegance").
         """
         if axis not in _REVIEW_AXES:
             raise ValueError(
                 f"Invalid review axis {axis!r}. Must be one of {sorted(_REVIEW_AXES)}. "
-                f"Use ReviewAxis.CORRECTNESS, ReviewAxis.TEST_QUALITY, or ReviewAxis.ELEGANCE."
+                f"Use ReviewAxis.Correctness, ReviewAxis.TestQuality, or ReviewAxis.Elegance."
             )
         self._state.review_votes[ReviewAxis(axis)] = vote
 
@@ -371,7 +371,7 @@ class EpochStateMachine:
         return (
             all(axis in self._state.review_votes for axis in _REVIEW_AXES)
             and all(
-                self._state.review_votes[axis] == VoteType.ACCEPT
+                self._state.review_votes[axis] == VoteType.Accept
                 for axis in _REVIEW_AXES
             )
         )
@@ -394,4 +394,4 @@ class EpochStateMachine:
 
     def _has_any_revise(self) -> bool:
         """Return True if any recorded vote is REVISE."""
-        return any(v == VoteType.REVISE for v in self._state.review_votes.values())
+        return any(v == VoteType.Revise for v in self._state.review_votes.values())

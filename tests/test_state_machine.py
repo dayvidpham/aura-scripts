@@ -54,24 +54,24 @@ class TestAC1Transitions:
 
     def test_advance_p1_to_p2_transitions(self) -> None:
         sm = _make_sm()
-        assert sm.state.current_phase == PhaseId.P1_REQUEST
+        assert sm.state.current_phase == PhaseId.P1_Request
 
         record = sm.advance(
-            PhaseId.P2_ELICIT,
+            PhaseId.P2_Elicit,
             triggered_by="architect",
             condition_met="classification confirmed, research and explore complete",
         )
 
-        assert sm.state.current_phase == PhaseId.P2_ELICIT
+        assert sm.state.current_phase == PhaseId.P2_Elicit
         assert isinstance(record, TransitionRecord)
-        assert record.from_phase == PhaseId.P1_REQUEST
-        assert record.to_phase == PhaseId.P2_ELICIT
+        assert record.from_phase == PhaseId.P1_Request
+        assert record.to_phase == PhaseId.P2_Elicit
 
     def test_advance_p1_to_p8_raises_transition_error(self) -> None:
         sm = _make_sm()
         with pytest.raises(TransitionError) as exc_info:
             sm.advance(
-                PhaseId.P8_IMPL_PLAN,
+                PhaseId.P8_ImplPlan,
                 triggered_by="architect",
                 condition_met="skipping phases",
             )
@@ -81,47 +81,47 @@ class TestAC1Transitions:
     def test_invalid_skip_p1_to_p6_raises_transition_error(self) -> None:
         sm = _make_sm()
         with pytest.raises(TransitionError):
-            sm.advance(PhaseId.P6_RATIFY, triggered_by="test", condition_met="skip")
+            sm.advance(PhaseId.P6_Ratify, triggered_by="test", condition_met="skip")
 
     def test_transition_recorded_in_history(self) -> None:
         sm = _make_sm()
         assert sm.state.transition_history == []
 
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="architect", condition_met="done")
+        sm.advance(PhaseId.P2_Elicit, triggered_by="architect", condition_met="done")
 
         assert len(sm.state.transition_history) == 1
-        assert sm.state.transition_history[0].from_phase == PhaseId.P1_REQUEST
-        assert sm.state.transition_history[0].to_phase == PhaseId.P2_ELICIT
+        assert sm.state.transition_history[0].from_phase == PhaseId.P1_Request
+        assert sm.state.transition_history[0].to_phase == PhaseId.P2_Elicit
 
     def test_completed_phases_updated(self) -> None:
         sm = _make_sm()
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="test", condition_met="done")
+        sm.advance(PhaseId.P2_Elicit, triggered_by="test", condition_met="done")
 
-        assert PhaseId.P1_REQUEST in sm.state.completed_phases
+        assert PhaseId.P1_Request in sm.state.completed_phases
 
     def test_current_phase_updated(self) -> None:
         sm = _make_sm()
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="test", condition_met="done")
-        assert sm.state.current_phase == PhaseId.P2_ELICIT
+        sm.advance(PhaseId.P2_Elicit, triggered_by="test", condition_met="done")
+        assert sm.state.current_phase == PhaseId.P2_Elicit
 
     def test_transition_record_has_timestamp(self) -> None:
         sm = _make_sm()
         record = sm.advance(
-            PhaseId.P2_ELICIT, triggered_by="test", condition_met="done"
+            PhaseId.P2_Elicit, triggered_by="test", condition_met="done"
         )
         assert record.timestamp is not None
 
     def test_transition_record_preserves_triggered_by(self) -> None:
         sm = _make_sm()
         record = sm.advance(
-            PhaseId.P2_ELICIT, triggered_by="my-role", condition_met="done"
+            PhaseId.P2_Elicit, triggered_by="my-role", condition_met="done"
         )
         assert record.triggered_by == "my-role"
 
     def test_transition_record_preserves_condition_met(self) -> None:
         sm = _make_sm()
         record = sm.advance(
-            PhaseId.P2_ELICIT, triggered_by="test", condition_met="my-condition"
+            PhaseId.P2_Elicit, triggered_by="test", condition_met="my-condition"
         )
         assert record.condition_met == "my-condition"
 
@@ -134,14 +134,14 @@ class TestAC2ConsensusGate:
 
     def _sm_at_p4(self) -> EpochStateMachine:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.P4_REVIEW)
+        _advance_to(sm, PhaseId.P4_Review)
         return sm
 
     def test_advance_p4_to_p5_without_any_votes_raises(self) -> None:
         sm = self._sm_at_p4()
         with pytest.raises(TransitionError) as exc_info:
             sm.advance(
-                PhaseId.P5_UAT,
+                PhaseId.P5_Uat,
                 triggered_by="test",
                 condition_met="premature",
             )
@@ -150,13 +150,13 @@ class TestAC2ConsensusGate:
 
     def test_advance_p4_to_p5_with_2_of_3_accept_raises(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
         # C axis not voted
 
         with pytest.raises(TransitionError) as exc_info:
             sm.advance(
-                PhaseId.P5_UAT,
+                PhaseId.P5_Uat,
                 triggered_by="test",
                 condition_met="2/3 ACCEPT",
             )
@@ -165,50 +165,50 @@ class TestAC2ConsensusGate:
 
     def test_advance_p4_to_p5_with_all_3_accept_succeeds(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
         record = sm.advance(
-            PhaseId.P5_UAT, triggered_by="reviewer", condition_met="all 3 vote ACCEPT"
+            PhaseId.P5_Uat, triggered_by="reviewer", condition_met="all 3 vote ACCEPT"
         )
-        assert sm.state.current_phase == PhaseId.P5_UAT
-        assert record.from_phase == PhaseId.P4_REVIEW
-        assert record.to_phase == PhaseId.P5_UAT
+        assert sm.state.current_phase == PhaseId.P5_Uat
+        assert record.from_phase == PhaseId.P4_Review
+        assert record.to_phase == PhaseId.P5_Uat
 
     def test_advance_p4_to_p5_with_1_of_3_accept_raises(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
         # B and C not voted
 
         with pytest.raises(TransitionError):
-            sm.advance(PhaseId.P5_UAT, triggered_by="test", condition_met="1/3 ACCEPT")
+            sm.advance(PhaseId.P5_Uat, triggered_by="test", condition_met="1/3 ACCEPT")
 
     def test_advance_p4_to_p5_with_revise_vote_raises(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.REVISE)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Revise)
 
         with pytest.raises(TransitionError):
-            sm.advance(PhaseId.P5_UAT, triggered_by="test", condition_met="has revise")
+            sm.advance(PhaseId.P5_Uat, triggered_by="test", condition_met="has revise")
 
     def test_validate_advance_returns_violations_for_missing_consensus(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
 
-        violations = sm.validate_advance(PhaseId.P5_UAT)
+        violations = sm.validate_advance(PhaseId.P5_Uat)
         assert len(violations) == 1
         assert "consensus" in violations[0].lower()
 
     def test_validate_advance_returns_empty_when_consensus_met(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
-        violations = sm.validate_advance(PhaseId.P5_UAT)
+        violations = sm.validate_advance(PhaseId.P5_Uat)
         assert violations == []
 
 
@@ -220,24 +220,24 @@ class TestAC3RevisionLoop:
 
     def _sm_at_p4(self) -> EpochStateMachine:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.P4_REVIEW)
+        _advance_to(sm, PhaseId.P4_Review)
         return sm
 
     def test_at_p4_with_revise_only_p3_available(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Revise)
 
         targets = {t.to_phase for t in sm.available_transitions}
-        assert targets == {PhaseId.P3_PROPOSE}
+        assert targets == {PhaseId.P3_Propose}
 
     def test_at_p4_with_revise_on_any_axis_only_p3_available(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.REVISE)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Revise)
 
         targets = {t.to_phase for t in sm.available_transitions}
-        assert targets == {PhaseId.P3_PROPOSE}
+        assert targets == {PhaseId.P3_Propose}
 
     def test_at_p4_without_votes_no_forward_transition(self) -> None:
         """Without consensus and without REVISE, p5 is NOT available (no votes = not qualified)."""
@@ -246,36 +246,36 @@ class TestAC3RevisionLoop:
 
         targets = {t.to_phase for t in sm.available_transitions}
         # p5 requires consensus (not reached), so only p3 (the non-gated transition) is available.
-        assert PhaseId.P5_UAT not in targets
+        assert PhaseId.P5_Uat not in targets
 
     def test_at_p4_with_all_accept_p5_available(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
         targets = {t.to_phase for t in sm.available_transitions}
         # With consensus, p5 is available (and p3 is also a valid transition per spec).
-        assert PhaseId.P5_UAT in targets
+        assert PhaseId.P5_Uat in targets
 
     def test_at_p10_with_revise_only_p9_available(self) -> None:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.P10_CODE_REVIEW)
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
+        _advance_to(sm, PhaseId.P10_CodeReview)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Revise)
 
         targets = {t.to_phase for t in sm.available_transitions}
-        assert targets == {PhaseId.P9_SLICE}
+        assert targets == {PhaseId.P9_Slice}
 
     def test_advance_to_p3_from_p4_allowed_with_revise(self) -> None:
         sm = self._sm_at_p4()
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.REVISE)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Revise)
 
         # Should not raise
         record = sm.advance(
-            PhaseId.P3_PROPOSE, triggered_by="reviewer", condition_met="any reviewer votes REVISE"
+            PhaseId.P3_Propose, triggered_by="reviewer", condition_met="any reviewer votes REVISE"
         )
-        assert record.to_phase == PhaseId.P3_PROPOSE
-        assert sm.state.current_phase == PhaseId.P3_PROPOSE
+        assert record.to_phase == PhaseId.P3_Propose
+        assert sm.state.current_phase == PhaseId.P3_Propose
 
 
 # ─── AC4: BLOCKER Gate ────────────────────────────────────────────────────────
@@ -286,19 +286,19 @@ class TestAC4BlockerGate:
 
     def _sm_at_p10(self) -> EpochStateMachine:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.P10_CODE_REVIEW)
+        _advance_to(sm, PhaseId.P10_CodeReview)
         return sm
 
     def test_advance_p10_to_p11_with_blocker_raises(self) -> None:
         sm = self._sm_at_p10()
         sm.record_blocker()  # 1 unresolved blocker
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
         with pytest.raises(TransitionError) as exc_info:
             sm.advance(
-                PhaseId.P11_IMPL_UAT,
+                PhaseId.P11_ImplUat,
                 triggered_by="test",
                 condition_met="has blockers",
             )
@@ -309,29 +309,29 @@ class TestAC4BlockerGate:
         sm = self._sm_at_p10()
         sm.record_blocker()   # +1 → count = 1
         sm.record_blocker(resolved=True)  # -1 → count = 0
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
         record = sm.advance(
-            PhaseId.P11_IMPL_UAT,
+            PhaseId.P11_ImplUat,
             triggered_by="supervisor",
             condition_met="all BLOCKERs resolved",
         )
-        assert record.to_phase == PhaseId.P11_IMPL_UAT
+        assert record.to_phase == PhaseId.P11_ImplUat
 
     def test_advance_p10_to_p11_without_blockers_and_with_consensus_succeeds(self) -> None:
         sm = self._sm_at_p10()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
         record = sm.advance(
-            PhaseId.P11_IMPL_UAT,
+            PhaseId.P11_ImplUat,
             triggered_by="supervisor",
             condition_met="all BLOCKERs resolved, all 3 ACCEPT",
         )
-        assert record.to_phase == PhaseId.P11_IMPL_UAT
+        assert record.to_phase == PhaseId.P11_ImplUat
 
     def test_blocker_count_increments(self) -> None:
         sm = self._sm_at_p10()
@@ -358,16 +358,16 @@ class TestAC4BlockerGate:
         sm.record_blocker()
 
         targets = {t.to_phase for t in sm.available_transitions}
-        assert PhaseId.P11_IMPL_UAT not in targets
+        assert PhaseId.P11_ImplUat not in targets
 
     def test_validate_advance_returns_blocker_violation(self) -> None:
         sm = self._sm_at_p10()
         sm.record_blocker()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
-        violations = sm.validate_advance(PhaseId.P11_IMPL_UAT)
+        violations = sm.validate_advance(PhaseId.P11_ImplUat)
         assert len(violations) == 1
         assert "blocker" in violations[0].lower()
 
@@ -384,28 +384,28 @@ class TestTransitionHistory:
 
     def test_history_grows_with_each_advance(self) -> None:
         sm = _make_sm()
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="a", condition_met="c")
-        sm.advance(PhaseId.P3_PROPOSE, triggered_by="a", condition_met="c")
+        sm.advance(PhaseId.P2_Elicit, triggered_by="a", condition_met="c")
+        sm.advance(PhaseId.P3_Propose, triggered_by="a", condition_met="c")
         assert len(sm.state.transition_history) == 2
 
     def test_history_records_correct_from_and_to(self) -> None:
         sm = _make_sm()
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="a", condition_met="c")
+        sm.advance(PhaseId.P2_Elicit, triggered_by="a", condition_met="c")
         rec = sm.state.transition_history[0]
-        assert rec.from_phase == PhaseId.P1_REQUEST
-        assert rec.to_phase == PhaseId.P2_ELICIT
+        assert rec.from_phase == PhaseId.P1_Request
+        assert rec.to_phase == PhaseId.P2_Elicit
 
     def test_history_is_in_order(self) -> None:
         sm = _make_sm()
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="a", condition_met="c")
-        sm.advance(PhaseId.P3_PROPOSE, triggered_by="a", condition_met="c")
-        assert sm.state.transition_history[0].to_phase == PhaseId.P2_ELICIT
-        assert sm.state.transition_history[1].to_phase == PhaseId.P3_PROPOSE
+        sm.advance(PhaseId.P2_Elicit, triggered_by="a", condition_met="c")
+        sm.advance(PhaseId.P3_Propose, triggered_by="a", condition_met="c")
+        assert sm.state.transition_history[0].to_phase == PhaseId.P2_Elicit
+        assert sm.state.transition_history[1].to_phase == PhaseId.P3_Propose
 
     def test_failed_advance_does_not_add_to_history(self) -> None:
         sm = _make_sm()
         with pytest.raises(TransitionError):
-            sm.advance(PhaseId.P8_IMPL_PLAN, triggered_by="a", condition_met="c")
+            sm.advance(PhaseId.P8_ImplPlan, triggered_by="a", condition_met="c")
         assert sm.state.transition_history == []
 
 
@@ -417,32 +417,32 @@ class TestSequentialProgression:
 
     def test_full_forward_progression_reaches_complete(self) -> None:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.COMPLETE)
-        assert sm.state.current_phase == PhaseId.COMPLETE
+        _advance_to(sm, PhaseId.Complete)
+        assert sm.state.current_phase == PhaseId.Complete
 
     def test_full_progression_records_12_transitions(self) -> None:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.COMPLETE)
+        _advance_to(sm, PhaseId.Complete)
         # p1→p2, p2→p3, ..., p12→complete = 12 transitions
         assert len(sm.state.transition_history) == 12
 
     def test_full_progression_completes_all_12_phases(self) -> None:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.COMPLETE)
-        expected = {p for p in PhaseId if p != PhaseId.COMPLETE}
+        _advance_to(sm, PhaseId.Complete)
+        expected = {p for p in PhaseId if p != PhaseId.Complete}
         assert sm.state.completed_phases == expected
 
     def test_no_transition_from_complete(self) -> None:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.COMPLETE)
+        _advance_to(sm, PhaseId.Complete)
         with pytest.raises(TransitionError) as exc_info:
-            sm.advance(PhaseId.P1_REQUEST, triggered_by="test", condition_met="restart")
+            sm.advance(PhaseId.P1_Request, triggered_by="test", condition_met="restart")
         assert exc_info.value.violations
         assert "COMPLETE" in exc_info.value.violations[0]
 
     def test_available_transitions_empty_at_complete(self) -> None:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.COMPLETE)
+        _advance_to(sm, PhaseId.Complete)
         assert sm.available_transitions == []
 
 
@@ -454,31 +454,31 @@ class TestVoteRecording:
 
     def test_record_vote_stores_vote(self) -> None:
         sm = _make_sm()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        assert sm.state.review_votes[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        assert sm.state.review_votes[ReviewAxis.Correctness] == VoteType.Accept
 
     def test_record_vote_overwrites_previous(self) -> None:
         sm = _make_sm()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        assert sm.state.review_votes[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Revise)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        assert sm.state.review_votes[ReviewAxis.Correctness] == VoteType.Accept
 
     def test_votes_cleared_after_transition(self) -> None:
         sm = _make_sm()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="test", condition_met="done")
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.advance(PhaseId.P2_Elicit, triggered_by="test", condition_met="done")
         assert sm.state.review_votes == {}
 
     def test_invalid_axis_raises_value_error(self) -> None:
         sm = _make_sm()
         with pytest.raises(ValueError):
-            sm.record_vote("X", VoteType.ACCEPT)
+            sm.record_vote("X", VoteType.Accept)
 
     def test_record_all_3_axes(self) -> None:
         sm = _make_sm()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.REVISE)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Revise)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
         assert len(sm.state.review_votes) == 3
 
     def test_has_consensus_false_with_no_votes(self) -> None:
@@ -487,47 +487,47 @@ class TestVoteRecording:
 
     def test_has_consensus_false_with_partial_votes(self) -> None:
         sm = _make_sm()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
         assert sm.has_consensus() is False
 
     def test_has_consensus_false_with_revise(self) -> None:
         sm = _make_sm()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.REVISE)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Revise)
         assert sm.has_consensus() is False
 
     def test_has_consensus_true_with_all_accept(self) -> None:
         sm = _make_sm()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
         assert sm.has_consensus() is True
 
     def test_review_votes_keys_are_review_axis_members(self) -> None:
         """review_votes dict keys must be ReviewAxis members, not raw strings."""
         sm = _make_sm()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.REVISE)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Revise)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
         for key in sm.state.review_votes:
             assert isinstance(key, ReviewAxis), (
                 f"Expected ReviewAxis key, got {type(key).__name__!r}: {key!r}"
             )
 
     def test_review_votes_all_three_axes_are_review_axis(self) -> None:
-        """All 3 axes stored as ReviewAxis.CORRECTNESS/TEST_QUALITY/ELEGANCE keys."""
+        """All 3 axes stored as ReviewAxis.Correctness/TEST_QUALITY/ELEGANCE keys."""
         sm = _make_sm()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
-        assert ReviewAxis.CORRECTNESS in sm.state.review_votes
-        assert ReviewAxis.TEST_QUALITY in sm.state.review_votes
-        assert ReviewAxis.ELEGANCE in sm.state.review_votes
-        assert sm.state.review_votes[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
-        assert sm.state.review_votes[ReviewAxis.TEST_QUALITY] == VoteType.ACCEPT
-        assert sm.state.review_votes[ReviewAxis.ELEGANCE] == VoteType.ACCEPT
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
+        assert ReviewAxis.Correctness in sm.state.review_votes
+        assert ReviewAxis.TestQuality in sm.state.review_votes
+        assert ReviewAxis.Elegance in sm.state.review_votes
+        assert sm.state.review_votes[ReviewAxis.Correctness] == VoteType.Accept
+        assert sm.state.review_votes[ReviewAxis.TestQuality] == VoteType.Accept
+        assert sm.state.review_votes[ReviewAxis.Elegance] == VoteType.Accept
 
 
 # ─── State Property ───────────────────────────────────────────────────────────
@@ -541,7 +541,7 @@ class TestStateProperty:
         state = sm.state
         assert isinstance(state, EpochState)
         assert state.epoch_id == "epoch-abc"
-        assert state.current_phase == PhaseId.P1_REQUEST
+        assert state.current_phase == PhaseId.P1_Request
 
     def test_epoch_id_preserved(self) -> None:
         sm = EpochStateMachine("my-epoch-id")
@@ -556,24 +556,24 @@ class TestValidateAdvance:
 
     def test_valid_transition_returns_empty(self) -> None:
         sm = _make_sm()
-        violations = sm.validate_advance(PhaseId.P2_ELICIT)
+        violations = sm.validate_advance(PhaseId.P2_Elicit)
         assert violations == []
 
     def test_invalid_transition_returns_violations(self) -> None:
         sm = _make_sm()
-        violations = sm.validate_advance(PhaseId.P8_IMPL_PLAN)
+        violations = sm.validate_advance(PhaseId.P8_ImplPlan)
         assert len(violations) == 1
 
     def test_does_not_mutate_state(self) -> None:
         sm = _make_sm()
-        sm.validate_advance(PhaseId.P2_ELICIT)
-        assert sm.state.current_phase == PhaseId.P1_REQUEST
+        sm.validate_advance(PhaseId.P2_Elicit)
+        assert sm.state.current_phase == PhaseId.P1_Request
         assert sm.state.transition_history == []
 
     def test_from_complete_returns_violation(self) -> None:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.COMPLETE)
-        violations = sm.validate_advance(PhaseId.P1_REQUEST)
+        _advance_to(sm, PhaseId.Complete)
+        violations = sm.validate_advance(PhaseId.P1_Request)
         assert violations
         assert "COMPLETE" in violations[0]
 
@@ -590,7 +590,7 @@ class TestLastError:
 
     def test_last_error_is_none_after_successful_advance(self) -> None:
         sm = _make_sm()
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="test", condition_met="ok")
+        sm.advance(PhaseId.P2_Elicit, triggered_by="test", condition_met="ok")
         assert sm.state.last_error is None
 
 
@@ -605,28 +605,28 @@ class TestDependencyInjection:
 
         # Minimal 2-phase spec: p1 → p2 → complete
         custom_specs = {
-            PhaseId.P1_REQUEST: PhaseSpec(
-                id=PhaseId.P1_REQUEST,
+            PhaseId.P1_Request: PhaseSpec(
+                id=PhaseId.P1_Request,
                 number=1,
-                domain=Domain.USER,
+                domain=Domain.User,
                 name="Test Request",
-                owner_roles=frozenset({RoleId.EPOCH}),
+                owner_roles=frozenset({RoleId.Epoch}),
                 transitions=(
                     Transition(
-                        to_phase=PhaseId.P2_ELICIT,
+                        to_phase=PhaseId.P2_Elicit,
                         condition="test condition",
                     ),
                 ),
             ),
-            PhaseId.P2_ELICIT: PhaseSpec(
-                id=PhaseId.P2_ELICIT,
+            PhaseId.P2_Elicit: PhaseSpec(
+                id=PhaseId.P2_Elicit,
                 number=2,
-                domain=Domain.USER,
+                domain=Domain.User,
                 name="Test Elicit",
-                owner_roles=frozenset({RoleId.EPOCH}),
+                owner_roles=frozenset({RoleId.Epoch}),
                 transitions=(
                     Transition(
-                        to_phase=PhaseId.COMPLETE,
+                        to_phase=PhaseId.Complete,
                         condition="done",
                     ),
                 ),
@@ -634,16 +634,16 @@ class TestDependencyInjection:
         }
 
         sm = EpochStateMachine("di-test", specs=custom_specs)
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="test", condition_met="test condition")
-        sm.advance(PhaseId.COMPLETE, triggered_by="test", condition_met="done")
-        assert sm.state.current_phase == PhaseId.COMPLETE
+        sm.advance(PhaseId.P2_Elicit, triggered_by="test", condition_met="test condition")
+        sm.advance(PhaseId.Complete, triggered_by="test", condition_met="done")
+        assert sm.state.current_phase == PhaseId.Complete
 
     def test_default_specs_are_phase_specs(self) -> None:
         from aura_protocol.types import PHASE_SPECS
         sm = _make_sm()
         # The machine starts at p1 and p2 must be in PHASE_SPECS
-        assert PhaseId.P1_REQUEST in PHASE_SPECS
-        violations = sm.validate_advance(PhaseId.P2_ELICIT)
+        assert PhaseId.P1_Request in PHASE_SPECS
+        violations = sm.validate_advance(PhaseId.P2_Elicit)
         assert violations == []
 
 
@@ -657,7 +657,7 @@ class TestAdvanceTimestamp:
         sm = _make_sm()
         custom_ts = datetime(2025, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
         record = sm.advance(
-            PhaseId.P2_ELICIT,
+            PhaseId.P2_Elicit,
             triggered_by="test",
             condition_met="done",
             timestamp=custom_ts,
@@ -669,7 +669,7 @@ class TestAdvanceTimestamp:
         sm = _make_sm()
         before = datetime.now(tz=timezone.utc)
         record = sm.advance(
-            PhaseId.P2_ELICIT,
+            PhaseId.P2_Elicit,
             triggered_by="test",
             condition_met="done",
         )
@@ -681,7 +681,7 @@ class TestAdvanceTimestamp:
         sm = _make_sm()
         before = datetime.now(tz=timezone.utc)
         record = sm.advance(
-            PhaseId.P2_ELICIT,
+            PhaseId.P2_Elicit,
             triggered_by="test",
             condition_met="done",
             timestamp=None,
@@ -695,8 +695,8 @@ class TestAdvanceTimestamp:
         ts1 = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
         ts2 = datetime(2025, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
 
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="a", condition_met="ok", timestamp=ts1)
-        sm.advance(PhaseId.P3_PROPOSE, triggered_by="a", condition_met="ok", timestamp=ts2)
+        sm.advance(PhaseId.P2_Elicit, triggered_by="a", condition_met="ok", timestamp=ts1)
+        sm.advance(PhaseId.P3_Propose, triggered_by="a", condition_met="ok", timestamp=ts2)
 
         assert sm.state.transition_history[0].timestamp == ts1
         assert sm.state.transition_history[1].timestamp == ts2
@@ -710,14 +710,14 @@ class TestP10ConsensusGate:
 
     def _sm_at_p10(self) -> EpochStateMachine:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.P10_CODE_REVIEW)
+        _advance_to(sm, PhaseId.P10_CodeReview)
         return sm
 
     def test_advance_p10_to_p11_without_votes_raises(self) -> None:
         sm = self._sm_at_p10()
         with pytest.raises(TransitionError) as exc_info:
             sm.advance(
-                PhaseId.P11_IMPL_UAT,
+                PhaseId.P11_ImplUat,
                 triggered_by="test",
                 condition_met="premature",
             )
@@ -726,12 +726,12 @@ class TestP10ConsensusGate:
 
     def test_advance_p10_to_p11_with_2_of_3_accept_raises(self) -> None:
         sm = self._sm_at_p10()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
         # C axis not voted
         with pytest.raises(TransitionError) as exc_info:
             sm.advance(
-                PhaseId.P11_IMPL_UAT,
+                PhaseId.P11_ImplUat,
                 triggered_by="test",
                 condition_met="2/3 ACCEPT",
             )
@@ -740,31 +740,31 @@ class TestP10ConsensusGate:
 
     def test_advance_p10_to_p11_with_all_3_accept_and_no_blockers_succeeds(self) -> None:
         sm = self._sm_at_p10()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
         record = sm.advance(
-            PhaseId.P11_IMPL_UAT,
+            PhaseId.P11_ImplUat,
             triggered_by="supervisor",
             condition_met="all 3 ACCEPT, no blockers",
         )
-        assert record.to_phase == PhaseId.P11_IMPL_UAT
+        assert record.to_phase == PhaseId.P11_ImplUat
 
     def test_validate_advance_returns_consensus_violation_at_p10(self) -> None:
         sm = self._sm_at_p10()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
 
-        violations = sm.validate_advance(PhaseId.P11_IMPL_UAT)
+        violations = sm.validate_advance(PhaseId.P11_ImplUat)
         assert any("consensus" in v.lower() for v in violations)
 
     def test_validate_advance_no_violation_when_consensus_met_at_p10(self) -> None:
         sm = self._sm_at_p10()
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
-        violations = sm.validate_advance(PhaseId.P11_IMPL_UAT)
+        violations = sm.validate_advance(PhaseId.P11_ImplUat)
         assert violations == []
 
 
@@ -776,21 +776,21 @@ class TestSeverityGroupsAutoPopulation:
 
     def test_severity_groups_empty_before_p10(self) -> None:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.P9_SLICE)
+        _advance_to(sm, PhaseId.P9_Slice)
         assert sm.state.severity_groups == {}
 
     def test_severity_groups_populated_on_entry_to_p10(self) -> None:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.P10_CODE_REVIEW)
+        _advance_to(sm, PhaseId.P10_CodeReview)
         groups = sm.state.severity_groups
         assert len(groups) == 3
-        assert SeverityLevel.BLOCKER in groups
-        assert SeverityLevel.IMPORTANT in groups
-        assert SeverityLevel.MINOR in groups
+        assert SeverityLevel.Blocker in groups
+        assert SeverityLevel.Important in groups
+        assert SeverityLevel.Minor in groups
 
     def test_severity_groups_values_are_empty_sets_on_entry(self) -> None:
         sm = _make_sm()
-        _advance_to(sm, PhaseId.P10_CODE_REVIEW)
+        _advance_to(sm, PhaseId.P10_CodeReview)
         for level in SeverityLevel:
             assert isinstance(sm.state.severity_groups[level], set)
             assert len(sm.state.severity_groups[level]) == 0
@@ -798,23 +798,23 @@ class TestSeverityGroupsAutoPopulation:
     def test_severity_groups_not_populated_on_p4_entry(self) -> None:
         """P4 (plan review) must NOT trigger severity group creation (C-severity-not-plan)."""
         sm = _make_sm()
-        _advance_to(sm, PhaseId.P4_REVIEW)
+        _advance_to(sm, PhaseId.P4_Review)
         assert sm.state.severity_groups == {}
 
     def test_severity_groups_preserved_if_already_populated(self) -> None:
         """If severity_groups is already non-empty when re-entering P10, it is NOT overwritten."""
         sm = _make_sm()
-        _advance_to(sm, PhaseId.P10_CODE_REVIEW)
+        _advance_to(sm, PhaseId.P10_CodeReview)
         # Manually add an entry to simulate a finding already recorded.
-        sm.state.severity_groups[SeverityLevel.BLOCKER].add("finding-abc")
+        sm.state.severity_groups[SeverityLevel.Blocker].add("finding-abc")
 
         # Simulate revision loop: p10 → p9 → p10.
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
-        sm.advance(PhaseId.P9_SLICE, triggered_by="test", condition_met="revise")
-        sm.advance(PhaseId.P10_CODE_REVIEW, triggered_by="test", condition_met="re-review")
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Revise)
+        sm.advance(PhaseId.P9_Slice, triggered_by="test", condition_met="revise")
+        sm.advance(PhaseId.P10_CodeReview, triggered_by="test", condition_met="re-review")
 
         # Pre-existing data must not be wiped.
-        assert "finding-abc" in sm.state.severity_groups[SeverityLevel.BLOCKER]
+        assert "finding-abc" in sm.state.severity_groups[SeverityLevel.Blocker]
 
     def test_severity_groups_has_exactly_3_severity_level_keys_at_p10(self) -> None:
         """severity_groups at P10 contains EXACTLY the 3 SeverityLevel keys — no more, no fewer.
@@ -825,7 +825,7 @@ class TestSeverityGroupsAutoPopulation:
         both the lower bound (all 3 present) and the upper bound (no extras).
         """
         sm = _make_sm()
-        _advance_to(sm, PhaseId.P10_CODE_REVIEW)
+        _advance_to(sm, PhaseId.P10_CodeReview)
         groups = sm.state.severity_groups
 
         expected_keys = set(SeverityLevel)
@@ -846,7 +846,7 @@ class TestEpochStateTypeSafety:
 
     def test_current_role_default_is_role_id_epoch(self) -> None:
         sm = _make_sm()
-        assert sm.state.current_role is RoleId.EPOCH
+        assert sm.state.current_role is RoleId.Epoch
 
     def test_current_role_is_role_id_instance(self) -> None:
         sm = _make_sm()
@@ -858,5 +858,5 @@ class TestEpochStateTypeSafety:
         assert sm.state.current_role == "epoch"
 
     def test_make_state_accepts_role_id_current_role(self) -> None:
-        state = _make_state(phase=PhaseId.P1_REQUEST, current_role=RoleId.SUPERVISOR)
-        assert state.current_role is RoleId.SUPERVISOR
+        state = _make_state(phase=PhaseId.P1_Request, current_role=RoleId.Supervisor)
+        assert state.current_role is RoleId.Supervisor

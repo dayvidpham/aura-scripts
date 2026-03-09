@@ -73,7 +73,7 @@ class TestPhaseIdMatchesSchema:
     def test_all_phase_ids_in_schema(self, schema_root: ET.Element) -> None:
         schema_phase_ids = {p.get("id") for p in schema_root.iter("phase") if p.get("id")}
         # COMPLETE is a terminal sentinel not defined as a <phase> element
-        python_phase_ids = {p.value for p in PhaseId if p != PhaseId.COMPLETE}
+        python_phase_ids = {p.value for p in PhaseId if p != PhaseId.Complete}
         assert python_phase_ids == schema_phase_ids, (
             f"Python PhaseId values not matching schema.xml phases.\n"
             f"In Python only: {python_phase_ids - schema_phase_ids}\n"
@@ -82,7 +82,7 @@ class TestPhaseIdMatchesSchema:
 
     def test_phase_count_matches(self, schema_root: ET.Element) -> None:
         schema_count = len({p.get("id") for p in schema_root.iter("phase") if p.get("id")})
-        python_count = len([p for p in PhaseId if p != PhaseId.COMPLETE])
+        python_count = len([p for p in PhaseId if p != PhaseId.Complete])
         assert python_count == schema_count, (
             f"Phase count mismatch: Python has {python_count}, schema.xml has {schema_count}"
         )
@@ -624,12 +624,12 @@ class TestProcedureStepsMatchSchema:
 
     def test_supervisor_has_procedure_steps(self) -> None:
         """Supervisor role has non-empty procedure steps (UAT-6)."""
-        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        steps = PROCEDURE_STEPS[RoleId.Supervisor]
         assert len(steps) > 0, "PROCEDURE_STEPS[supervisor] must be non-empty (UAT-6)"
 
     def test_worker_has_procedure_steps(self) -> None:
         """Worker role has non-empty procedure steps (UAT-6)."""
-        steps = PROCEDURE_STEPS[RoleId.WORKER]
+        steps = PROCEDURE_STEPS[RoleId.Worker]
         assert len(steps) > 0, "PROCEDURE_STEPS[worker] must be non-empty (UAT-6)"
 
     def test_supervisor_steps_from_schema(self, schema_root: ET.Element) -> None:
@@ -642,7 +642,7 @@ class TestProcedureStepsMatchSchema:
         Steps carry 'order' and 'id' as XML attributes; instruction/command/context/
         next-state are child elements (only present when non-None).
         """
-        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        steps = PROCEDURE_STEPS[RoleId.Supervisor]
         # Collect the raw <step> XML elements from phase p8 startup-sequence
         xml_steps: list[ET.Element] = []
         phases_el = schema_root.find("phases")
@@ -680,14 +680,14 @@ class TestProcedureStepsMatchSchema:
         """At least one supervisor step has a known command value and at least one
         has a non-None context value.
 
-        AC-B1-1: Given PROCEDURE_STEPS[RoleId.SUPERVISOR], when values are
-        inspected directly, then at least one step has .command == SkillRef.SUPERVISOR
+        AC-B1-1: Given PROCEDURE_STEPS[RoleId.Supervisor], when values are
+        inspected directly, then at least one step has .command == SkillRef.Supervisor
         and at least one step has non-None .context string.
         """
-        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
-        assert any(s.command == SkillRef.SUPERVISOR for s in steps), (
+        steps = PROCEDURE_STEPS[RoleId.Supervisor]
+        assert any(s.command == SkillRef.Supervisor for s in steps), (
             "Expected at least one supervisor step with "
-            f".command == {SkillRef.SUPERVISOR!r} in PROCEDURE_STEPS"
+            f".command == {SkillRef.Supervisor!r} in PROCEDURE_STEPS"
         )
         assert any(s.context is not None for s in steps), (
             "Expected at least one supervisor step with non-None .context "
@@ -714,29 +714,29 @@ class TestProcedureStepsMatchSchema:
                 )
 
     def test_supervisor_step4_next_state_is_p8(self) -> None:
-        """Supervisor step 4 (decompose into slices) must have next_state=PhaseId.P8_IMPL_PLAN."""
-        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        """Supervisor step 4 (decompose into slices) must have next_state=PhaseId.P8_ImplPlan."""
+        steps = PROCEDURE_STEPS[RoleId.Supervisor]
         step4 = next((s for s in steps if s.order == 4), None)
         assert step4 is not None, "Supervisor must have a step 4"
-        assert step4.next_state == PhaseId.P8_IMPL_PLAN, (
+        assert step4.next_state == PhaseId.P8_ImplPlan, (
             f"Supervisor step 4 next_state expected P8_IMPL_PLAN, got {step4.next_state!r}"
         )
 
     def test_supervisor_step6_next_state_is_p9(self) -> None:
-        """Supervisor step 6 (spawn workers) must have next_state=PhaseId.P9_SLICE."""
-        steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+        """Supervisor step 6 (spawn workers) must have next_state=PhaseId.P9_Slice."""
+        steps = PROCEDURE_STEPS[RoleId.Supervisor]
         step6 = next((s for s in steps if s.order == 6), None)
         assert step6 is not None, "Supervisor must have a step 6"
-        assert step6.next_state == PhaseId.P9_SLICE, (
+        assert step6.next_state == PhaseId.P9_Slice, (
             f"Supervisor step 6 next_state expected P9_SLICE, got {step6.next_state!r}"
         )
 
     def test_worker_step3_next_state_is_p9(self) -> None:
-        """Worker step 3 (make tests pass) must have next_state=PhaseId.P9_SLICE."""
-        steps = PROCEDURE_STEPS[RoleId.WORKER]
+        """Worker step 3 (make tests pass) must have next_state=PhaseId.P9_Slice."""
+        steps = PROCEDURE_STEPS[RoleId.Worker]
         step3 = next((s for s in steps if s.order == 3), None)
         assert step3 is not None, "Worker must have a step 3"
-        assert step3.next_state == PhaseId.P9_SLICE, (
+        assert step3.next_state == PhaseId.P9_Slice, (
             f"Worker step 3 next_state expected P9_SLICE, got {step3.next_state!r}"
         )
 

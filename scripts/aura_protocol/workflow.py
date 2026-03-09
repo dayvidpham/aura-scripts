@@ -55,7 +55,22 @@ from aura_protocol.state_machine import (
     TransitionError,
     TransitionRecord,
 )
-from aura_protocol.types import PhaseId, ReviewAxis, Transition, VoteType, PHASE_DOMAIN
+from aura_protocol.types import (
+    PHASE_DOMAIN,
+    AuditEvent,
+    EventType,
+    PhaseId,
+    ReviewAxis,
+    ReviewCycleRecord,
+    ReviewCycleSignal,
+    RoleId,
+    SliceCompleteSignal,
+    SliceExecutionConfig,
+    SliceMode,
+    SliceStartSignal,
+    Transition,
+    VoteType,
+)
 
 # ─── Search Attribute Keys ────────────────────────────────────────────────────
 # These keys are registered in the Temporal namespace and used for forensic
@@ -66,6 +81,7 @@ SA_PHASE: SearchAttributeKey = SearchAttributeKey.for_keyword("AuraPhase")
 SA_ROLE: SearchAttributeKey = SearchAttributeKey.for_keyword("AuraRole")
 SA_STATUS: SearchAttributeKey = SearchAttributeKey.for_keyword("AuraStatus")
 SA_DOMAIN: SearchAttributeKey = SearchAttributeKey.for_keyword("AuraDomain")
+SA_LAST_EVENT_TYPE: SearchAttributeKey = SearchAttributeKey.for_keyword("AuraLastEventType")
 
 
 # ─── Signal / Query Types (frozen dataclasses) ────────────────────────────────
@@ -88,7 +104,7 @@ class EpochResult:
     """Return value of EpochWorkflow.run() when the epoch reaches COMPLETE.
 
     epoch_id: the epoch that completed
-    final_phase: should always be PhaseId.COMPLETE
+    final_phase: should always be PhaseId.Complete
     transition_count: total number of records in transition_history, including
         failed attempts (those with TransitionRecord.success == False).
         This is the raw audit count; use successful_transition_count for the
@@ -124,8 +140,8 @@ class PhaseAdvanceSignal:
 class ReviewVoteSignal:
     """Signal payload for EpochWorkflow.submit_vote().
 
-    axis: review axis — must be ReviewAxis.CORRECTNESS, ReviewAxis.TEST_QUALITY,
-         or ReviewAxis.ELEGANCE. Since ReviewAxis is a StrEnum, callers passing
+    axis: review axis — must be ReviewAxis.Correctness, ReviewAxis.TestQuality,
+         or ReviewAxis.Elegance. Since ReviewAxis is a StrEnum, callers passing
          raw strings ("correctness", "test_quality", "elegance") continue to work
          at runtime; use ReviewAxis members for type correctness.
     vote: ACCEPT or REVISE
@@ -138,6 +154,25 @@ class ReviewVoteSignal:
 
 
 # ─── Child Workflow I/O Types (frozen dataclasses) ────────────────────────────
+
+
+@dataclass(frozen=True)
+class SessionRegisterSignal:
+    """Signal payload for EpochWorkflow.register_session().
+
+    Registers a Claude Code session with the active epoch for tracking.
+    Idempotent: duplicate session_id registrations are silently ignored.
+
+    epoch_id: the epoch this session belongs to
+    session_id: unique identifier for the Claude Code session
+    role: session role (e.g. "worker", "supervisor", "reviewer")
+    """
+
+    epoch_id: str
+    session_id: str
+    role: str = ""
+    model_harness: str = ""
+    model: str = ""
 
 
 @dataclass(frozen=True)
@@ -186,11 +221,13 @@ class SliceResult:
 
     slice_id: the slice that completed or failed
     success: True if the slice completed without error
+    output: completion output message (empty string if not provided or on failure)
     error: error message if success is False, None otherwise
     """
 
     slice_id: str
     success: bool
+    output: str = ""
     error: str | None = None
 
 
@@ -220,6 +257,27 @@ class ReviewPhaseResult:
     phase_id: str
     success: bool
     vote_result: dict[ReviewAxis, VoteType] = field(default_factory=dict)
+
+
+# ─── Query Result Types ──────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class QueryStateResult:
+    """Frozen DTO returned by EpochWorkflow.full_state() query.
+
+    Provides a serialization-safe snapshot of epoch state for CLI consumers.
+    The votes field is sourced from EpochState.review_votes (D20).
+    active_session_count is populated from register_session signals (SLICE-7).
+    """
+
+    current_phase: PhaseId
+    current_role: RoleId
+    transition_history: list[TransitionRecord]
+    votes: dict[ReviewAxis, VoteType]
+    last_error: str | None
+    available_transitions: list[Transition]
+    active_session_count: int = 0
 
 
 # ─── Activities ───────────────────────────────────────────────────────────────
@@ -311,6 +369,8 @@ class EpochWorkflow:
         # Slice progress log — appended by slice_progress signal handler.
         # R12 stub: log is in-memory only; v2 will persist to beads/audit store.
         self._slice_progress_log: list[SliceProgressSignal] = []
+        # Active sessions — registered via register_session signal (SLICE-7).
+        self._active_sessions: list[SessionRegisterSignal] = []
 
     # ── Run ───────────────────────────────────────────────────────────────────
 
@@ -349,7 +409,7 @@ class EpochWorkflow:
         )
 
         # Main signal-driven loop.
-        while self._sm.state.current_phase != PhaseId.COMPLETE:
+        while self._sm.state.current_phase != PhaseId.Complete:
             # Wait until there is something to process.
             await workflow.wait_condition(
                 lambda: bool(self._pending_advance) or bool(self._pending_votes)
@@ -408,7 +468,20 @@ class EpochWorkflow:
                 start_to_close_timeout=timedelta(seconds=10),
             )
 
-            # 2d. Upsert search attributes atomically with the transition.
+            # 2d. Record audit event (activity — I/O boundary).
+            await workflow.execute_activity(
+                "record_audit_event",
+                AuditEvent(
+                    epoch_id=input.epoch_id,
+                    event_type=EventType.PhaseTransition,
+                    phase=record.to_phase,
+                    role=self._sm.state.current_role,
+                    payload={"from": record.from_phase.value, "to": record.to_phase.value},
+                ),
+                start_to_close_timeout=timedelta(seconds=10),
+            )
+
+            # 2e. Upsert search attributes atomically with the transition.
             current = self._sm.state.current_phase
             domain_value = (
                 PHASE_DOMAIN[current].value
@@ -420,9 +493,10 @@ class EpochWorkflow:
                     SA_PHASE.value_set(current.value),
                     SA_ROLE.value_set(self._sm.state.current_role.value),
                     SA_STATUS.value_set(
-                        "complete" if current == PhaseId.COMPLETE else "running"
+                        "complete" if current == PhaseId.Complete else "running"
                     ),
                     SA_DOMAIN.value_set(domain_value),
+                    SA_LAST_EVENT_TYPE.value_set(EventType.PhaseTransition.value),
                 ]
             )
 
@@ -469,6 +543,18 @@ class EpochWorkflow:
         """
         self._slice_progress_log.append(signal)
 
+    @workflow.signal
+    def register_session(self, signal: SessionRegisterSignal) -> None:
+        """Signal: register a Claude Code session with this epoch (SLICE-7).
+
+        Idempotent: if a session with the same session_id is already
+        registered, the duplicate is silently ignored.
+        """
+        for existing in self._active_sessions:
+            if existing.session_id == signal.session_id:
+                return
+        self._active_sessions.append(signal)
+
     # ── Queries ───────────────────────────────────────────────────────────────
 
     @workflow.query
@@ -495,6 +581,26 @@ class EpochWorkflow:
         return self._sm.available_transitions
 
     @workflow.query
+    def full_state(self) -> "QueryStateResult":
+        """Query: return a flattened QueryStateResult DTO for CLI output (SLICE-3).
+
+        Combines EpochState fields into a serializable DTO suitable for
+        aura-msg query state. Uses state.review_votes per D20.
+        """
+        if self._sm is None:
+            raise RuntimeError("Workflow not yet initialized — run() has not started.")
+        state = self._sm.state
+        return QueryStateResult(
+            current_phase=state.current_phase,
+            current_role=state.current_role,
+            transition_history=list(state.transition_history),
+            votes=dict(state.review_votes),
+            last_error=state.last_error,
+            available_transitions=list(self._sm.available_transitions),
+            active_session_count=len(self._active_sessions),
+        )
+
+    @workflow.query
     def slice_progress_state(self) -> list[SliceProgressSignal]:
         """Query: return all accumulated slice progress signals so far.
 
@@ -505,6 +611,15 @@ class EpochWorkflow:
         R12 stub: log is in-memory; empty until SliceWorkflow children signal.
         """
         return list(self._slice_progress_log)
+
+    @workflow.query
+    def active_sessions(self) -> list[SessionRegisterSignal]:
+        """Query: return all registered sessions for this epoch (SLICE-7).
+
+        Returns the list of SessionRegisterSignal events received via
+        register_session signal. Used by active_session_count in full_state().
+        """
+        return list(self._active_sessions)
 
     # ── P9 Slice Execution ────────────────────────────────────────────────────
 
@@ -600,50 +715,127 @@ class EpochWorkflow:
 class SliceWorkflow:
     """Child workflow for a single P9_SLICE implementation slice.
 
-    Runs concurrently with other SliceWorkflow instances within the same epoch.
-    EpochWorkflow._run_p9_slices() uses workflow.wait(FIRST_EXCEPTION) to
-    fail-fast: if any slice raises, remaining slices are cancelled.
+    Supports three execution modes via SliceStartSignal:
+    - "mock": Returns success immediately (test/CI mode, AC-SW3)
+    - "tmux": Executes command in tmux session via execute_slice_command activity
+    - "subprocess": Executes command via subprocess (execute_slice_command activity)
+
+    If no SliceStartSignal is received before run() begins, defaults to mock mode
+    for backward compatibility with existing EpochWorkflow topology tests.
 
     Parent signaling:
-        On completion, SliceWorkflow signals the parent EpochWorkflow via
-        EpochWorkflow.slice_progress using input.parent_workflow_id. The signal
-        uses get_external_workflow_handle() so the parent can be reached even
-        from a concurrent child context. Signal delivery is best-effort: if the
-        parent has already completed, the exception is caught and logged rather
-        than propagated (signal delivery failure must never fail the slice).
+        On completion, signals the parent EpochWorkflow via slice_progress using
+        input.parent_workflow_id. Signal delivery is best-effort: if the parent
+        has already completed, the exception is caught and logged (non-fatal).
 
-    R12 stub: actual slice execution (running the worker agent, checking output,
-    parsing results) is future work. This stub returns success immediately so
-    that the EpochWorkflow topology and fail-fast wiring can be tested end-to-end
-    before slice execution semantics are defined.
+    Signal-driven lifecycle:
+        1. Parent starts SliceWorkflow with SliceInput
+        2. (Optional) Parent sends SliceStartSignal with config
+        3. Workflow executes based on mode
+        4. (Optional) External agent sends SliceCompleteSignal
+        5. Workflow signals parent and returns SliceResult
     """
+
+    def __init__(self) -> None:
+        self._start_signal: SliceStartSignal | None = None
+        self._complete_signal: SliceCompleteSignal | None = None
+        self._review_cycles: list[ReviewCycleRecord] = []
+
+    @workflow.signal
+    def start_slice(self, signal: SliceStartSignal) -> None:
+        """Signal: configure and start slice execution."""
+        self._start_signal = signal
+
+    @workflow.signal
+    def complete_slice(self, signal: SliceCompleteSignal) -> None:
+        """Signal: external completion notification (AC-SW4)."""
+        self._complete_signal = signal
+
+    @workflow.signal
+    def review_cycle(self, signal: ReviewCycleSignal) -> None:
+        """Signal: enter a review cycle on this slice."""
+        self._review_cycles.append(
+            ReviewCycleRecord(
+                cycle_number=signal.cycle_number,
+                reviewer_feedback=signal.reviewer_feedback,
+            )
+        )
+
+    @workflow.query
+    def review_cycle_count(self) -> int:
+        """Query: return the number of review cycles completed."""
+        return len(self._review_cycles)
+
+    @workflow.query
+    def review_cycles(self) -> list[ReviewCycleRecord]:
+        """Query: return all review cycle records (defensive copy)."""
+        return list(self._review_cycles)
 
     @workflow.run
     async def run(self, input: SliceInput) -> SliceResult:
         """Execute a single implementation slice.
 
+        Determines execution mode from SliceStartSignal (if received before
+        run() begins) or defaults to mock mode. Timeout is configurable via
+        SliceExecutionConfig.timeout_seconds (AC-SW5).
+
         Args:
             input: SliceInput with epoch_id, slice_id, phase_spec, and
-                parent_workflow_id. parent_workflow_id is the workflow ID of
-                the EpochWorkflow parent; used to signal slice progress.
+                parent_workflow_id.
 
         Returns:
             SliceResult indicating success or failure.
-
-        R12 stub: returns SliceResult(success=True) immediately. Future
-        implementation will execute the slice via activities (spawn worker,
-        collect results, validate output) and return failure on any error.
         """
-        # R12 stub: slice execution via activities is future work.
-        # When implemented: execute_activity(run_slice_agent, input, ...) etc.
+        config = self._start_signal.config if self._start_signal else None
+        mode = config.mode if config else SliceMode.Mock
+
+        if mode == SliceMode.Mock:
+            result = SliceResult(slice_id=input.slice_id, success=True)
+        elif mode in (SliceMode.Tmux, SliceMode.Subprocess):
+            timeout = config.timeout_seconds if config else 300
+            result = await workflow.execute_activity(
+                "execute_slice_command",
+                args=[config.command, input.slice_id, input.epoch_id],
+                start_to_close_timeout=timedelta(seconds=timeout),
+                result_type=SliceResult,
+            )
+        else:
+            result = SliceResult(
+                slice_id=input.slice_id,
+                success=False,
+                error=f"Unknown execution mode: {mode}",
+            )
+
+        # Allow any pending complete_slice signals to be delivered.
+        # In mock mode there are no natural yield points (no await), so buffered
+        # signals can't be processed.  A brief wait_condition gives the runtime a
+        # chance to deliver them.  In time-skipping test environments this resolves
+        # instantly; in production tmux/subprocess mode the signal will already have
+        # arrived during the activity await, making this a no-op.
+        if self._complete_signal is None:
+            try:
+                await workflow.wait_condition(
+                    lambda: self._complete_signal is not None,
+                    timeout=timedelta(seconds=1),
+                )
+            except asyncio.TimeoutError:
+                pass  # No override signal received — use computed result
+
+        # If external agent sent a complete_slice signal, it overrides the activity result.
+        # This is the signal-driven completion path: the workflow defers to the external
+        # agent's reported outcome rather than the subprocess exit code.
+        if self._complete_signal is not None:
+            cs = self._complete_signal
+            result = SliceResult(
+                slice_id=input.slice_id,
+                success=cs.success,
+                output=cs.output,
+                error=cs.error or None,
+            )
 
         # Signal parent EpochWorkflow with completion progress.
-        # Uses input.parent_workflow_id (explicit) rather than
-        # workflow.info().parent.workflow_id (implicit) for testability.
-        # Wrapped in try/except: if the parent EpochWorkflow has already
-        # completed before this signal is delivered (race condition), the
-        # exception is caught and logged. Signal delivery failure must never
-        # cause the slice itself to fail — the SliceResult is still returned.
+        # Uses input.parent_workflow_id (explicit) for testability.
+        # Wrapped in try/except: signal delivery failure must never fail the slice.
         try:
             parent_handle = workflow.get_external_workflow_handle(input.parent_workflow_id)
             await parent_handle.signal(
@@ -652,11 +844,10 @@ class SliceWorkflow:
                     slice_id=input.slice_id,
                     leaf_task_id=input.slice_id,
                     stage_name="execute",
-                    completed=True,
+                    completed=result.success,
                 ),
             )
         except Exception as e:  # noqa: BLE001
-            # Parent may have completed before signal arrived — non-fatal.
             workflow.logger.warning(
                 "SliceWorkflow(%s): parent signal delivery failed (parent_id=%s): %s",
                 input.slice_id,
@@ -664,7 +855,7 @@ class SliceWorkflow:
                 e,
             )
 
-        return SliceResult(slice_id=input.slice_id, success=True)
+        return result
 
 
 @workflow.defn

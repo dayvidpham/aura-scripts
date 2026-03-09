@@ -69,14 +69,14 @@ from aura_protocol.types import (
 # Constraints present in ALL phases (general) → None (omit phase-ref from XML).
 
 _ROLE_PRIORITY: tuple[RoleId, ...] = (
-    RoleId.EPOCH, RoleId.REVIEWER, RoleId.ARCHITECT, RoleId.SUPERVISOR, RoleId.WORKER,
+    RoleId.Epoch, RoleId.Reviewer, RoleId.Architect, RoleId.Supervisor, RoleId.Worker,
 )
 
 _PHASE_ORDER: tuple[PhaseId, ...] = (
-    PhaseId.P1_REQUEST, PhaseId.P2_ELICIT, PhaseId.P3_PROPOSE,
-    PhaseId.P4_REVIEW, PhaseId.P5_UAT, PhaseId.P6_RATIFY,
-    PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE,
-    PhaseId.P10_CODE_REVIEW, PhaseId.P11_IMPL_UAT, PhaseId.P12_LANDING,
+    PhaseId.P1_Request, PhaseId.P2_Elicit, PhaseId.P3_Propose,
+    PhaseId.P4_Review, PhaseId.P5_Uat, PhaseId.P6_Ratify,
+    PhaseId.P7_Handoff, PhaseId.P8_ImplPlan, PhaseId.P9_Slice,
+    PhaseId.P10_CodeReview, PhaseId.P11_ImplUat, PhaseId.P12_Landing,
 )
 
 
@@ -103,7 +103,7 @@ def _build_constraint_phase_refs() -> dict[str, str | None]:
         in_all = all(
             cid in constraints
             for phase, constraints in _CI_PHASE_CONSTRAINTS.items()
-            if phase != PhaseId.COMPLETE  # terminal state has no constraints by design
+            if phase != PhaseId.Complete  # terminal state has no constraints by design
         )
         if in_all:
             result[cid] = None  # applies to all phases, omit
@@ -185,7 +185,7 @@ def _build_phase_transitions() -> dict[str, list[dict]]:
             if t.action is not None:
                 entry["action"] = t.action
             # Add skill-invocation supplement for p7→p8 (C-handoff-skill-invocation)
-            if phase_id == PhaseId.P7_HANDOFF and t.to_phase == PhaseId.P8_IMPL_PLAN:
+            if phase_id == PhaseId.P7_Handoff and t.to_phase == PhaseId.P8_ImplPlan:
                 entry["skill-invocation"] = _P7_SKILL_INVOCATION
             trans_list.append(entry)
         if trans_list:
@@ -493,10 +493,10 @@ def _build_phases(root: ET.Element) -> None:
     # Phase ordering: p1 through p12 by number
     ordered_phase_ids = [
         pid for pid in [
-            PhaseId.P1_REQUEST, PhaseId.P2_ELICIT, PhaseId.P3_PROPOSE,
-            PhaseId.P4_REVIEW, PhaseId.P5_UAT, PhaseId.P6_RATIFY,
-            PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE,
-            PhaseId.P10_CODE_REVIEW, PhaseId.P11_IMPL_UAT, PhaseId.P12_LANDING,
+            PhaseId.P1_Request, PhaseId.P2_Elicit, PhaseId.P3_Propose,
+            PhaseId.P4_Review, PhaseId.P5_Uat, PhaseId.P6_Ratify,
+            PhaseId.P7_Handoff, PhaseId.P8_ImplPlan, PhaseId.P9_Slice,
+            PhaseId.P10_CodeReview, PhaseId.P11_ImplUat, PhaseId.P12_Landing,
         ]
     ]
 
@@ -562,7 +562,7 @@ def _build_phases(root: ET.Element) -> None:
                 # Startup sequence for p8/s8 supervisor steps
                 if sd.get("startup-sequence"):
                     startup_el = ET.SubElement(substep_el, "startup-sequence")
-                    sup_steps = PROCEDURE_STEPS[RoleId.SUPERVISOR]
+                    sup_steps = PROCEDURE_STEPS[RoleId.Supervisor]
                     for step in sup_steps:
                         step_el = ET.SubElement(startup_el, "step",
                                                 order=str(step.order),
@@ -597,7 +597,7 @@ def _build_phases(root: ET.Element) -> None:
         elif pid == "p9":
             # TDD layers
             tdd_el = ET.SubElement(phase_el, "tdd-layers")
-            worker_steps = PROCEDURE_STEPS[RoleId.WORKER]
+            worker_steps = PROCEDURE_STEPS[RoleId.Worker]
             layer_names = ["Types", "Tests", "Implementation"]
             for step in worker_steps:
                 ET.SubElement(tdd_el, "layer",
@@ -668,8 +668,8 @@ def _build_roles(root: ET.Element) -> None:
     """Append <roles> section to root, derived from ROLE_SPECS."""
     roles_el = ET.SubElement(root, "roles")
 
-    role_order = [RoleId.EPOCH, RoleId.ARCHITECT, RoleId.REVIEWER,
-                  RoleId.SUPERVISOR, RoleId.WORKER]
+    role_order = [RoleId.Epoch, RoleId.Architect, RoleId.Reviewer,
+                  RoleId.Supervisor, RoleId.Worker]
 
     for role_id in role_order:
         spec = ROLE_SPECS[role_id]
@@ -1382,8 +1382,8 @@ def _build_procedure_steps(root: ET.Element) -> None:
     All attribute and text values are XML-escaped by ElementTree automatically.
     """
     # Role ordering for deterministic output
-    role_order = [RoleId.EPOCH, RoleId.ARCHITECT, RoleId.REVIEWER,
-                  RoleId.SUPERVISOR, RoleId.WORKER]
+    role_order = [RoleId.Epoch, RoleId.Architect, RoleId.Reviewer,
+                  RoleId.Supervisor, RoleId.Worker]
 
     proc_el = ET.SubElement(root, "procedure-steps")
 

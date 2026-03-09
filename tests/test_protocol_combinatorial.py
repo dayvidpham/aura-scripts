@@ -207,16 +207,16 @@ class TestFixtureLoaderGenerators:
     def test_build_vote_dict_all_accept(self) -> None:
         """build_vote_dict('all_accept') returns typed ReviewAxis → VoteType dict."""
         votes = _PROTOCOL_FIXTURE.build_vote_dict("all_accept")
-        assert votes[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
-        assert votes[ReviewAxis.TEST_QUALITY] == VoteType.ACCEPT
-        assert votes[ReviewAxis.ELEGANCE] == VoteType.ACCEPT
+        assert votes[ReviewAxis.Correctness] == VoteType.Accept
+        assert votes[ReviewAxis.TestQuality] == VoteType.Accept
+        assert votes[ReviewAxis.Elegance] == VoteType.Accept
 
     def test_build_vote_dict_all_revise(self) -> None:
         """build_vote_dict('all_revise') returns all-REVISE dict."""
         votes = _PROTOCOL_FIXTURE.build_vote_dict("all_revise")
-        assert votes[ReviewAxis.CORRECTNESS] == VoteType.REVISE
-        assert votes[ReviewAxis.TEST_QUALITY] == VoteType.REVISE
-        assert votes[ReviewAxis.ELEGANCE] == VoteType.REVISE
+        assert votes[ReviewAxis.Correctness] == VoteType.Revise
+        assert votes[ReviewAxis.TestQuality] == VoteType.Revise
+        assert votes[ReviewAxis.Elegance] == VoteType.Revise
 
 
 # ─── TestPhaseSpecsFixture ─────────────────────────────────────────────────────
@@ -293,16 +293,16 @@ class TestTransitionCombinatorial:
         # phase (i.e. P4→P5 inside _advance_to), but here we are AT P4 already
         # and need to cast them manually.
         if tc.requires_consensus:
-            sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-            sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-            sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+            sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+            sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+            sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
         # Backward revision transitions (P4→P3, P10→P9) require a REVISE vote.
         if tc.source_phase == "p4" and tc.target_phase == "p3":
-            sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
+            sm.record_vote(ReviewAxis.Correctness, VoteType.Revise)
 
         if tc.source_phase == "p10" and tc.target_phase == "p9":
-            sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
+            sm.record_vote(ReviewAxis.Correctness, VoteType.Revise)
 
         # Advance to target — should not raise
         sm.advance(target, triggered_by="test", condition_met="test-condition")
@@ -352,15 +352,15 @@ class TestForwardPathCombinatorial:
         # _advance_to already satisfies consensus gates for P4→P5 and P10→P11.
         # The next advance also goes through _advance_to's gate logic for those pairs.
         # Here we call sm.advance directly for the final step.
-        if tc.requires_consensus and source == PhaseId.P4_REVIEW:
-            sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-            sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-            sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        if tc.requires_consensus and source == PhaseId.P4_Review:
+            sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+            sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+            sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
-        if tc.requires_consensus and source == PhaseId.P10_CODE_REVIEW:
-            sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-            sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-            sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        if tc.requires_consensus and source == PhaseId.P10_CodeReview:
+            sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+            sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+            sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
         sm.advance(target, triggered_by="test", condition_met="forward-path")
         assert sm.state.current_phase == target
@@ -381,7 +381,7 @@ class TestVoteCombinatorial:
         sm = EpochStateMachine("test-epoch")
         source = PhaseId(tc.phase)
         # Forward target for each review phase
-        targets = {"p4": PhaseId.P5_UAT, "p10": PhaseId.P11_IMPL_UAT}
+        targets = {"p4": PhaseId.P5_Uat, "p10": PhaseId.P11_ImplUat}
         target = targets[tc.phase]
 
         _advance_to(sm, source)
@@ -403,8 +403,8 @@ class TestVoteCombinatorial:
         sm = EpochStateMachine("test-epoch")
         source = PhaseId(tc.phase)
         # Backward targets for each review phase
-        back_targets = {"p4": PhaseId.P3_PROPOSE, "p10": PhaseId.P9_SLICE}
-        fwd_targets = {"p4": PhaseId.P5_UAT, "p10": PhaseId.P11_IMPL_UAT}
+        back_targets = {"p4": PhaseId.P3_Propose, "p10": PhaseId.P9_Slice}
+        fwd_targets = {"p4": PhaseId.P5_Uat, "p10": PhaseId.P11_ImplUat}
 
         _advance_to(sm, source)
 
@@ -434,7 +434,7 @@ class TestVoteCombinatorial:
         """Vote combinations with partial/empty votes block forward advance."""
         sm = EpochStateMachine("test-epoch")
         source = PhaseId(tc.phase)
-        fwd_targets = {"p4": PhaseId.P5_UAT, "p10": PhaseId.P11_IMPL_UAT}
+        fwd_targets = {"p4": PhaseId.P5_Uat, "p10": PhaseId.P11_ImplUat}
         fwd_target = fwd_targets[tc.phase]
 
         _advance_to(sm, source)

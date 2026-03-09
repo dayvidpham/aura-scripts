@@ -67,7 +67,7 @@ _REVIEW_AXES: frozenset[str] = frozenset(ReviewAxis)
 
 # Phases that use review consensus gating
 _REVIEW_PHASES: frozenset[PhaseId] = frozenset(
-    {PhaseId.P4_REVIEW, PhaseId.P10_CODE_REVIEW}
+    {PhaseId.P4_Review, PhaseId.P10_CodeReview}
 )
 
 # Phase transitions that require handoff documents.
@@ -78,29 +78,29 @@ _REVIEW_PHASES: frozenset[PhaseId] = frozenset(
 _HANDOFF_REQUIRED_TRANSITIONS: frozenset[tuple[PhaseId, PhaseId]] = frozenset(
     {
         # h1: architect → supervisor handoff at p7
-        (PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN),
+        (PhaseId.P7_Handoff, PhaseId.P8_ImplPlan),
         # h2: supervisor → worker handoff at p9
-        (PhaseId.P9_SLICE, PhaseId.P10_CODE_REVIEW),
+        (PhaseId.P9_Slice, PhaseId.P10_CodeReview),
     }
 )
 
 # Phases where severity tree (BLOCKER/IMPORTANT/MINOR) is required.
-_SEVERITY_TREE_PHASES: frozenset[PhaseId] = frozenset({PhaseId.P10_CODE_REVIEW})
+_SEVERITY_TREE_PHASES: frozenset[PhaseId] = frozenset({PhaseId.P10_CodeReview})
 
 # The required severity groups for p10 code review.
 _REQUIRED_SEVERITY_GROUPS: frozenset[str] = frozenset({"BLOCKER", "IMPORTANT", "MINOR"})
 
 # The required SeverityLevel keys in EpochState.severity_groups at p10.
 _REQUIRED_SEVERITY_LEVELS: frozenset[SeverityLevel] = frozenset(
-    {SeverityLevel.BLOCKER, SeverityLevel.IMPORTANT, SeverityLevel.MINOR}
+    {SeverityLevel.Blocker, SeverityLevel.Important, SeverityLevel.Minor}
 )
 
 # Transitions that do NOT require a handoff (same-actor transitions per schema.xml).
 # p5→p6 and p6→p7 are architect-to-architect; no role change, no handoff needed.
 _SAME_ACTOR: frozenset[tuple[PhaseId, PhaseId]] = frozenset(
     {
-        (PhaseId.P5_UAT, PhaseId.P6_RATIFY),
-        (PhaseId.P6_RATIFY, PhaseId.P7_HANDOFF),
+        (PhaseId.P5_Uat, PhaseId.P6_Ratify),
+        (PhaseId.P6_Ratify, PhaseId.P7_Handoff),
     }
 )
 
@@ -213,16 +213,16 @@ class RuntimeConstraintChecker:
         current = state.current_phase
 
         # C-review-consensus: check consensus gate for review phase → forward transition
-        if current == PhaseId.P4_REVIEW and to_phase == PhaseId.P5_UAT:
+        if current == PhaseId.P4_Review and to_phase == PhaseId.P5_Uat:
             violations.extend(self.check_review_consensus(state))
-        elif current == PhaseId.P10_CODE_REVIEW and to_phase == PhaseId.P11_IMPL_UAT:
+        elif current == PhaseId.P10_CodeReview and to_phase == PhaseId.P11_ImplUat:
             violations.extend(self.check_review_consensus(state))
 
         # C-handoff-skill-invocation: handoff required for actor-change transitions
         violations.extend(self.check_handoff_required(current, to_phase))
 
         # C-worker-gates: blocker gate — p10→p11 blocked while blocker_count > 0
-        if current == PhaseId.P10_CODE_REVIEW and to_phase == PhaseId.P11_IMPL_UAT:
+        if current == PhaseId.P10_CodeReview and to_phase == PhaseId.P11_ImplUat:
             violations.extend(self.check_blocker_gate(state))
 
         return violations
@@ -437,17 +437,17 @@ class RuntimeConstraintChecker:
         votes = state.review_votes
         missing_accept: list[str] = []
         for axis in sorted(_REVIEW_AXES):
-            if axis not in votes or votes[axis] != VoteType.ACCEPT:
+            if axis not in votes or votes[axis] != VoteType.Accept:
                 missing_accept.append(axis)
 
         if not missing_accept:
             return []
 
         accepted = sorted(
-            ax for ax, v in votes.items() if v == VoteType.ACCEPT
+            ax for ax, v in votes.items() if v == VoteType.Accept
         )
         revise = sorted(
-            ax for ax, v in votes.items() if v == VoteType.REVISE
+            ax for ax, v in votes.items() if v == VoteType.Revise
         )
         not_voted = sorted(ax for ax in _REVIEW_AXES if ax not in votes)
 
@@ -540,7 +540,7 @@ class RuntimeConstraintChecker:
         current = state.current_phase
 
         # C-severity-not-plan: p4 (plan review) must NOT use severity trees.
-        if current == PhaseId.P4_REVIEW:
+        if current == PhaseId.P4_Review:
             violations.append(
                 ConstraintViolation(
                     constraint_id="C-severity-not-plan",
@@ -557,7 +557,7 @@ class RuntimeConstraintChecker:
         # EpochState.severity_groups is auto-populated on p10 entry by advance().
         # A missing key indicates the state was constructed outside the state machine
         # or the severity groups were not eagerly created as required.
-        if current == PhaseId.P10_CODE_REVIEW:
+        if current == PhaseId.P10_CodeReview:
             missing_levels = _REQUIRED_SEVERITY_LEVELS - set(state.severity_groups.keys())
             if missing_levels:
                 missing_names = sorted(level.value for level in missing_levels)
@@ -629,7 +629,7 @@ class RuntimeConstraintChecker:
         Returns violation if state is at p10 and blocker_count > 0.
         The p10→p11 transition cannot proceed until all BLOCKERs are resolved.
         """
-        if state.current_phase != PhaseId.P10_CODE_REVIEW:
+        if state.current_phase != PhaseId.P10_CodeReview:
             return []
 
         if state.blocker_count <= 0:
@@ -662,8 +662,8 @@ class RuntimeConstraintChecker:
 
         # If we've moved past p1, there must be transition history.
         if (
-            state.current_phase != PhaseId.P1_REQUEST
-            and state.current_phase != PhaseId.COMPLETE
+            state.current_phase != PhaseId.P1_Request
+            and state.current_phase != PhaseId.Complete
             and not state.transition_history
         ):
             violations.append(
@@ -1080,7 +1080,7 @@ class RuntimeConstraintChecker:
         External enforcement note: Full enforcement requires monitoring tool
         calls at the agent level.
         """
-        if role != RoleId.SUPERVISOR.value:
+        if role != RoleId.Supervisor.value:
             return []
 
         if action_type not in _IMPL_ACTIONS:
@@ -1247,7 +1247,7 @@ class RuntimeConstraintChecker:
 
         Returns violation if at p8 and exploration_method is not 'ephemeral_task'.
         """
-        if phase != PhaseId.P8_IMPL_PLAN:
+        if phase != PhaseId.P8_ImplPlan:
             return []
 
         if exploration_method == "ephemeral_task":

@@ -21,8 +21,9 @@ Coverage:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
-import pytest_asyncio
 
 from temporalio.exceptions import ApplicationError
 from temporalio.testing import ActivityEnvironment
@@ -30,12 +31,13 @@ from temporalio.testing import ActivityEnvironment
 import aura_protocol.audit_activities as audit_mod
 from aura_protocol.audit_activities import (
     InMemoryAuditTrail,
+    execute_slice_command,
     init_audit_trail,
     query_audit_events,
     record_audit_event,
 )
 from aura_protocol.interfaces import AuditTrail
-from aura_protocol.types import AuditEvent, PhaseId, RoleId
+from aura_protocol.types import AuditEvent, EventType, PhaseId, RoleId
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -43,9 +45,9 @@ from aura_protocol.types import AuditEvent, PhaseId, RoleId
 
 def _make_event(
     epoch_id: str = "epoch-1",
-    event_type: str = "phase_transition",
-    phase: PhaseId = PhaseId.P9_SLICE,
-    role: RoleId = RoleId.WORKER,
+    event_type: EventType = EventType.PhaseTransition,
+    phase: PhaseId = PhaseId.P9_Slice,
+    role: RoleId = RoleId.Worker,
     payload: dict | None = None,
 ) -> AuditEvent:
     return AuditEvent(
@@ -107,12 +109,12 @@ class TestInMemoryAuditTrail:
     async def test_query_events_filters_by_phase(self) -> None:
         """Given events from two phases, query_events(phase=...) filters correctly."""
         trail = InMemoryAuditTrail()
-        event_p9 = _make_event(epoch_id="e1", phase=PhaseId.P9_SLICE)
-        event_p10 = _make_event(epoch_id="e1", phase=PhaseId.P10_CODE_REVIEW)
+        event_p9 = _make_event(epoch_id="e1", phase=PhaseId.P9_Slice)
+        event_p10 = _make_event(epoch_id="e1", phase=PhaseId.P10_CodeReview)
         await trail.record_event(event_p9)
         await trail.record_event(event_p10)
 
-        result = await trail.query_events(epoch_id="e1", phase=PhaseId.P9_SLICE)
+        result = await trail.query_events(epoch_id="e1", phase=PhaseId.P9_Slice)
         assert event_p9 in result
         assert event_p10 not in result
 
@@ -120,8 +122,8 @@ class TestInMemoryAuditTrail:
     async def test_query_events_no_phase_filter_returns_all_for_epoch(self) -> None:
         """Given events from two phases, query_events(epoch_id) returns all."""
         trail = InMemoryAuditTrail()
-        event_p9 = _make_event(epoch_id="e1", phase=PhaseId.P9_SLICE)
-        event_p10 = _make_event(epoch_id="e1", phase=PhaseId.P10_CODE_REVIEW)
+        event_p9 = _make_event(epoch_id="e1", phase=PhaseId.P9_Slice)
+        event_p10 = _make_event(epoch_id="e1", phase=PhaseId.P10_CodeReview)
         await trail.record_event(event_p9)
         await trail.record_event(event_p10)
 
@@ -146,7 +148,8 @@ class TestInMemoryAuditTrail:
     async def test_multiple_record_events_stored_in_order(self) -> None:
         """Given multiple events recorded, they are returned in insertion order."""
         trail = InMemoryAuditTrail()
-        events = [_make_event(epoch_id="e1", event_type=f"event-{i}") for i in range(5)]
+        _event_types = list(EventType)
+        events = [_make_event(epoch_id="e1", event_type=_event_types[i % len(_event_types)]) for i in range(5)]
         for e in events:
             await trail.record_event(e)
         result = await trail.query_events(epoch_id="e1")
@@ -156,12 +159,12 @@ class TestInMemoryAuditTrail:
     async def test_query_events_filters_by_role(self) -> None:
         """Given events from two roles, query_events(role=...) filters correctly."""
         trail = InMemoryAuditTrail()
-        event_supervisor = _make_event(epoch_id="e1", role=RoleId.SUPERVISOR)
-        event_worker = _make_event(epoch_id="e1", role=RoleId.WORKER)
+        event_supervisor = _make_event(epoch_id="e1", role=RoleId.Supervisor)
+        event_worker = _make_event(epoch_id="e1", role=RoleId.Worker)
         await trail.record_event(event_supervisor)
         await trail.record_event(event_worker)
 
-        result = await trail.query_events(epoch_id="e1", role=RoleId.SUPERVISOR)
+        result = await trail.query_events(epoch_id="e1", role=RoleId.Supervisor)
         assert event_supervisor in result
         assert event_worker not in result
 
@@ -169,8 +172,8 @@ class TestInMemoryAuditTrail:
     async def test_query_events_role_none_returns_all_roles(self) -> None:
         """Given events from multiple roles, query_events with role=None returns all."""
         trail = InMemoryAuditTrail()
-        event_supervisor = _make_event(epoch_id="e1", role=RoleId.SUPERVISOR)
-        event_worker = _make_event(epoch_id="e1", role=RoleId.WORKER)
+        event_supervisor = _make_event(epoch_id="e1", role=RoleId.Supervisor)
+        event_worker = _make_event(epoch_id="e1", role=RoleId.Worker)
         await trail.record_event(event_supervisor)
         await trail.record_event(event_worker)
 
@@ -261,7 +264,8 @@ class TestRecordAuditEventActivity:
         init_audit_trail(trail)
         env = ActivityEnvironment()
 
-        events = [_make_event(epoch_id="e1", event_type=f"type-{i}") for i in range(3)]
+        _event_types = list(EventType)
+        events = [_make_event(epoch_id="e1", event_type=_event_types[i % len(_event_types)]) for i in range(3)]
         for e in events:
             await env.run(record_audit_event, e)
 
@@ -307,13 +311,13 @@ class TestQueryAuditEventsActivity:
         """query_audit_events(epoch_id, phase) filters by phase."""
         trail = InMemoryAuditTrail()
         init_audit_trail(trail)
-        event_p9 = _make_event(epoch_id="e1", phase=PhaseId.P9_SLICE)
-        event_p10 = _make_event(epoch_id="e1", phase=PhaseId.P10_CODE_REVIEW)
+        event_p9 = _make_event(epoch_id="e1", phase=PhaseId.P9_Slice)
+        event_p10 = _make_event(epoch_id="e1", phase=PhaseId.P10_CodeReview)
         await trail.record_event(event_p9)
         await trail.record_event(event_p10)
 
         env = ActivityEnvironment()
-        result = await env.run(query_audit_events, "e1", PhaseId.P9_SLICE)
+        result = await env.run(query_audit_events, "e1", PhaseId.P9_Slice)
         assert event_p9 in result
         assert event_p10 not in result
 
@@ -345,16 +349,16 @@ class TestQueryAuditEventsActivity:
 
     @pytest.mark.asyncio
     async def test_query_filters_by_role(self) -> None:
-        """query_audit_events(epoch_id, phase=None, role=RoleId.SUPERVISOR) filters by role."""
+        """query_audit_events(epoch_id, phase=None, role=RoleId.Supervisor) filters by role."""
         trail = InMemoryAuditTrail()
         init_audit_trail(trail)
-        event_supervisor = _make_event(epoch_id="e1", role=RoleId.SUPERVISOR)
-        event_worker = _make_event(epoch_id="e1", role=RoleId.WORKER)
+        event_supervisor = _make_event(epoch_id="e1", role=RoleId.Supervisor)
+        event_worker = _make_event(epoch_id="e1", role=RoleId.Worker)
         await trail.record_event(event_supervisor)
         await trail.record_event(event_worker)
 
         env = ActivityEnvironment()
-        result = await env.run(query_audit_events, "e1", None, RoleId.SUPERVISOR)
+        result = await env.run(query_audit_events, "e1", None, RoleId.Supervisor)
         assert event_supervisor in result
         assert event_worker not in result
 
@@ -363,8 +367,8 @@ class TestQueryAuditEventsActivity:
         """query_audit_events with role=None returns events for all roles."""
         trail = InMemoryAuditTrail()
         init_audit_trail(trail)
-        event_supervisor = _make_event(epoch_id="e1", role=RoleId.SUPERVISOR)
-        event_worker = _make_event(epoch_id="e1", role=RoleId.WORKER)
+        event_supervisor = _make_event(epoch_id="e1", role=RoleId.Supervisor)
+        event_worker = _make_event(epoch_id="e1", role=RoleId.Worker)
         await trail.record_event(event_supervisor)
         await trail.record_event(event_worker)
 
@@ -378,11 +382,11 @@ class TestQueryAuditEventsActivity:
         """query_audit_events with role filter returns empty when no events match role."""
         trail = InMemoryAuditTrail()
         init_audit_trail(trail)
-        event_worker = _make_event(epoch_id="e1", role=RoleId.WORKER)
+        event_worker = _make_event(epoch_id="e1", role=RoleId.Worker)
         await trail.record_event(event_worker)
 
         env = ActivityEnvironment()
-        result = await env.run(query_audit_events, "e1", None, RoleId.SUPERVISOR)
+        result = await env.run(query_audit_events, "e1", None, RoleId.Supervisor)
         assert result == []
 
     @pytest.mark.asyncio
@@ -390,15 +394,67 @@ class TestQueryAuditEventsActivity:
         """query_audit_events with both role and phase filters returns only doubly-matching events."""
         trail = InMemoryAuditTrail()
         init_audit_trail(trail)
-        event_match = _make_event(epoch_id="e1", phase=PhaseId.P9_SLICE, role=RoleId.WORKER)
-        event_wrong_role = _make_event(epoch_id="e1", phase=PhaseId.P9_SLICE, role=RoleId.SUPERVISOR)
-        event_wrong_phase = _make_event(epoch_id="e1", phase=PhaseId.P10_CODE_REVIEW, role=RoleId.WORKER)
+        event_match = _make_event(epoch_id="e1", phase=PhaseId.P9_Slice, role=RoleId.Worker)
+        event_wrong_role = _make_event(epoch_id="e1", phase=PhaseId.P9_Slice, role=RoleId.Supervisor)
+        event_wrong_phase = _make_event(epoch_id="e1", phase=PhaseId.P10_CodeReview, role=RoleId.Worker)
         await trail.record_event(event_match)
         await trail.record_event(event_wrong_role)
         await trail.record_event(event_wrong_phase)
 
         env = ActivityEnvironment()
-        result = await env.run(query_audit_events, "e1", PhaseId.P9_SLICE, RoleId.WORKER)
+        result = await env.run(query_audit_events, "e1", PhaseId.P9_Slice, RoleId.Worker)
         assert event_match in result
         assert event_wrong_role not in result
         assert event_wrong_phase not in result
+
+
+# ─── execute_slice_command activity tests ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+class TestExecuteSliceCommand:
+    """Activity-level tests for execute_slice_command (I-6B.2)."""
+
+    async def test_tmux_not_found_returns_failure(self) -> None:
+        """Given search_path="/nonexistent", tmux not found → SliceResult(success=False)."""
+        env = ActivityEnvironment()
+        result = await env.run(
+            execute_slice_command, "echo hello", "s1", "ep-1", "/nonexistent"
+        )
+        assert result.success is False
+        assert result.error == "tmux not found"
+        assert result.slice_id == "s1"
+
+    async def test_successful_command(self, tmp_path: Path) -> None:
+        """Given tmux available and command succeeds → SliceResult(success=True)."""
+        import os
+        import stat
+
+        fake_tmux = tmp_path / "tmux"
+        fake_tmux.write_text("#!/bin/sh\necho fake-tmux")
+        fake_tmux.chmod(fake_tmux.stat().st_mode | stat.S_IEXEC)
+
+        env = ActivityEnvironment()
+        result = await env.run(
+            execute_slice_command, "echo hello-world", "s2", "ep-2", str(tmp_path)
+        )
+        assert result.success is True
+        assert "hello-world" in result.output
+        assert result.slice_id == "s2"
+
+    async def test_failing_command(self, tmp_path: Path) -> None:
+        """Given tmux available and command fails (non-zero exit) → SliceResult(success=False)."""
+        import os
+        import stat
+
+        fake_tmux = tmp_path / "tmux"
+        fake_tmux.write_text("#!/bin/sh\necho fake-tmux")
+        fake_tmux.chmod(fake_tmux.stat().st_mode | stat.S_IEXEC)
+
+        env = ActivityEnvironment()
+        result = await env.run(
+            execute_slice_command, "exit 42", "s3", "ep-3", str(tmp_path)
+        )
+        assert result.success is False
+        assert "42" in result.error
+        assert result.slice_id == "s3"

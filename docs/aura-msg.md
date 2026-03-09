@@ -1,6 +1,6 @@
 # aura-msg — CLI Reference
 
-`aura-msg` (`bin/aura-msg.py`) is the programmatic CLI for interacting with
+`aura-msg` (`bin/aura-msg`) is the programmatic CLI for interacting with
 Aura Protocol v3 workflows. It is the intended interface for model harness
 hooks to send signals, query state, and advance phase transitions without
 needing to speak the Temporal Client SDK directly.

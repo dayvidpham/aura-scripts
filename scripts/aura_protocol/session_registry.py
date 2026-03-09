@@ -42,18 +42,18 @@ class PermissionMode(StrEnum):
     Excludes dangerously-skip-permissions by design — that mode is forbidden.
     """
 
-    DEFAULT = "default"
-    ACCEPT_EDITS = "acceptEdits"
-    BYPASS_PERMISSIONS = "bypassPermissions"
-    PLAN = "plan"
+    Default = "default"
+    AcceptEdits = "acceptEdits"
+    BypassPermissions = "bypassPermissions"
+    Plan = "plan"
 
 
 class ModelTier(StrEnum):
     """Claude model tiers."""
 
-    SONNET = "sonnet"
-    OPUS = "opus"
-    HAIKU = "haiku"
+    Sonnet = "sonnet"
+    Opus = "opus"
+    Haiku = "haiku"
 
 
 class SessionRole(StrEnum):
@@ -62,32 +62,32 @@ class SessionRole(StrEnum):
     Matches the swarm/parallel launcher roles (subset of protocol RoleId).
     """
 
-    ARCHITECT = "architect"
-    SUPERVISOR = "supervisor"
-    REVIEWER = "reviewer"
-    WORKER = "worker"
+    Architect = "architect"
+    Supervisor = "supervisor"
+    Reviewer = "reviewer"
+    Worker = "worker"
 
 
 class SwarmMode(StrEnum):
     """Swarm operation mode."""
 
-    WORKTREE = "worktree"
-    INTREE = "intree"
+    Worktree = "worktree"
+    Intree = "intree"
 
 
 class TmuxDest(StrEnum):
     """Tmux launch destination."""
 
-    SESSION = "session"
-    WINDOW = "window"
+    Session = "session"
+    Window = "window"
 
 
 class SessionStatus(StrEnum):
     """Session liveness status."""
 
-    RUNNING = "running"
-    STOPPED = "stopped"
-    UNKNOWN = "unknown"
+    Running = "running"
+    Stopped = "stopped"
+    Unknown = "unknown"
 
 
 # ─── SessionRecord ────────────────────────────────────────────────────────────

@@ -54,19 +54,19 @@ _PROTOCOL_FIXTURE = ProtocolFixture()
 # forward. Do not reorder or derive from dict iteration (dict order is insertion
 # order but PHASE_SPECS is keyed by enum, not by phase number).
 _FORWARD_PHASES: list[PhaseId] = [
-    PhaseId.P1_REQUEST,
-    PhaseId.P2_ELICIT,
-    PhaseId.P3_PROPOSE,
-    PhaseId.P4_REVIEW,
-    PhaseId.P5_UAT,
-    PhaseId.P6_RATIFY,
-    PhaseId.P7_HANDOFF,
-    PhaseId.P8_IMPL_PLAN,
-    PhaseId.P9_SLICE,
-    PhaseId.P10_CODE_REVIEW,
-    PhaseId.P11_IMPL_UAT,
-    PhaseId.P12_LANDING,
-    PhaseId.COMPLETE,
+    PhaseId.P1_Request,
+    PhaseId.P2_Elicit,
+    PhaseId.P3_Propose,
+    PhaseId.P4_Review,
+    PhaseId.P5_Uat,
+    PhaseId.P6_Ratify,
+    PhaseId.P7_Handoff,
+    PhaseId.P8_ImplPlan,
+    PhaseId.P9_Slice,
+    PhaseId.P10_CodeReview,
+    PhaseId.P11_ImplUat,
+    PhaseId.P12_Landing,
+    PhaseId.Complete,
 ]
 
 
@@ -90,22 +90,22 @@ def _advance_to(sm: EpochStateMachine, target: PhaseId) -> None:
         nxt = _FORWARD_PHASES[i + 1]
 
         # Populate consensus gate before P4→P5 (plan review).
-        if frm == PhaseId.P4_REVIEW and nxt == PhaseId.P5_UAT:
-            sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-            sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-            sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        if frm == PhaseId.P4_Review and nxt == PhaseId.P5_Uat:
+            sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+            sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+            sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
         # Populate consensus + blocker-clear gate before P10→P11 (code review).
-        if frm == PhaseId.P10_CODE_REVIEW and nxt == PhaseId.P11_IMPL_UAT:
-            sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-            sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-            sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        if frm == PhaseId.P10_CodeReview and nxt == PhaseId.P11_ImplUat:
+            sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+            sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+            sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
 
         sm.advance(nxt, triggered_by="test", condition_met="test-condition")
 
 
 def _make_state(
-    phase: PhaseId = PhaseId.P1_REQUEST,
+    phase: PhaseId = PhaseId.P1_Request,
     epoch_id: str = "test-epoch",
     **kwargs,
 ) -> EpochState:
@@ -139,18 +139,18 @@ def sm(epoch_id: str) -> EpochStateMachine:
 @pytest.fixture
 def sm_at_p4(sm: EpochStateMachine) -> EpochStateMachine:
     """State machine advanced to P4 (review phase)."""
-    sm.advance(PhaseId.P2_ELICIT, triggered_by="epoch", condition_met="ok")
-    sm.advance(PhaseId.P3_PROPOSE, triggered_by="architect", condition_met="ok")
-    sm.advance(PhaseId.P4_REVIEW, triggered_by="architect", condition_met="ok")
+    sm.advance(PhaseId.P2_Elicit, triggered_by="epoch", condition_met="ok")
+    sm.advance(PhaseId.P3_Propose, triggered_by="architect", condition_met="ok")
+    sm.advance(PhaseId.P4_Review, triggered_by="architect", condition_met="ok")
     return sm
 
 
 @pytest.fixture
 def sm_at_p4_with_consensus(sm_at_p4: EpochStateMachine) -> EpochStateMachine:
     """State machine at P4 with all 3 ACCEPT votes."""
-    sm_at_p4.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-    sm_at_p4.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-    sm_at_p4.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+    sm_at_p4.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+    sm_at_p4.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+    sm_at_p4.record_vote(ReviewAxis.Elegance, VoteType.Accept)
     return sm_at_p4
 
 

@@ -23,19 +23,19 @@ class PhaseId(StrEnum):
     Values match schema.xml <phase id="..."> elements.
     """
 
-    P1_REQUEST = "p1"
-    P2_ELICIT = "p2"
-    P3_PROPOSE = "p3"
-    P4_REVIEW = "p4"
-    P5_UAT = "p5"
-    P6_RATIFY = "p6"
-    P7_HANDOFF = "p7"
-    P8_IMPL_PLAN = "p8"
-    P9_SLICE = "p9"
-    P10_CODE_REVIEW = "p10"
-    P11_IMPL_UAT = "p11"
-    P12_LANDING = "p12"
-    COMPLETE = "complete"
+    P1_Request = "p1"
+    P2_Elicit = "p2"
+    P3_Propose = "p3"
+    P4_Review = "p4"
+    P5_Uat = "p5"
+    P6_Ratify = "p6"
+    P7_Handoff = "p7"
+    P8_ImplPlan = "p8"
+    P9_Slice = "p9"
+    P10_CodeReview = "p10"
+    P11_ImplUat = "p11"
+    P12_Landing = "p12"
+    Complete = "complete"
 
 
 class Domain(StrEnum):
@@ -44,9 +44,9 @@ class Domain(StrEnum):
     Values match schema.xml <enum name="DomainType"> entries.
     """
 
-    USER = "user"
-    PLAN = "plan"
-    IMPL = "impl"
+    User = "user"
+    Plan = "plan"
+    Impl = "impl"
 
 
 class RoleId(StrEnum):
@@ -55,11 +55,11 @@ class RoleId(StrEnum):
     Values match schema.xml <role id="..."> elements.
     """
 
-    EPOCH = "epoch"
-    ARCHITECT = "architect"
-    REVIEWER = "reviewer"
-    SUPERVISOR = "supervisor"
-    WORKER = "worker"
+    Epoch = "epoch"
+    Architect = "architect"
+    Reviewer = "reviewer"
+    Supervisor = "supervisor"
+    Worker = "worker"
 
 
 class VoteType(StrEnum):
@@ -68,8 +68,8 @@ class VoteType(StrEnum):
     Values match schema.xml <enum name="VoteType"> entries.
     """
 
-    ACCEPT = "ACCEPT"
-    REVISE = "REVISE"
+    Accept = "ACCEPT"
+    Revise = "REVISE"
 
 
 class SeverityLevel(StrEnum):
@@ -78,9 +78,9 @@ class SeverityLevel(StrEnum):
     Values match schema.xml <enum name="SeverityLevel"> entries.
     """
 
-    BLOCKER = "BLOCKER"
-    IMPORTANT = "IMPORTANT"
-    MINOR = "MINOR"
+    Blocker = "BLOCKER"
+    Important = "IMPORTANT"
+    Minor = "MINOR"
 
 
 class ExecutionMode(StrEnum):
@@ -89,8 +89,8 @@ class ExecutionMode(StrEnum):
     Values match schema.xml <enum name="ExecutionMode"> entries.
     """
 
-    SEQUENTIAL = "sequential"
-    PARALLEL = "parallel"
+    Sequential = "sequential"
+    Parallel = "parallel"
 
 
 class ContentLevel(StrEnum):
@@ -99,8 +99,8 @@ class ContentLevel(StrEnum):
     Values match schema.xml <enum name="ContentLevel"> entries.
     """
 
-    FULL_PROVENANCE = "full-provenance"
-    SUMMARY_WITH_IDS = "summary-with-ids"
+    FullProvenance = "full-provenance"
+    SummaryWithIds = "summary-with-ids"
 
 
 class ReviewAxis(StrEnum):
@@ -110,9 +110,9 @@ class ReviewAxis(StrEnum):
     Previously: A="A", B="B", C="C" (single-letter). Now semantic names for clarity.
     """
 
-    CORRECTNESS = "correctness"
-    TEST_QUALITY = "test_quality"
-    ELEGANCE = "elegance"
+    Correctness = "correctness"
+    TestQuality = "test_quality"
+    Elegance = "elegance"
 
 
 class SubstepType(StrEnum):
@@ -121,19 +121,19 @@ class SubstepType(StrEnum):
     Values match schema.xml <substep type="..."> attributes.
     """
 
-    CLASSIFY = "classify"
-    RESEARCH = "research"
-    EXPLORE = "explore"
-    ELICIT = "elicit"
-    URD = "urd"
-    PROPOSE = "propose"
-    REVIEW = "review"
-    UAT = "uat"
-    RATIFY = "ratify"
-    HANDOFF = "handoff"
-    PLAN = "plan"
-    SLICE = "slice"
-    LANDING = "landing"
+    Classify = "classify"
+    Research = "research"
+    Explore = "explore"
+    Elicit = "elicit"
+    Urd = "urd"
+    Propose = "propose"
+    Review = "review"
+    Uat = "uat"
+    Ratify = "ratify"
+    Handoff = "handoff"
+    Plan = "plan"
+    Slice = "slice"
+    Landing = "landing"
 
 
 class ExampleLabel(StrEnum):
@@ -142,10 +142,10 @@ class ExampleLabel(StrEnum):
     Values match schema.xml <example label="..."> attributes.
     """
 
-    CORRECT = "correct"
-    ANTI_PATTERN = "anti-pattern"
-    CONTEXT = "context"
-    TEMPLATE = "template"
+    Correct = "correct"
+    AntiPattern = "anti-pattern"
+    Context = "context"
+    Template = "template"
 
 
 class ExampleLang(StrEnum):
@@ -154,13 +154,13 @@ class ExampleLang(StrEnum):
     Values match schema.xml <example lang="..."> attributes.
     """
 
-    BASH = "bash"
-    GO = "go"
-    PYTHON = "python"
-    PSEUDO = "pseudo"
-    XML = "xml"
-    JSON = "json"
-    MARKDOWN = "markdown"
+    Bash = "bash"
+    Go = "go"
+    Python = "python"
+    Pseudo = "pseudo"
+    Xml = "xml"
+    Json = "json"
+    Markdown = "markdown"
 
 
 class GateType(StrEnum):
@@ -169,10 +169,10 @@ class GateType(StrEnum):
     Values match schema.xml <checklist gate="..."> attributes.
     """
 
-    COMPLETION = "completion"
-    SLICE_CLOSURE = "slice-closure"
-    REVIEW_READY = "review-ready"
-    LANDING = "landing"
+    Completion = "completion"
+    SliceClosure = "slice-closure"
+    ReviewReady = "review-ready"
+    Landing = "landing"
 
 
 class WorkflowExecution(StrEnum):
@@ -181,9 +181,9 @@ class WorkflowExecution(StrEnum):
     Values match schema.xml <stage execution="..."> attributes.
     """
 
-    SEQUENTIAL = "sequential"
-    PARALLEL = "parallel"
-    CONDITIONAL_LOOP = "conditional-loop"
+    Sequential = "sequential"
+    Parallel = "parallel"
+    ConditionalLoop = "conditional-loop"
 
 
 class ExitConditionType(StrEnum):
@@ -193,10 +193,10 @@ class ExitConditionType(StrEnum):
     Closed enum — known set of exit outcomes; use ExitConditionType not str.
     """
 
-    SUCCESS = "success"
-    CONTINUE = "continue"
-    ESCALATE = "escalate"
-    PROCEED = "proceed"
+    Success = "success"
+    Continue = "continue"
+    Escalate = "escalate"
+    Proceed = "proceed"
 
 
 class FigureId(StrEnum):
@@ -206,9 +206,9 @@ class FigureId(StrEnum):
     Keyed in FIGURE_SPECS.
     """
 
-    LAYER_CAKE = "layer-cake"
-    RIDE_THE_WAVE = "ride-the-wave"
-    ARCHITECT_STATE_FLOW = "architect-state-flow"
+    LayerCake = "layer-cake"
+    RideTheWave = "ride-the-wave"
+    ArchitectStateFlow = "architect-state-flow"
 
 
 class FigureType(StrEnum):
@@ -217,7 +217,7 @@ class FigureType(StrEnum):
     Values match schema.xml <figure type='...'> attributes.
     """
 
-    ASCII_DIAGRAM = "ascii-diagram"
+    AsciiDiagram = "ascii-diagram"
 
 
 class SectionRef(StrEnum):
@@ -226,7 +226,7 @@ class SectionRef(StrEnum):
     Values match schema.xml <figure section-ref='...'> attributes.
     """
 
-    WORKFLOWS = "workflows"
+    Workflows = "workflows"
 
 
 class CommandId(StrEnum):
@@ -234,44 +234,44 @@ class CommandId(StrEnum):
 
     Values match schema.xml <command id='...'> attributes.
     Keyed in COMMAND_SPECS.
-    Member names are UPPER_SNAKE_CASE of the id with 'cmd-' prefix stripped.
+    Member names are PascalCase of the id with 'cmd-' prefix stripped.
     """
 
-    EPOCH = "cmd-epoch"
-    PLAN = "cmd-plan"
-    STATUS = "cmd-status"
-    USER_REQUEST = "cmd-user-request"
-    USER_ELICIT = "cmd-user-elicit"
-    USER_UAT = "cmd-user-uat"
-    ARCHITECT = "cmd-architect"
-    ARCH_PROPOSE = "cmd-arch-propose"
-    ARCH_REVIEW = "cmd-arch-review"
-    ARCH_RATIFY = "cmd-arch-ratify"
-    ARCH_HANDOFF = "cmd-arch-handoff"
-    SUPERVISOR = "cmd-supervisor"
-    SUP_PLAN = "cmd-sup-plan"
-    SUP_SPAWN = "cmd-sup-spawn"
-    SUP_TRACK = "cmd-sup-track"
-    SUP_COMMIT = "cmd-sup-commit"
-    WORKER = "cmd-worker"
-    WORK_IMPL = "cmd-work-impl"
-    WORK_COMPLETE = "cmd-work-complete"
-    WORK_BLOCKED = "cmd-work-blocked"
-    REVIEWER = "cmd-reviewer"
-    REV_PLAN = "cmd-rev-plan"
-    REV_CODE = "cmd-rev-code"
-    REV_COMMENT = "cmd-rev-comment"
-    REV_VOTE = "cmd-rev-vote"
-    IMPL_SLICE = "cmd-impl-slice"
-    IMPL_REVIEW = "cmd-impl-review"
-    MSG_SEND = "cmd-msg-send"
-    MSG_RECEIVE = "cmd-msg-receive"
-    MSG_BROADCAST = "cmd-msg-broadcast"
-    MSG_ACK = "cmd-msg-ack"
-    EXPLORE = "cmd-explore"
-    RESEARCH = "cmd-research"
-    TEST = "cmd-test"
-    FEEDBACK = "cmd-feedback"
+    Epoch = "cmd-epoch"
+    Plan = "cmd-plan"
+    Status = "cmd-status"
+    UserRequest = "cmd-user-request"
+    UserElicit = "cmd-user-elicit"
+    UserUat = "cmd-user-uat"
+    Architect = "cmd-architect"
+    ArchPropose = "cmd-arch-propose"
+    ArchReview = "cmd-arch-review"
+    ArchRatify = "cmd-arch-ratify"
+    ArchHandoff = "cmd-arch-handoff"
+    Supervisor = "cmd-supervisor"
+    SupPlan = "cmd-sup-plan"
+    SupSpawn = "cmd-sup-spawn"
+    SupTrack = "cmd-sup-track"
+    SupCommit = "cmd-sup-commit"
+    Worker = "cmd-worker"
+    WorkImpl = "cmd-work-impl"
+    WorkComplete = "cmd-work-complete"
+    WorkBlocked = "cmd-work-blocked"
+    Reviewer = "cmd-reviewer"
+    RevPlan = "cmd-rev-plan"
+    RevCode = "cmd-rev-code"
+    RevComment = "cmd-rev-comment"
+    RevVote = "cmd-rev-vote"
+    ImplSlice = "cmd-impl-slice"
+    ImplReview = "cmd-impl-review"
+    MsgSend = "cmd-msg-send"
+    MsgReceive = "cmd-msg-receive"
+    MsgBroadcast = "cmd-msg-broadcast"
+    MsgAck = "cmd-msg-ack"
+    Explore = "cmd-explore"
+    Research = "cmd-research"
+    Test = "cmd-test"
+    Feedback = "cmd-feedback"
 
 
 # ─── Step Slug + Skill Ref Namespaces ─────────────────────────────────────────
@@ -309,8 +309,8 @@ class SkillRef(StrEnum):
     Values match the Skill(/aura:<role>) directive format.
     """
 
-    SUPERVISOR = "Skill(/aura:supervisor)"
-    WORKER = "Skill(/aura:worker)"
+    Supervisor = "Skill(/aura:supervisor)"
+    Worker = "Skill(/aura:worker)"
 
 
 # ─── Frozen Dataclasses ───────────────────────────────────────────────────────
@@ -646,15 +646,139 @@ class ReviewVoteEvent:
     reviewer_id: str
 
 
+class EventType(StrEnum):
+    """Audit event types for the dual-write trail."""
+
+    PhaseTransition = "phase_transition"
+    PhaseAdvance = "phase_advance"
+    VoteRecorded = "vote_recorded"
+    BlockerRecorded = "blocker_recorded"
+    BlockerResolved = "blocker_resolved"
+    ConstraintCheck = "constraint_check"
+
+
 @dataclass(frozen=True)
 class AuditEvent:
     """Generic audit trail event."""
 
     epoch_id: str
-    event_type: str
+    event_type: EventType
     phase: PhaseId
     role: RoleId
     payload: dict[str, Any]  # Structured event details
+
+
+class AuditTrailBackend(StrEnum):
+    """Audit trail storage backend for aurad."""
+
+    Memory = "memory"
+    Sqlite = "sqlite"
+
+
+class OutputFormat(StrEnum):
+    """CLI output format for aura-msg commands."""
+
+    Json = "json"
+    Text = "text"
+
+
+class CmdGroup(StrEnum):
+    """aura-msg top-level command groups."""
+
+    Query = "query"
+    Epoch = "epoch"
+    Signal = "signal"
+    Phase = "phase"
+    Session = "session"
+
+
+class SubCommand(StrEnum):
+    """aura-msg subcommands (second word)."""
+
+    State = "state"
+    Start = "start"
+    Vote = "vote"
+    Complete = "complete"
+    Advance = "advance"
+    Register = "register"
+
+
+class SliceMode(StrEnum):
+    """Execution mode for a worker slice (SLICE-6).
+
+    Values match SliceExecutionConfig.mode field options.
+    """
+
+    Tmux = "tmux"
+    Subprocess = "subprocess"
+    Mock = "mock"
+
+
+@dataclass(frozen=True)
+class SliceExecutionConfig:
+    """Configuration for executing a worker slice (SLICE-6).
+
+    mode:               Execution mode — SliceMode.Tmux (run in tmux window),
+                        SliceMode.Subprocess (run in subprocess), or SliceMode.Mock (test mode).
+    command:            Shell command to run for this slice.
+    timeout_seconds:    Max wall-clock time before the slice is killed.
+    heartbeat_interval: Seconds between heartbeat checks (0 = no heartbeats).
+    """
+
+    mode: SliceMode
+    command: str
+    timeout_seconds: int = 300
+    heartbeat_interval: int = 30
+
+
+@dataclass(frozen=True)
+class SliceStartSignal:
+    """Signal sent to start slice execution (SLICE-6).
+
+    slice_id:  Unique slice identifier (e.g. "slice-1").
+    epoch_id:  Parent epoch workflow ID.
+    config:    Execution configuration for this slice.
+    """
+
+    slice_id: str
+    epoch_id: str
+    config: SliceExecutionConfig
+
+
+@dataclass(frozen=True)
+class SliceCompleteSignal:
+    """Signal sent on slice completion (SLICE-6).
+
+    slice_id:  Slice that completed (must match SliceStartSignal.slice_id).
+    success:   True if slice finished without error.
+    output:    Completion output message (empty if success is False).
+    error:     Error message (empty if success is True).
+    """
+
+    slice_id: str
+    success: bool
+    output: str = ""
+    error: str = ""
+
+
+@dataclass(frozen=True)
+class ReviewCycleSignal:
+    """Signal to enter a review cycle on a slice.
+
+    cycle_number: which review cycle (1, 2, 3)
+    reviewer_feedback: summary of review feedback
+    """
+
+    cycle_number: int
+    reviewer_feedback: str = ""
+
+
+@dataclass(frozen=True)
+class ReviewCycleRecord:
+    """One review cycle's feedback, stored in SliceWorkflow mutable state."""
+
+    cycle_number: int
+    reviewer_feedback: str
 
 
 @dataclass(frozen=True)
@@ -838,19 +962,115 @@ class Figure:
 # Each phase number maps to its domain; this dict maps PhaseId to Domain.
 
 PHASE_DOMAIN: dict[PhaseId, Domain] = {
-    PhaseId.P1_REQUEST:    Domain.USER,
-    PhaseId.P2_ELICIT:     Domain.USER,
-    PhaseId.P3_PROPOSE:    Domain.PLAN,
-    PhaseId.P4_REVIEW:     Domain.PLAN,
-    PhaseId.P5_UAT:        Domain.USER,
-    PhaseId.P6_RATIFY:     Domain.PLAN,
-    PhaseId.P7_HANDOFF:    Domain.PLAN,
-    PhaseId.P8_IMPL_PLAN:  Domain.IMPL,
-    PhaseId.P9_SLICE:      Domain.IMPL,
-    PhaseId.P10_CODE_REVIEW: Domain.IMPL,
-    PhaseId.P11_IMPL_UAT:  Domain.USER,
-    PhaseId.P12_LANDING:   Domain.IMPL,
+    PhaseId.P1_Request:    Domain.User,
+    PhaseId.P2_Elicit:     Domain.User,
+    PhaseId.P3_Propose:    Domain.Plan,
+    PhaseId.P4_Review:     Domain.Plan,
+    PhaseId.P5_Uat:        Domain.User,
+    PhaseId.P6_Ratify:     Domain.Plan,
+    PhaseId.P7_Handoff:    Domain.Plan,
+    PhaseId.P8_ImplPlan:  Domain.Impl,
+    PhaseId.P9_Slice:      Domain.Impl,
+    PhaseId.P10_CodeReview: Domain.Impl,
+    PhaseId.P11_ImplUat:  Domain.User,
+    PhaseId.P12_Landing:   Domain.Impl,
 }
+
+
+# ─── Phase Parsing ───────────────────────────────────────────────────────────
+
+# Lookup tables built once from PhaseId enum members.
+# _PHASE_BY_NUMBER: {"1": P1_Request, "2": P2_Elicit, ...}
+# _PHASE_BY_SHORT:  {"p1": P1_Request, "p2": P2_Elicit, ...}
+# _PHASE_BY_FULL:   {"p1-request": P1_Request, "p2-elicit": P2_Elicit, ...}
+# _PHASE_BY_NAME:   {"request": P1_Request, "elicit": P2_Elicit, ...}
+
+_PHASE_BY_NUMBER: dict[str, PhaseId] = {}
+_PHASE_BY_SHORT: dict[str, PhaseId] = {}
+_PHASE_BY_FULL: dict[str, PhaseId] = {}
+_PHASE_BY_NAME: dict[str, PhaseId] = {}
+
+def _extract_phase_name(member_name: str) -> str:
+    """Extract the descriptive name from a PascalCase PhaseId member name.
+
+    Converts the PascalCase suffix (after P<number>) into lowercase with
+    underscores at word boundaries, matching the original full-form names.
+
+    E.g. "P1_Request" -> "request", "P10_CodeReview" -> "code_review",
+    "P8_ImplPlan" -> "impl_plan", "P5_Uat" -> "uat".
+    """
+    import re as _re
+    # Strip leading P<number> prefix
+    m = _re.match(r"P\d+", member_name)
+    suffix = member_name[m.end():].lstrip("_") if m else member_name
+    # Insert underscore before each uppercase letter (except the first)
+    parts = _re.sub(r"(?<=[a-z])(?=[A-Z])", "_", suffix)
+    return parts.lower()
+
+
+for _p in PhaseId:
+    if _p == PhaseId.Complete:
+        _PHASE_BY_NAME["complete"] = _p
+        _PHASE_BY_SHORT["complete"] = _p
+        continue
+    _num = _p.value.lstrip("p")  # "1", "2", ..., "12"
+    _name = _extract_phase_name(_p.name)  # "request", "elicit", ...
+    _full = f"{_p.value}-{_name}"  # "p1-request"
+    _PHASE_BY_NUMBER[_num] = _p
+    _PHASE_BY_SHORT[_p.value] = _p
+    _PHASE_BY_FULL[_full] = _p
+    _PHASE_BY_NAME[_name] = _p
+
+
+def parse_phase_id(value: str) -> PhaseId:
+    """Parse flexible phase input to PhaseId.
+
+    Accepts (case-insensitive):
+      - Numeric: "1", "2", ..., "12"
+      - Short: "p1", "p2", ..., "p12"
+      - Full: "p1-request", "p2-elicit", ..., "p12-landing"
+      - Underscore: "p1_request", "P1_REQUEST"
+      - Name only: "request", "elicit", ..., "landing", "complete"
+
+    Raises ValueError with full listing on failure.
+    """
+    v = value.strip().lower().replace("_", "-")
+
+    # Direct StrEnum value match ("p1", "p2", ...)
+    result = _PHASE_BY_SHORT.get(v)
+    if result is not None:
+        return result
+
+    # Numeric ("1", "12")
+    result = _PHASE_BY_NUMBER.get(v)
+    if result is not None:
+        return result
+
+    # Full ("p1-request")
+    result = _PHASE_BY_FULL.get(v)
+    if result is not None:
+        return result
+
+    # Name only ("request", "elicit")
+    result = _PHASE_BY_NAME.get(v)
+    if result is not None:
+        return result
+
+    # Build error message with full listing
+    lines = []
+    for p in PhaseId:
+        if p == PhaseId.Complete:
+            lines.append("       complete")
+            continue
+        num = p.value.lstrip("p")
+        name = _extract_phase_name(p.name)
+        full = f"{p.value}-{name}"
+        lines.append(f"  {num:>2}  {p.value:<4} {full:<20} ({name})")
+
+    listing = "\n".join(lines)
+    raise ValueError(
+        f"'{value}' is not a valid phase. Valid phases:\n{listing}"
+    )
 
 
 # ─── Canonical Protocol Definitions ──────────────────────────────────────────
@@ -858,178 +1078,178 @@ PHASE_DOMAIN: dict[PhaseId, Domain] = {
 # Integration test (test_schema_types_sync.py) verifies these match schema.xml.
 
 PHASE_SPECS: dict[PhaseId, PhaseSpec] = {
-    PhaseId.P1_REQUEST: PhaseSpec(
-        id=PhaseId.P1_REQUEST,
+    PhaseId.P1_Request: PhaseSpec(
+        id=PhaseId.P1_Request,
         number=1,
-        domain=Domain.USER,
+        domain=Domain.User,
         name="Request",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.ARCHITECT}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Architect}),
         transitions=(
             Transition(
-                to_phase=PhaseId.P2_ELICIT,
+                to_phase=PhaseId.P2_Elicit,
                 condition="classification confirmed, research and explore complete",
             ),
         ),
     ),
-    PhaseId.P2_ELICIT: PhaseSpec(
-        id=PhaseId.P2_ELICIT,
+    PhaseId.P2_Elicit: PhaseSpec(
+        id=PhaseId.P2_Elicit,
         number=2,
-        domain=Domain.USER,
+        domain=Domain.User,
         name="Elicit",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.ARCHITECT}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Architect}),
         transitions=(
             Transition(
-                to_phase=PhaseId.P3_PROPOSE,
+                to_phase=PhaseId.P3_Propose,
                 condition="URD created with structured requirements",
             ),
         ),
     ),
-    PhaseId.P3_PROPOSE: PhaseSpec(
-        id=PhaseId.P3_PROPOSE,
+    PhaseId.P3_Propose: PhaseSpec(
+        id=PhaseId.P3_Propose,
         number=3,
-        domain=Domain.PLAN,
+        domain=Domain.Plan,
         name="Propose",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.ARCHITECT}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Architect}),
         transitions=(
             Transition(
-                to_phase=PhaseId.P4_REVIEW,
+                to_phase=PhaseId.P4_Review,
                 condition="proposal created",
             ),
         ),
     ),
-    PhaseId.P4_REVIEW: PhaseSpec(
-        id=PhaseId.P4_REVIEW,
+    PhaseId.P4_Review: PhaseSpec(
+        id=PhaseId.P4_Review,
         number=4,
-        domain=Domain.PLAN,
+        domain=Domain.Plan,
         name="Review",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.ARCHITECT, RoleId.REVIEWER}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Architect, RoleId.Reviewer}),
         transitions=(
             Transition(
-                to_phase=PhaseId.P5_UAT,
+                to_phase=PhaseId.P5_Uat,
                 condition="all 3 reviewers vote ACCEPT",
             ),
             Transition(
-                to_phase=PhaseId.P3_PROPOSE,
+                to_phase=PhaseId.P3_Propose,
                 condition="any reviewer votes REVISE",
                 action="create PROPOSAL-{N+1}, mark current aura:superseded",
             ),
         ),
     ),
-    PhaseId.P5_UAT: PhaseSpec(
-        id=PhaseId.P5_UAT,
+    PhaseId.P5_Uat: PhaseSpec(
+        id=PhaseId.P5_Uat,
         number=5,
-        domain=Domain.USER,
+        domain=Domain.User,
         name="Plan UAT",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.ARCHITECT}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Architect}),
         transitions=(
             Transition(
-                to_phase=PhaseId.P6_RATIFY,
+                to_phase=PhaseId.P6_Ratify,
                 condition="user accepts plan",
             ),
             Transition(
-                to_phase=PhaseId.P3_PROPOSE,
+                to_phase=PhaseId.P3_Propose,
                 condition="user requests changes",
                 action="create PROPOSAL-{N+1}",
             ),
         ),
     ),
-    PhaseId.P6_RATIFY: PhaseSpec(
-        id=PhaseId.P6_RATIFY,
+    PhaseId.P6_Ratify: PhaseSpec(
+        id=PhaseId.P6_Ratify,
         number=6,
-        domain=Domain.PLAN,
+        domain=Domain.Plan,
         name="Ratify",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.ARCHITECT}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Architect}),
         transitions=(
             Transition(
-                to_phase=PhaseId.P7_HANDOFF,
+                to_phase=PhaseId.P7_Handoff,
                 condition="proposal ratified, IMPL_PLAN placeholder created",
             ),
         ),
     ),
-    PhaseId.P7_HANDOFF: PhaseSpec(
-        id=PhaseId.P7_HANDOFF,
+    PhaseId.P7_Handoff: PhaseSpec(
+        id=PhaseId.P7_Handoff,
         number=7,
-        domain=Domain.PLAN,
+        domain=Domain.Plan,
         name="Handoff",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.ARCHITECT, RoleId.SUPERVISOR}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Architect, RoleId.Supervisor}),
         transitions=(
             Transition(
-                to_phase=PhaseId.P8_IMPL_PLAN,
+                to_phase=PhaseId.P8_ImplPlan,
                 condition="handoff document stored at .git/.aura/handoff/",
             ),
         ),
     ),
-    PhaseId.P8_IMPL_PLAN: PhaseSpec(
-        id=PhaseId.P8_IMPL_PLAN,
+    PhaseId.P8_ImplPlan: PhaseSpec(
+        id=PhaseId.P8_ImplPlan,
         number=8,
-        domain=Domain.IMPL,
+        domain=Domain.Impl,
         name="Impl Plan",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.SUPERVISOR}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Supervisor}),
         transitions=(
             Transition(
-                to_phase=PhaseId.P9_SLICE,
+                to_phase=PhaseId.P9_Slice,
                 condition="all slices created with leaf tasks, assigned, and dependency-chained",
             ),
         ),
     ),
-    PhaseId.P9_SLICE: PhaseSpec(
-        id=PhaseId.P9_SLICE,
+    PhaseId.P9_Slice: PhaseSpec(
+        id=PhaseId.P9_Slice,
         number=9,
-        domain=Domain.IMPL,
+        domain=Domain.Impl,
         name="Worker Slices",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.SUPERVISOR, RoleId.WORKER}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Supervisor, RoleId.Worker}),
         transitions=(
             Transition(
-                to_phase=PhaseId.P10_CODE_REVIEW,
+                to_phase=PhaseId.P10_CodeReview,
                 condition="all slices complete, quality gates pass",
             ),
         ),
     ),
-    PhaseId.P10_CODE_REVIEW: PhaseSpec(
-        id=PhaseId.P10_CODE_REVIEW,
+    PhaseId.P10_CodeReview: PhaseSpec(
+        id=PhaseId.P10_CodeReview,
         number=10,
-        domain=Domain.IMPL,
+        domain=Domain.Impl,
         name="Code Review",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.SUPERVISOR, RoleId.REVIEWER}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Supervisor, RoleId.Reviewer}),
         transitions=(
             Transition(
-                to_phase=PhaseId.P11_IMPL_UAT,
+                to_phase=PhaseId.P11_ImplUat,
                 condition="all 3 reviewers ACCEPT, all BLOCKERs resolved",
             ),
             Transition(
-                to_phase=PhaseId.P9_SLICE,
+                to_phase=PhaseId.P9_Slice,
                 condition="any reviewer votes REVISE",
                 action="fix BLOCKERs in affected slices, then re-review",
             ),
         ),
     ),
-    PhaseId.P11_IMPL_UAT: PhaseSpec(
-        id=PhaseId.P11_IMPL_UAT,
+    PhaseId.P11_ImplUat: PhaseSpec(
+        id=PhaseId.P11_ImplUat,
         number=11,
-        domain=Domain.USER,
+        domain=Domain.User,
         name="Impl UAT",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.SUPERVISOR}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Supervisor}),
         transitions=(
             Transition(
-                to_phase=PhaseId.P12_LANDING,
+                to_phase=PhaseId.P12_Landing,
                 condition="user accepts implementation",
             ),
             Transition(
-                to_phase=PhaseId.P9_SLICE,
+                to_phase=PhaseId.P9_Slice,
                 condition="user requests changes",
                 action="create fix tasks in affected slices",
             ),
         ),
     ),
-    PhaseId.P12_LANDING: PhaseSpec(
-        id=PhaseId.P12_LANDING,
+    PhaseId.P12_Landing: PhaseSpec(
+        id=PhaseId.P12_Landing,
         number=12,
-        domain=Domain.IMPL,
+        domain=Domain.Impl,
         name="Landing",
-        owner_roles=frozenset({RoleId.EPOCH, RoleId.SUPERVISOR}),
+        owner_roles=frozenset({RoleId.Epoch, RoleId.Supervisor}),
         transitions=(
             Transition(
-                to_phase=PhaseId.COMPLETE,
+                to_phase=PhaseId.Complete,
                 condition="git push succeeds, all tasks closed or dependency-resolved",
             ),
         ),
@@ -1055,8 +1275,8 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         examples=(
             CodeExample(
                 id="C-audit-dep-chain-full",
-                lang=ExampleLang.BASH,
-                label=ExampleLabel.CORRECT,
+                lang=ExampleLang.Bash,
+                label=ExampleLabel.Correct,
                 code=(
                     "# Full dependency chain: work flows bottom-up, closure flows top-down\n"
                     "bd dep add request-id --blocked-by ure-id\n"
@@ -1091,8 +1311,8 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         examples=(
             CodeExample(
                 id="C-severity-eager-create",
-                lang=ExampleLang.BASH,
-                label=ExampleLabel.CORRECT,
+                lang=ExampleLang.Bash,
+                label=ExampleLabel.Correct,
                 code=(
                     "# Create all 3 severity groups immediately (even if empty)\n"
                     'bd create --title "SLICE-1-REVIEW-A-1 BLOCKER" \\\n'
@@ -1109,8 +1329,8 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
             ),
             CodeExample(
                 id="C-severity-eager-anti",
-                lang=ExampleLang.BASH,
-                label=ExampleLabel.ANTI_PATTERN,
+                lang=ExampleLang.Bash,
+                label=ExampleLabel.AntiPattern,
                 code=(
                     "# WRONG: only creating groups when findings exist\n"
                     "# This skips empty groups and breaks the audit trail\n"
@@ -1281,15 +1501,15 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         examples=(
             CodeExample(
                 id="C-dep-direction-correct",
-                lang=ExampleLang.BASH,
-                label=ExampleLabel.CORRECT,
+                lang=ExampleLang.Bash,
+                label=ExampleLabel.Correct,
                 code='bd dep add request-id --blocked-by ure-id',
                 also_illustrates="C-audit-dep-chain",
             ),
             CodeExample(
                 id="C-dep-direction-anti",
-                lang=ExampleLang.BASH,
-                label=ExampleLabel.ANTI_PATTERN,
+                lang=ExampleLang.Bash,
+                label=ExampleLabel.AntiPattern,
                 code='bd dep add ure-id --blocked-by request-id',
             ),
         ),
@@ -1311,14 +1531,14 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         examples=(
             CodeExample(
                 id="C-agent-commit-correct",
-                lang=ExampleLang.BASH,
-                label=ExampleLabel.CORRECT,
+                lang=ExampleLang.Bash,
+                label=ExampleLabel.Correct,
                 code='git agent-commit -m "feat: add login"',
             ),
             CodeExample(
                 id="C-agent-commit-anti",
-                lang=ExampleLang.BASH,
-                label=ExampleLabel.ANTI_PATTERN,
+                lang=ExampleLang.Bash,
+                label=ExampleLabel.AntiPattern,
                 code='git commit -m "feat: add login"',
             ),
         ),
@@ -1346,8 +1566,8 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
         examples=(
             CodeExample(
                 id="C-ure-verbatim-correct",
-                lang=ExampleLang.BASH,
-                label=ExampleLabel.CORRECT,
+                lang=ExampleLang.Bash,
+                label=ExampleLabel.Correct,
                 code=(
                     "# Full question, all options with descriptions, verbatim response\n"
                     'bd create --title "UAT: Plan acceptance for feature-X" \\\n'
@@ -1363,8 +1583,8 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
             ),
             CodeExample(
                 id="C-ure-verbatim-anti",
-                lang=ExampleLang.BASH,
-                label=ExampleLabel.ANTI_PATTERN,
+                lang=ExampleLang.Bash,
+                label=ExampleLabel.AntiPattern,
                 code=(
                     "# WRONG: options summarized as numbers, response paraphrased\n"
                     'bd create --title "UAT: Plan acceptance" \\\n'
@@ -1422,10 +1642,10 @@ CONSTRAINT_SPECS: dict[str, ConstraintSpec] = {
 HANDOFF_SPECS: dict[str, HandoffSpec] = {
     "h1": HandoffSpec(
         id="h1",
-        source_role=RoleId.ARCHITECT,
-        target_role=RoleId.SUPERVISOR,
-        at_phase=PhaseId.P7_HANDOFF,
-        content_level=ContentLevel.FULL_PROVENANCE,
+        source_role=RoleId.Architect,
+        target_role=RoleId.Supervisor,
+        at_phase=PhaseId.P7_Handoff,
+        content_level=ContentLevel.FullProvenance,
         required_fields=(
             "request", "urd", "proposal", "ratified-plan",
             "context", "key-decisions", "open-items", "acceptance-criteria",
@@ -1433,10 +1653,10 @@ HANDOFF_SPECS: dict[str, HandoffSpec] = {
     ),
     "h2": HandoffSpec(
         id="h2",
-        source_role=RoleId.SUPERVISOR,
-        target_role=RoleId.WORKER,
-        at_phase=PhaseId.P9_SLICE,
-        content_level=ContentLevel.SUMMARY_WITH_IDS,
+        source_role=RoleId.Supervisor,
+        target_role=RoleId.Worker,
+        at_phase=PhaseId.P9_Slice,
+        content_level=ContentLevel.SummaryWithIds,
         required_fields=(
             "request", "urd", "proposal", "ratified-plan", "impl-plan",
             "slice", "context", "key-decisions", "open-items", "acceptance-criteria",
@@ -1444,10 +1664,10 @@ HANDOFF_SPECS: dict[str, HandoffSpec] = {
     ),
     "h3": HandoffSpec(
         id="h3",
-        source_role=RoleId.SUPERVISOR,
-        target_role=RoleId.REVIEWER,
-        at_phase=PhaseId.P10_CODE_REVIEW,
-        content_level=ContentLevel.SUMMARY_WITH_IDS,
+        source_role=RoleId.Supervisor,
+        target_role=RoleId.Reviewer,
+        at_phase=PhaseId.P10_CodeReview,
+        content_level=ContentLevel.SummaryWithIds,
         required_fields=(
             "request", "urd", "proposal", "ratified-plan", "impl-plan",
             "context", "key-decisions", "acceptance-criteria",
@@ -1455,10 +1675,10 @@ HANDOFF_SPECS: dict[str, HandoffSpec] = {
     ),
     "h4": HandoffSpec(
         id="h4",
-        source_role=RoleId.WORKER,
-        target_role=RoleId.REVIEWER,
-        at_phase=PhaseId.P10_CODE_REVIEW,
-        content_level=ContentLevel.SUMMARY_WITH_IDS,
+        source_role=RoleId.Worker,
+        target_role=RoleId.Reviewer,
+        at_phase=PhaseId.P10_CodeReview,
+        content_level=ContentLevel.SummaryWithIds,
         required_fields=(
             "request", "urd", "impl-plan", "slice",
             "context", "key-decisions", "open-items",
@@ -1466,10 +1686,10 @@ HANDOFF_SPECS: dict[str, HandoffSpec] = {
     ),
     "h5": HandoffSpec(
         id="h5",
-        source_role=RoleId.REVIEWER,
-        target_role=RoleId.SUPERVISOR,
-        at_phase=PhaseId.P10_CODE_REVIEW,
-        content_level=ContentLevel.SUMMARY_WITH_IDS,
+        source_role=RoleId.Reviewer,
+        target_role=RoleId.Supervisor,
+        at_phase=PhaseId.P10_CodeReview,
+        content_level=ContentLevel.SummaryWithIds,
         required_fields=(
             "request", "urd", "proposal",
             "context", "key-decisions", "open-items", "acceptance-criteria",
@@ -1477,10 +1697,10 @@ HANDOFF_SPECS: dict[str, HandoffSpec] = {
     ),
     "h6": HandoffSpec(
         id="h6",
-        source_role=RoleId.SUPERVISOR,
-        target_role=RoleId.ARCHITECT,
-        at_phase=PhaseId.P3_PROPOSE,
-        content_level=ContentLevel.SUMMARY_WITH_IDS,
+        source_role=RoleId.Supervisor,
+        target_role=RoleId.Architect,
+        at_phase=PhaseId.P3_Propose,
+        content_level=ContentLevel.SummaryWithIds,
         required_fields=(
             "request", "urd", "followup-epic", "followup-ure", "followup-urd",
             "context", "key-decisions", "findings-summary", "acceptance-criteria",
@@ -1495,15 +1715,15 @@ HANDOFF_SPECS: dict[str, HandoffSpec] = {
 
 
 ROLE_SPECS: dict[RoleId, RoleSpec] = {
-    RoleId.EPOCH: RoleSpec(
-        id=RoleId.EPOCH,
+    RoleId.Epoch: RoleSpec(
+        id=RoleId.Epoch,
         name="Epoch",
         description="Master orchestrator for full 12-phase workflow",
         owned_phases=frozenset({
-            PhaseId.P1_REQUEST, PhaseId.P2_ELICIT, PhaseId.P3_PROPOSE,
-            PhaseId.P4_REVIEW, PhaseId.P5_UAT, PhaseId.P6_RATIFY,
-            PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE,
-            PhaseId.P10_CODE_REVIEW, PhaseId.P11_IMPL_UAT, PhaseId.P12_LANDING,
+            PhaseId.P1_Request, PhaseId.P2_Elicit, PhaseId.P3_Propose,
+            PhaseId.P4_Review, PhaseId.P5_Uat, PhaseId.P6_Ratify,
+            PhaseId.P7_Handoff, PhaseId.P8_ImplPlan, PhaseId.P9_Slice,
+            PhaseId.P10_CodeReview, PhaseId.P11_ImplUat, PhaseId.P12_Landing,
         }),
         introduction=(
             "You are the master orchestrator for the full 12-phase epoch lifecycle. "
@@ -1520,14 +1740,14 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
         model="opus",
         thinking="medium",
     ),
-    RoleId.ARCHITECT: RoleSpec(
-        id=RoleId.ARCHITECT,
+    RoleId.Architect: RoleSpec(
+        id=RoleId.Architect,
         name="Architect",
         description="Specification writer and implementation designer",
         owned_phases=frozenset({
-            PhaseId.P1_REQUEST, PhaseId.P2_ELICIT, PhaseId.P3_PROPOSE,
-            PhaseId.P4_REVIEW, PhaseId.P5_UAT, PhaseId.P6_RATIFY,
-            PhaseId.P7_HANDOFF,
+            PhaseId.P1_Request, PhaseId.P2_Elicit, PhaseId.P3_Propose,
+            PhaseId.P4_Review, PhaseId.P5_Uat, PhaseId.P6_Ratify,
+            PhaseId.P7_Handoff,
         }),
         introduction=(
             "You design specifications and coordinate the planning phases of epochs. "
@@ -1584,11 +1804,11 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
         model="opus",
         thinking="medium",
     ),
-    RoleId.REVIEWER: RoleSpec(
-        id=RoleId.REVIEWER,
+    RoleId.Reviewer: RoleSpec(
+        id=RoleId.Reviewer,
         name="Reviewer",
         description="End-user alignment reviewer for plans and code",
-        owned_phases=frozenset({PhaseId.P4_REVIEW, PhaseId.P10_CODE_REVIEW}),
+        owned_phases=frozenset({PhaseId.P4_Review, PhaseId.P10_CodeReview}),
         introduction=(
             "You review from an end-user alignment perspective. "
             "See the project's protocol/CONSTRAINTS.md for coding standards."
@@ -1634,13 +1854,13 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
         tools=("Read", "Glob", "Grep", "Bash", "Skill"),
         model="sonnet",
     ),
-    RoleId.SUPERVISOR: RoleSpec(
-        id=RoleId.SUPERVISOR,
+    RoleId.Supervisor: RoleSpec(
+        id=RoleId.Supervisor,
         name="Supervisor",
         description="Task coordinator, spawns workers, manages parallel execution",
         owned_phases=frozenset({
-            PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE,
-            PhaseId.P10_CODE_REVIEW, PhaseId.P11_IMPL_UAT, PhaseId.P12_LANDING,
+            PhaseId.P7_Handoff, PhaseId.P8_ImplPlan, PhaseId.P9_Slice,
+            PhaseId.P10_CodeReview, PhaseId.P11_ImplUat, PhaseId.P12_Landing,
         }),
         introduction=(
             "You coordinate parallel task execution. "
@@ -1705,11 +1925,11 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
         model="opus",
         thinking="medium",
     ),
-    RoleId.WORKER: RoleSpec(
-        id=RoleId.WORKER,
+    RoleId.Worker: RoleSpec(
+        id=RoleId.Worker,
         name="Worker",
         description="Vertical slice implementer (full production code path)",
-        owned_phases=frozenset({PhaseId.P9_SLICE}),
+        owned_phases=frozenset({PhaseId.P9_Slice}),
         introduction=(
             "You own a vertical slice (full production code path from CLI/API entry point "
             "→ service → types). "
@@ -1766,26 +1986,26 @@ ROLE_SPECS: dict[RoleId, RoleSpec] = {
 
 
 COMMAND_SPECS: dict[CommandId, CommandSpec] = {
-    CommandId.EPOCH: CommandSpec(
-        id=CommandId.EPOCH,
+    CommandId.Epoch: CommandSpec(
+        id=CommandId.Epoch,
         name="aura:epoch",
         description="Master orchestrator for full 12-phase workflow",
-        role_ref=RoleId.EPOCH,
+        role_ref=RoleId.Epoch,
         phases=("p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12"),
         file="skills/epoch/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.PLAN: CommandSpec(
-        id=CommandId.PLAN,
+    CommandId.Plan: CommandSpec(
+        id=CommandId.Plan,
         name="aura:plan",
         description="Plan coordination across phases 1-6",
-        role_ref=RoleId.ARCHITECT,
+        role_ref=RoleId.Architect,
         phases=("p1", "p2", "p3", "p4", "p5", "p6"),
         file="skills/plan/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.STATUS: CommandSpec(
-        id=CommandId.STATUS,
+    CommandId.Status: CommandSpec(
+        id=CommandId.Status,
         name="aura:status",
         description="Project status and monitoring via Beads queries",
         role_ref=None,
@@ -1793,26 +2013,26 @@ COMMAND_SPECS: dict[CommandId, CommandSpec] = {
         file="skills/status/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.USER_REQUEST: CommandSpec(
-        id=CommandId.USER_REQUEST,
+    CommandId.UserRequest: CommandSpec(
+        id=CommandId.UserRequest,
         name="aura:user:request",
         description="Capture user feature request verbatim (Phase 1)",
-        role_ref=RoleId.ARCHITECT,
+        role_ref=RoleId.Architect,
         phases=("p1",),
         file="skills/user-request/SKILL.md",
         creates_labels=("L-p1s1_1",),
     ),
-    CommandId.USER_ELICIT: CommandSpec(
-        id=CommandId.USER_ELICIT,
+    CommandId.UserElicit: CommandSpec(
+        id=CommandId.UserElicit,
         name="aura:user:elicit",
         description="User Requirements Elicitation survey (Phase 2)",
-        role_ref=RoleId.ARCHITECT,
+        role_ref=RoleId.Architect,
         phases=("p2",),
         file="skills/user-elicit/SKILL.md",
         creates_labels=("L-p2s2_1", "L-p2s2_2", "L-urd"),
     ),
-    CommandId.USER_UAT: CommandSpec(
-        id=CommandId.USER_UAT,
+    CommandId.UserUat: CommandSpec(
+        id=CommandId.UserUat,
         name="aura:user:uat",
         description="User Acceptance Testing with demonstrative examples",
         role_ref=None,
@@ -1820,197 +2040,197 @@ COMMAND_SPECS: dict[CommandId, CommandSpec] = {
         file="skills/user-uat/SKILL.md",
         creates_labels=("L-p5s5", "L-p11s11"),
     ),
-    CommandId.ARCHITECT: CommandSpec(
-        id=CommandId.ARCHITECT,
+    CommandId.Architect: CommandSpec(
+        id=CommandId.Architect,
         name="aura:architect",
         description="Specification writer and implementation designer",
-        role_ref=RoleId.ARCHITECT,
+        role_ref=RoleId.Architect,
         phases=("p1", "p2", "p3", "p4", "p5", "p6", "p7"),
         file="skills/architect/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.ARCH_PROPOSE: CommandSpec(
-        id=CommandId.ARCH_PROPOSE,
+    CommandId.ArchPropose: CommandSpec(
+        id=CommandId.ArchPropose,
         name="aura:architect:propose-plan",
         description="Create PROPOSAL-N task with full technical plan",
-        role_ref=RoleId.ARCHITECT,
+        role_ref=RoleId.Architect,
         phases=("p3",),
         file="skills/architect-propose-plan/SKILL.md",
         creates_labels=("L-p3s3",),
     ),
-    CommandId.ARCH_REVIEW: CommandSpec(
-        id=CommandId.ARCH_REVIEW,
+    CommandId.ArchReview: CommandSpec(
+        id=CommandId.ArchReview,
         name="aura:architect:request-review",
         description="Spawn 3 axis-specific reviewers (A/B/C)",
-        role_ref=RoleId.ARCHITECT,
+        role_ref=RoleId.Architect,
         phases=("p4",),
         file="skills/architect-request-review/SKILL.md",
         creates_labels=("L-p4s4",),
     ),
-    CommandId.ARCH_RATIFY: CommandSpec(
-        id=CommandId.ARCH_RATIFY,
+    CommandId.ArchRatify: CommandSpec(
+        id=CommandId.ArchRatify,
         name="aura:architect:ratify",
         description="Ratify proposal, mark old proposals aura:superseded",
-        role_ref=RoleId.ARCHITECT,
+        role_ref=RoleId.Architect,
         phases=("p6",),
         file="skills/architect-ratify/SKILL.md",
         creates_labels=("L-p6s6", "L-superseded"),
     ),
-    CommandId.ARCH_HANDOFF: CommandSpec(
-        id=CommandId.ARCH_HANDOFF,
+    CommandId.ArchHandoff: CommandSpec(
+        id=CommandId.ArchHandoff,
         name="aura:architect:handoff",
         description="Create handoff document and transfer to supervisor",
-        role_ref=RoleId.ARCHITECT,
+        role_ref=RoleId.Architect,
         phases=("p7",),
         file="skills/architect-handoff/SKILL.md",
         creates_labels=("L-p7s7",),
     ),
-    CommandId.SUPERVISOR: CommandSpec(
-        id=CommandId.SUPERVISOR,
+    CommandId.Supervisor: CommandSpec(
+        id=CommandId.Supervisor,
         name="aura:supervisor",
         description="Task coordinator, spawns workers, manages parallel execution",
-        role_ref=RoleId.SUPERVISOR,
+        role_ref=RoleId.Supervisor,
         phases=("p7", "p8", "p9", "p10", "p11", "p12"),
         file="skills/supervisor/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.SUP_PLAN: CommandSpec(
-        id=CommandId.SUP_PLAN,
+    CommandId.SupPlan: CommandSpec(
+        id=CommandId.SupPlan,
         name="aura:supervisor:plan-tasks",
         description="Decompose ratified plan into vertical slices (SLICE-N)",
-        role_ref=RoleId.SUPERVISOR,
+        role_ref=RoleId.Supervisor,
         phases=("p8",),
         file="skills/supervisor-plan-tasks/SKILL.md",
         creates_labels=("L-p8s8", "L-p9s9"),
     ),
-    CommandId.SUP_SPAWN: CommandSpec(
-        id=CommandId.SUP_SPAWN,
+    CommandId.SupSpawn: CommandSpec(
+        id=CommandId.SupSpawn,
         name="aura:supervisor:spawn-worker",
         description="Launch a worker agent for an assigned slice",
-        role_ref=RoleId.SUPERVISOR,
+        role_ref=RoleId.Supervisor,
         phases=("p9",),
         file="skills/supervisor-spawn-worker/SKILL.md",
         creates_labels=("L-p9s9",),
     ),
-    CommandId.SUP_TRACK: CommandSpec(
-        id=CommandId.SUP_TRACK,
+    CommandId.SupTrack: CommandSpec(
+        id=CommandId.SupTrack,
         name="aura:supervisor:track-progress",
         description="Monitor worker status via Beads",
-        role_ref=RoleId.SUPERVISOR,
+        role_ref=RoleId.Supervisor,
         phases=("p9", "p10"),
         file="skills/supervisor-track-progress/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.SUP_COMMIT: CommandSpec(
-        id=CommandId.SUP_COMMIT,
+    CommandId.SupCommit: CommandSpec(
+        id=CommandId.SupCommit,
         name="aura:supervisor:commit",
         description="Atomic commit per completed layer/slice",
-        role_ref=RoleId.SUPERVISOR,
+        role_ref=RoleId.Supervisor,
         phases=("p12",),
         file="skills/supervisor-commit/SKILL.md",
         creates_labels=("L-p12s12",),
     ),
-    CommandId.WORKER: CommandSpec(
-        id=CommandId.WORKER,
+    CommandId.Worker: CommandSpec(
+        id=CommandId.Worker,
         name="aura:worker",
         description="Vertical slice implementer (full production code path)",
-        role_ref=RoleId.WORKER,
+        role_ref=RoleId.Worker,
         phases=("p9",),
         file="skills/worker/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.WORK_IMPL: CommandSpec(
-        id=CommandId.WORK_IMPL,
+    CommandId.WorkImpl: CommandSpec(
+        id=CommandId.WorkImpl,
         name="aura:worker:implement",
         description="Implement assigned vertical slice following TDD layers",
-        role_ref=RoleId.WORKER,
+        role_ref=RoleId.Worker,
         phases=("p9",),
         file="skills/worker-implement/SKILL.md",
         creates_labels=("L-p9s9",),
     ),
-    CommandId.WORK_COMPLETE: CommandSpec(
-        id=CommandId.WORK_COMPLETE,
+    CommandId.WorkComplete: CommandSpec(
+        id=CommandId.WorkComplete,
         name="aura:worker:complete",
         description="Signal slice completion after quality gates pass",
-        role_ref=RoleId.WORKER,
+        role_ref=RoleId.Worker,
         phases=("p9",),
         file="skills/worker-complete/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.WORK_BLOCKED: CommandSpec(
-        id=CommandId.WORK_BLOCKED,
+    CommandId.WorkBlocked: CommandSpec(
+        id=CommandId.WorkBlocked,
         name="aura:worker:blocked",
         description="Report a blocker to supervisor via Beads",
-        role_ref=RoleId.WORKER,
+        role_ref=RoleId.Worker,
         phases=("p9",),
         file="skills/worker-blocked/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.REVIEWER: CommandSpec(
-        id=CommandId.REVIEWER,
+    CommandId.Reviewer: CommandSpec(
+        id=CommandId.Reviewer,
         name="aura:reviewer",
         description="End-user alignment reviewer for plans and code",
-        role_ref=RoleId.REVIEWER,
+        role_ref=RoleId.Reviewer,
         phases=("p4", "p10"),
         file="skills/reviewer/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.REV_PLAN: CommandSpec(
-        id=CommandId.REV_PLAN,
+    CommandId.RevPlan: CommandSpec(
+        id=CommandId.RevPlan,
         name="aura:reviewer:review-plan",
         description="Evaluate proposal against one axis (binary ACCEPT/REVISE)",
-        role_ref=RoleId.REVIEWER,
+        role_ref=RoleId.Reviewer,
         phases=("p4",),
         file="skills/reviewer-review-plan/SKILL.md",
         creates_labels=("L-p4s4",),
     ),
-    CommandId.REV_CODE: CommandSpec(
-        id=CommandId.REV_CODE,
+    CommandId.RevCode: CommandSpec(
+        id=CommandId.RevCode,
         name="aura:reviewer:review-code",
         description="Review implementation slices with EAGER severity tree",
-        role_ref=RoleId.REVIEWER,
+        role_ref=RoleId.Reviewer,
         phases=("p10",),
         file="skills/reviewer-review-code/SKILL.md",
         creates_labels=("L-p10s10", "L-sev-blocker", "L-sev-import", "L-sev-minor"),
     ),
-    CommandId.REV_COMMENT: CommandSpec(
-        id=CommandId.REV_COMMENT,
+    CommandId.RevComment: CommandSpec(
+        id=CommandId.RevComment,
         name="aura:reviewer:comment",
         description="Leave structured review comment via Beads",
-        role_ref=RoleId.REVIEWER,
+        role_ref=RoleId.Reviewer,
         phases=("p4", "p10"),
         file="skills/reviewer-comment/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.REV_VOTE: CommandSpec(
-        id=CommandId.REV_VOTE,
+    CommandId.RevVote: CommandSpec(
+        id=CommandId.RevVote,
         name="aura:reviewer:vote",
         description="Cast ACCEPT or REVISE vote (binary only)",
-        role_ref=RoleId.REVIEWER,
+        role_ref=RoleId.Reviewer,
         phases=("p4", "p10"),
         file="skills/reviewer-vote/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.IMPL_SLICE: CommandSpec(
-        id=CommandId.IMPL_SLICE,
+    CommandId.ImplSlice: CommandSpec(
+        id=CommandId.ImplSlice,
         name="aura:impl:slice",
         description="Vertical slice assignment and tracking",
-        role_ref=RoleId.SUPERVISOR,
+        role_ref=RoleId.Supervisor,
         phases=("p9",),
         file="skills/impl-slice/SKILL.md",
         creates_labels=("L-p9s9",),
     ),
-    CommandId.IMPL_REVIEW: CommandSpec(
-        id=CommandId.IMPL_REVIEW,
+    CommandId.ImplReview: CommandSpec(
+        id=CommandId.ImplReview,
         name="aura:impl:review",
         description="Code review coordination across all slices (Phase 10)",
-        role_ref=RoleId.SUPERVISOR,
+        role_ref=RoleId.Supervisor,
         phases=("p10",),
         file="skills/impl-review/SKILL.md",
         creates_labels=("L-p10s10", "L-sev-blocker", "L-sev-import", "L-sev-minor"),
     ),
-    CommandId.MSG_SEND: CommandSpec(
-        id=CommandId.MSG_SEND,
+    CommandId.MsgSend: CommandSpec(
+        id=CommandId.MsgSend,
         name="aura:msg:send",
         description="Send a message to another agent via Beads comment",
         role_ref=None,
@@ -2018,8 +2238,8 @@ COMMAND_SPECS: dict[CommandId, CommandSpec] = {
         file="skills/msg-send/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.MSG_RECEIVE: CommandSpec(
-        id=CommandId.MSG_RECEIVE,
+    CommandId.MsgReceive: CommandSpec(
+        id=CommandId.MsgReceive,
         name="aura:msg:receive",
         description="Check inbox for messages from other agents",
         role_ref=None,
@@ -2027,8 +2247,8 @@ COMMAND_SPECS: dict[CommandId, CommandSpec] = {
         file="skills/msg-receive/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.MSG_BROADCAST: CommandSpec(
-        id=CommandId.MSG_BROADCAST,
+    CommandId.MsgBroadcast: CommandSpec(
+        id=CommandId.MsgBroadcast,
         name="aura:msg:broadcast",
         description="Broadcast a message to multiple agents",
         role_ref=None,
@@ -2036,8 +2256,8 @@ COMMAND_SPECS: dict[CommandId, CommandSpec] = {
         file="skills/msg-broadcast/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.MSG_ACK: CommandSpec(
-        id=CommandId.MSG_ACK,
+    CommandId.MsgAck: CommandSpec(
+        id=CommandId.MsgAck,
         name="aura:msg:ack",
         description="Acknowledge received messages",
         role_ref=None,
@@ -2045,8 +2265,8 @@ COMMAND_SPECS: dict[CommandId, CommandSpec] = {
         file="skills/msg-ack/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.EXPLORE: CommandSpec(
-        id=CommandId.EXPLORE,
+    CommandId.Explore: CommandSpec(
+        id=CommandId.Explore,
         name="aura:explore",
         description=(
             "Codebase exploration — find integration points, existing patterns, and related code"
@@ -2056,8 +2276,8 @@ COMMAND_SPECS: dict[CommandId, CommandSpec] = {
         file="skills/explore/SKILL.md",
         creates_labels=("L-p1s1_3",),
     ),
-    CommandId.RESEARCH: CommandSpec(
-        id=CommandId.RESEARCH,
+    CommandId.Research: CommandSpec(
+        id=CommandId.Research,
         name="aura:research",
         description="Domain research — find standards, prior art, and competing approaches",
         role_ref=None,
@@ -2065,8 +2285,8 @@ COMMAND_SPECS: dict[CommandId, CommandSpec] = {
         file="skills/research/SKILL.md",
         creates_labels=("L-p1s1_2",),
     ),
-    CommandId.TEST: CommandSpec(
-        id=CommandId.TEST,
+    CommandId.Test: CommandSpec(
+        id=CommandId.Test,
         name="aura:test",
         description="Run tests using BDD patterns",
         role_ref=None,
@@ -2074,8 +2294,8 @@ COMMAND_SPECS: dict[CommandId, CommandSpec] = {
         file="skills/test/SKILL.md",
         creates_labels=(),
     ),
-    CommandId.FEEDBACK: CommandSpec(
-        id=CommandId.FEEDBACK,
+    CommandId.Feedback: CommandSpec(
+        id=CommandId.Feedback,
         name="aura:feedback",
         description="Leave structured feedback on any Beads task",
         role_ref=None,
@@ -2234,7 +2454,7 @@ LABEL_SPECS: dict[str, LabelSpec] = {
 REVIEW_AXIS_SPECS: dict[str, ReviewAxisSpec] = {
     "axis-correctness": ReviewAxisSpec(
         id="axis-correctness",
-        letter=ReviewAxis.CORRECTNESS,
+        letter=ReviewAxis.Correctness,
         name="Correctness",
         short="Spirit and technicality",
         key_questions=(
@@ -2245,7 +2465,7 @@ REVIEW_AXIS_SPECS: dict[str, ReviewAxisSpec] = {
     ),
     "axis-test_quality": ReviewAxisSpec(
         id="axis-test_quality",
-        letter=ReviewAxis.TEST_QUALITY,
+        letter=ReviewAxis.TestQuality,
         name="Test quality",
         short="Test strategy adequacy",
         key_questions=(
@@ -2257,7 +2477,7 @@ REVIEW_AXIS_SPECS: dict[str, ReviewAxisSpec] = {
     ),
     "axis-elegance": ReviewAxisSpec(
         id="axis-elegance",
-        letter=ReviewAxis.ELEGANCE,
+        letter=ReviewAxis.Elegance,
         name="Elegance",
         short="Complexity matching",
         key_questions=(
@@ -2394,15 +2614,15 @@ TITLE_CONVENTIONS: list[TitleConvention] = [
 # Other roles have empty tuples — they have no structured procedure steps in schema.xml v2.
 
 PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
-    RoleId.EPOCH: (),
-    RoleId.ARCHITECT: (),
-    RoleId.REVIEWER: (),
-    RoleId.SUPERVISOR: (
+    RoleId.Epoch: (),
+    RoleId.Architect: (),
+    RoleId.Reviewer: (),
+    RoleId.Supervisor: (
         ProcedureStep(
             id=StepSlug.Supervisor.CallSkill,
             order=1,
             instruction="Call Skill(/aura:supervisor) to load role instructions",
-            command=SkillRef.SUPERVISOR,
+            command=SkillRef.Supervisor,
         ),
         ProcedureStep(
             id=StepSlug.Supervisor.ReadPlan,
@@ -2424,7 +2644,7 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
                 "Vertical slices give one worker end-to-end ownership of a feature path "
                 "(types → tests → impl → wiring) with clear file boundaries"
             ),
-            next_state=PhaseId.P8_IMPL_PLAN,
+            next_state=PhaseId.P8_ImplPlan,
         ),
         ProcedureStep(
             id=StepSlug.Supervisor.CreateLeafTasks,
@@ -2437,8 +2657,8 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
             examples=(
                 CodeExample(
                     id="S-supervisor-create-leaf-tasks-frontmatter",
-                    lang=ExampleLang.BASH,
-                    label=ExampleLabel.TEMPLATE,
+                    lang=ExampleLang.Bash,
+                    label=ExampleLabel.Template,
                     code=(
                         'bd create --labels aura:p9-impl:s9-slice \\\n'
                         '  --title "SLICE-1-L1: Types -- <slice name>" \\\n'
@@ -2459,10 +2679,10 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
             order=6,
             instruction="Spawn workers for leaf tasks",
             command="aura-swarm start --epic <epic-id>",
-            next_state=PhaseId.P9_SLICE,
+            next_state=PhaseId.P9_Slice,
         ),
     ),
-    RoleId.WORKER: (
+    RoleId.Worker: (
         ProcedureStep(
             id=StepSlug.Worker.Types,
             order=1,
@@ -2477,7 +2697,7 @@ PROCEDURE_STEPS: dict[RoleId, tuple[ProcedureStep, ...]] = {
             id=StepSlug.Worker.Impl,
             order=3,
             instruction="Make tests pass. Wire with real dependencies. No TODOs.",
-            next_state=PhaseId.P9_SLICE,
+            next_state=PhaseId.P9_Slice,
         ),
     ),
 }
@@ -2624,8 +2844,8 @@ SUBSTEP_DATA: dict[str, list[dict]] = {
 
 CHECKLIST_SPECS: dict[str, Checklist] = {
     "worker-completion": Checklist(
-        role_ref=RoleId.WORKER,
-        gate=GateType.COMPLETION,
+        role_ref=RoleId.Worker,
+        gate=GateType.Completion,
         items=(
             ChecklistItem(
                 id="CL-worker-no-todos",
@@ -2654,8 +2874,8 @@ CHECKLIST_SPECS: dict[str, Checklist] = {
         ),
     ),
     "worker-slice-closure": Checklist(
-        role_ref=RoleId.WORKER,
-        gate=GateType.SLICE_CLOSURE,
+        role_ref=RoleId.Worker,
+        gate=GateType.SliceClosure,
         items=(
             ChecklistItem(
                 id="CL-worker-notified-supervisor",
@@ -2676,8 +2896,8 @@ CHECKLIST_SPECS: dict[str, Checklist] = {
         ),
     ),
     "supervisor-review-ready": Checklist(
-        role_ref=RoleId.SUPERVISOR,
-        gate=GateType.REVIEW_READY,
+        role_ref=RoleId.Supervisor,
+        gate=GateType.ReviewReady,
         items=(
             ChecklistItem(
                 id="CL-sup-all-slices-notified",
@@ -2694,8 +2914,8 @@ CHECKLIST_SPECS: dict[str, Checklist] = {
         ),
     ),
     "supervisor-landing": Checklist(
-        role_ref=RoleId.SUPERVISOR,
-        gate=GateType.LANDING,
+        role_ref=RoleId.Supervisor,
+        gate=GateType.Landing,
         items=(
             ChecklistItem(
                 id="CL-sup-all-accept",
@@ -2772,32 +2992,32 @@ COORDINATION_COMMANDS: dict[str, CoordinationCommand] = {
         id="cmd-coord-assign",
         action="Assign task",
         template="bd update <task-id> --assignee \"<worker-name>\"",
-        role_ref=RoleId.SUPERVISOR,
+        role_ref=RoleId.Supervisor,
     ),
     "cmd-coord-label": CoordinationCommand(
         id="cmd-coord-label",
         action="Label completed slice",
         template="bd label add <slice-id> aura:p9-impl:slice-complete",
-        role_ref=RoleId.SUPERVISOR,
+        role_ref=RoleId.Supervisor,
     ),
     "cmd-coord-dep-add": CoordinationCommand(
         id="cmd-coord-dep-add",
         action="Chain dependency",
         template="bd dep add <parent> --blocked-by <child>",
-        role_ref=RoleId.SUPERVISOR,
+        role_ref=RoleId.Supervisor,
     ),
     # Worker-specific commands
     "cmd-coord-close": CoordinationCommand(
         id="cmd-coord-close",
         action="Report completion",
         template="bd close <task-id>",
-        role_ref=RoleId.WORKER,
+        role_ref=RoleId.Worker,
     ),
     "cmd-coord-worker-notes": CoordinationCommand(
         id="cmd-coord-worker-notes",
         action="Add completion notes",
         template="bd update <task-id> --notes=\"Implementation complete. Production code verified.\"",
-        role_ref=RoleId.WORKER,
+        role_ref=RoleId.Worker,
     ),
 }
 
@@ -2810,7 +3030,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
     "ride-the-wave": Workflow(
         id="ride-the-wave",
         name="Ride the Wave",
-        role_ref=RoleId.SUPERVISOR,
+        role_ref=RoleId.Supervisor,
         description=(
             "Coordinated Phase 8-10 execution pattern. The supervisor orchestrates "
             "the full cycle: plan slices, launch workers, "
@@ -2821,8 +3041,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="rtw-plan",
                 name="Plan",
                 order=1,
-                execution=WorkflowExecution.SEQUENTIAL,
-                phase_ref=PhaseId.P8_IMPL_PLAN,
+                execution=WorkflowExecution.Sequential,
+                phase_ref=PhaseId.P8_ImplPlan,
                 actions=(
                     WorkflowAction(
                         id="rtw-plan-read",
@@ -2845,7 +3065,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.PROCEED,
+                        type=ExitConditionType.Proceed,
                         condition="All slices created with leaf tasks, dependency-chained, assigned",
                     ),
                 ),
@@ -2854,8 +3074,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="rtw-build",
                 name="Build",
                 order=2,
-                execution=WorkflowExecution.PARALLEL,
-                phase_ref=PhaseId.P9_SLICE,
+                execution=WorkflowExecution.Parallel,
+                phase_ref=PhaseId.P9_Slice,
                 actions=(
                     WorkflowAction(
                         id="rtw-build-spawn",
@@ -2870,7 +3090,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.PROCEED,
+                        type=ExitConditionType.Proceed,
                         condition="All workers have notified completion via bd comments add",
                     ),
                 ),
@@ -2879,8 +3099,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="rtw-review-fix",
                 name="Review + Fix Cycles",
                 order=3,
-                execution=WorkflowExecution.CONDITIONAL_LOOP,
-                phase_ref=PhaseId.P10_CODE_REVIEW,
+                execution=WorkflowExecution.ConditionalLoop,
+                phase_ref=PhaseId.P10_CodeReview,
                 actions=(
                     WorkflowAction(
                         id="rtw-review-spawn",
@@ -2901,19 +3121,19 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.SUCCESS,
+                        type=ExitConditionType.Success,
                         condition="All reviewers ACCEPT, no open BLOCKERs — proceed to Phase 11 UAT",
                     ),
                     ExitCondition(
-                        type=ExitConditionType.CONTINUE,
+                        type=ExitConditionType.Continue,
                         condition="BLOCKERs or IMPORTANTs remain, cycles < 3 per slice — workers fix, spawn new ephemeral reviewers",
                     ),
                     ExitCondition(
-                        type=ExitConditionType.PROCEED,
+                        type=ExitConditionType.Proceed,
                         condition="3 cycles exhausted, IMPORTANT remain — track in FOLLOWUP, proceed to Phase 11",
                     ),
                     ExitCondition(
-                        type=ExitConditionType.ESCALATE,
+                        type=ExitConditionType.Escalate,
                         condition="3 cycles exhausted per slice, BLOCKERs remain — escalate to architect for re-planning",
                     ),
                 ),
@@ -2923,7 +3143,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
     "layer-cake": Workflow(
         id="layer-cake",
         name="Layer Cake",
-        role_ref=RoleId.WORKER,
+        role_ref=RoleId.Worker,
         description=(
             "TDD layer-by-layer implementation within a vertical slice. "
             "Worker implements types first, then tests (will fail), "
@@ -2934,8 +3154,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="lc-types",
                 name="Types",
                 order=1,
-                execution=WorkflowExecution.SEQUENTIAL,
-                phase_ref=PhaseId.P9_SLICE,
+                execution=WorkflowExecution.Sequential,
+                phase_ref=PhaseId.P9_Slice,
                 actions=(
                     WorkflowAction(
                         id="lc-types-read",
@@ -2949,7 +3169,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.PROCEED,
+                        type=ExitConditionType.Proceed,
                         condition="All required types defined; file imports without error",
                     ),
                 ),
@@ -2958,8 +3178,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="lc-tests",
                 name="Tests",
                 order=2,
-                execution=WorkflowExecution.SEQUENTIAL,
-                phase_ref=PhaseId.P9_SLICE,
+                execution=WorkflowExecution.Sequential,
+                phase_ref=PhaseId.P9_Slice,
                 actions=(
                     WorkflowAction(
                         id="lc-tests-write",
@@ -2972,7 +3192,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.PROCEED,
+                        type=ExitConditionType.Proceed,
                         condition="Tests written and import production code; typecheck passes; tests fail (expected)",
                     ),
                 ),
@@ -2981,8 +3201,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="lc-impl",
                 name="Implementation + Wiring",
                 order=3,
-                execution=WorkflowExecution.SEQUENTIAL,
-                phase_ref=PhaseId.P9_SLICE,
+                execution=WorkflowExecution.Sequential,
+                phase_ref=PhaseId.P9_Slice,
                 actions=(
                     WorkflowAction(
                         id="lc-impl-code",
@@ -3009,14 +3229,14 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.SUCCESS,
+                        type=ExitConditionType.Success,
                         condition=(
                             "All tests pass; no TODO placeholders; real deps wired; "
                             "production code path verified via code inspection"
                         ),
                     ),
                     ExitCondition(
-                        type=ExitConditionType.ESCALATE,
+                        type=ExitConditionType.Escalate,
                         condition="Blocker encountered — use /aura:worker-blocked with details",
                     ),
                 ),
@@ -3026,7 +3246,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
     "architect-state-flow": Workflow(
         id="architect-state-flow",
         name="Architect State Flow",
-        role_ref=RoleId.ARCHITECT,
+        role_ref=RoleId.Architect,
         description=(
             "Sequential planning phases 1-7. The architect captures requirements, "
             "writes proposals, coordinates review consensus, and hands off to supervisor."
@@ -3036,8 +3256,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="asf-request",
                 name="Request",
                 order=1,
-                execution=WorkflowExecution.SEQUENTIAL,
-                phase_ref=PhaseId.P1_REQUEST,
+                execution=WorkflowExecution.Sequential,
+                phase_ref=PhaseId.P1_Request,
                 actions=(
                     WorkflowAction(
                         id="asf-request-capture",
@@ -3050,7 +3270,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.PROCEED,
+                        type=ExitConditionType.Proceed,
                         condition="Classification confirmed, research and explore complete",
                     ),
                 ),
@@ -3059,8 +3279,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="asf-elicit",
                 name="Elicit",
                 order=2,
-                execution=WorkflowExecution.SEQUENTIAL,
-                phase_ref=PhaseId.P2_ELICIT,
+                execution=WorkflowExecution.Sequential,
+                phase_ref=PhaseId.P2_Elicit,
                 actions=(
                     WorkflowAction(
                         id="asf-elicit-ure",
@@ -3073,7 +3293,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.PROCEED,
+                        type=ExitConditionType.Proceed,
                         condition="URD created with structured requirements",
                     ),
                 ),
@@ -3082,8 +3302,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="asf-propose",
                 name="Propose",
                 order=3,
-                execution=WorkflowExecution.SEQUENTIAL,
-                phase_ref=PhaseId.P3_PROPOSE,
+                execution=WorkflowExecution.Sequential,
+                phase_ref=PhaseId.P3_Propose,
                 actions=(
                     WorkflowAction(
                         id="asf-propose-write",
@@ -3096,7 +3316,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.PROCEED,
+                        type=ExitConditionType.Proceed,
                         condition="Proposal created",
                     ),
                 ),
@@ -3105,8 +3325,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="asf-review",
                 name="Review",
                 order=4,
-                execution=WorkflowExecution.CONDITIONAL_LOOP,
-                phase_ref=PhaseId.P4_REVIEW,
+                execution=WorkflowExecution.ConditionalLoop,
+                phase_ref=PhaseId.P4_Review,
                 actions=(
                     WorkflowAction(
                         id="asf-review-spawn",
@@ -3119,11 +3339,11 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.PROCEED,
+                        type=ExitConditionType.Proceed,
                         condition="All 3 reviewers vote ACCEPT",
                     ),
                     ExitCondition(
-                        type=ExitConditionType.CONTINUE,
+                        type=ExitConditionType.Continue,
                         condition="Any reviewer votes REVISE — create PROPOSAL-N+1, mark old as superseded, re-spawn reviewers",
                     ),
                 ),
@@ -3132,8 +3352,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="asf-uat",
                 name="Plan UAT",
                 order=5,
-                execution=WorkflowExecution.SEQUENTIAL,
-                phase_ref=PhaseId.P5_UAT,
+                execution=WorkflowExecution.Sequential,
+                phase_ref=PhaseId.P5_Uat,
                 actions=(
                     WorkflowAction(
                         id="asf-uat-present",
@@ -3142,11 +3362,11 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.PROCEED,
+                        type=ExitConditionType.Proceed,
                         condition="User accepts plan",
                     ),
                     ExitCondition(
-                        type=ExitConditionType.CONTINUE,
+                        type=ExitConditionType.Continue,
                         condition="User requests changes — create PROPOSAL-N+1",
                     ),
                 ),
@@ -3155,8 +3375,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="asf-ratify",
                 name="Ratify",
                 order=6,
-                execution=WorkflowExecution.SEQUENTIAL,
-                phase_ref=PhaseId.P6_RATIFY,
+                execution=WorkflowExecution.Sequential,
+                phase_ref=PhaseId.P6_Ratify,
                 actions=(
                     WorkflowAction(
                         id="asf-ratify-label",
@@ -3173,7 +3393,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.PROCEED,
+                        type=ExitConditionType.Proceed,
                         condition="Proposal ratified, IMPL_PLAN placeholder created",
                     ),
                 ),
@@ -3182,8 +3402,8 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 id="asf-handoff",
                 name="Handoff",
                 order=7,
-                execution=WorkflowExecution.SEQUENTIAL,
-                phase_ref=PhaseId.P7_HANDOFF,
+                execution=WorkflowExecution.Sequential,
+                phase_ref=PhaseId.P7_Handoff,
                 actions=(
                     WorkflowAction(
                         id="asf-handoff-doc",
@@ -3196,7 +3416,7 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
                 ),
                 exit_conditions=(
                     ExitCondition(
-                        type=ExitConditionType.SUCCESS,
+                        type=ExitConditionType.Success,
                         condition="Handoff document stored at .git/.aura/handoff/, supervisor notified",
                     ),
                 ),
@@ -3211,30 +3431,30 @@ WORKFLOW_SPECS: dict[str, Workflow] = {
 # these specs carry structural metadata only (content defaults to '').
 
 FIGURE_SPECS: dict[FigureId, Figure] = {
-    FigureId.LAYER_CAKE: Figure(
-        id=FigureId.LAYER_CAKE,
+    FigureId.LayerCake: Figure(
+        id=FigureId.LayerCake,
         title="Layer Cake — TDD Parallelism Within Vertical Slices",
-        type=FigureType.ASCII_DIAGRAM,
-        role_refs=frozenset({RoleId.WORKER}),
-        section_ref=SectionRef.WORKFLOWS,
+        type=FigureType.AsciiDiagram,
+        role_refs=frozenset({RoleId.Worker}),
+        section_ref=SectionRef.Workflows,
         workflow_refs=frozenset({"layer-cake"}),
-        command_refs=frozenset({CommandId.SUP_PLAN}),
+        command_refs=frozenset({CommandId.SupPlan}),
     ),
-    FigureId.RIDE_THE_WAVE: Figure(
-        id=FigureId.RIDE_THE_WAVE,
+    FigureId.RideTheWave: Figure(
+        id=FigureId.RideTheWave,
         title="Ride the Wave — Coordinated Phase 8-10 Execution",
-        type=FigureType.ASCII_DIAGRAM,
-        role_refs=frozenset({RoleId.SUPERVISOR}),
-        section_ref=SectionRef.WORKFLOWS,
+        type=FigureType.AsciiDiagram,
+        role_refs=frozenset({RoleId.Supervisor}),
+        section_ref=SectionRef.Workflows,
         workflow_refs=frozenset({"ride-the-wave"}),
-        command_refs=frozenset({CommandId.SUP_SPAWN}),
+        command_refs=frozenset({CommandId.SupSpawn}),
     ),
-    FigureId.ARCHITECT_STATE_FLOW: Figure(
-        id=FigureId.ARCHITECT_STATE_FLOW,
+    FigureId.ArchitectStateFlow: Figure(
+        id=FigureId.ArchitectStateFlow,
         title="Architect State Flow — Sequential Planning Phases 1-7",
-        type=FigureType.ASCII_DIAGRAM,
-        role_refs=frozenset({RoleId.ARCHITECT}),
-        section_ref=SectionRef.WORKFLOWS,
+        type=FigureType.AsciiDiagram,
+        role_refs=frozenset({RoleId.Architect}),
+        section_ref=SectionRef.Workflows,
         workflow_refs=frozenset({"architect-state-flow"}),
     ),
 }

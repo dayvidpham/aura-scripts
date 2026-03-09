@@ -37,7 +37,7 @@ from aura_protocol.interfaces import (
     ToolPermissionRequest,
     TranscriptRecorder,
 )
-from aura_protocol.types import PhaseId, ReviewAxis, RoleId, VoteType
+from aura_protocol.types import EventType, PhaseId, ReviewAxis, RoleId, VoteType
 
 
 # ─── AC9: Protocol isinstance() checks ───────────────────────────────────────
@@ -417,19 +417,19 @@ class TestEventStubReExports:
         """PhaseTransitionEvent is re-exported from interfaces."""
         event = PhaseTransitionEvent(
             epoch_id="epoch-1",
-            from_phase=PhaseId.P1_REQUEST,
-            to_phase=PhaseId.P2_ELICIT,
+            from_phase=PhaseId.P1_Request,
+            to_phase=PhaseId.P2_Elicit,
             triggered_by="architect",
             condition_met="classification confirmed",
         )
-        assert event.from_phase == PhaseId.P1_REQUEST
-        assert event.to_phase == PhaseId.P2_ELICIT
+        assert event.from_phase == PhaseId.P1_Request
+        assert event.to_phase == PhaseId.P2_Elicit
 
     def test_constraint_check_event_importable(self) -> None:
         """ConstraintCheckEvent is re-exported from interfaces."""
         event = ConstraintCheckEvent(
             epoch_id="epoch-1",
-            phase=PhaseId.P4_REVIEW,
+            phase=PhaseId.P4_Review,
             constraint_id="C-review-consensus",
             passed=False,
             message="Only 2 of 3 votes",
@@ -440,12 +440,12 @@ class TestEventStubReExports:
         """ReviewVoteEvent is re-exported from interfaces."""
         event = ReviewVoteEvent(
             epoch_id="epoch-1",
-            phase=PhaseId.P4_REVIEW,
-            axis=ReviewAxis.CORRECTNESS,
-            vote=VoteType.ACCEPT,
+            phase=PhaseId.P4_Review,
+            axis=ReviewAxis.Correctness,
+            vote=VoteType.Accept,
             reviewer_id="reviewer-a",
         )
-        assert event.vote == VoteType.ACCEPT
+        assert event.vote == VoteType.Accept
 
     def test_audit_event_importable(self) -> None:
         """AuditEvent is re-exported from interfaces.
@@ -454,19 +454,19 @@ class TestEventStubReExports:
         """
         event = AuditEvent(
             epoch_id="epoch-1",
-            event_type="phase_transition",
-            phase=PhaseId.P9_SLICE,
-            role=RoleId.SUPERVISOR,
+            event_type=EventType.PhaseTransition,
+            phase=PhaseId.P9_Slice,
+            role=RoleId.Supervisor,
             payload={"from": "p8", "to": "p9"},
         )
-        assert event.event_type == "phase_transition"
+        assert event.event_type == EventType.PhaseTransition
 
     def test_tool_permission_request_importable(self) -> None:
         """ToolPermissionRequest is re-exported from interfaces."""
         req = ToolPermissionRequest(
             epoch_id="epoch-1",
-            phase=PhaseId.P9_SLICE,
-            role=RoleId.WORKER,
+            phase=PhaseId.P9_Slice,
+            role=RoleId.Worker,
             tool_name="bash",
             tool_input_summary="ls -la",
         )
@@ -481,8 +481,8 @@ class TestEventStubReExports:
         """Re-exported event stubs must remain frozen (immutable)."""
         event = PhaseTransitionEvent(
             epoch_id="epoch-1",
-            from_phase=PhaseId.P1_REQUEST,
-            to_phase=PhaseId.P2_ELICIT,
+            from_phase=PhaseId.P1_Request,
+            to_phase=PhaseId.P2_Elicit,
             triggered_by="architect",
             condition_met="confirmed",
         )
@@ -559,8 +559,8 @@ class TestNullTranscriptRecorder:
         stub = NullTranscriptRecorder()
         event = PhaseTransitionEvent(
             epoch_id="epoch-1",
-            from_phase=PhaseId.P1_REQUEST,
-            to_phase=PhaseId.P2_ELICIT,
+            from_phase=PhaseId.P1_Request,
+            to_phase=PhaseId.P2_Elicit,
             triggered_by="architect",
             condition_met="confirmed",
         )
@@ -573,9 +573,9 @@ class TestNullTranscriptRecorder:
         stub = NullTranscriptRecorder()
         event = ReviewVoteEvent(
             epoch_id="epoch-1",
-            phase=PhaseId.P4_REVIEW,
-            axis=ReviewAxis.CORRECTNESS,
-            vote=VoteType.ACCEPT,
+            phase=PhaseId.P4_Review,
+            axis=ReviewAxis.Correctness,
+            vote=VoteType.Accept,
             reviewer_id="reviewer-a",
         )
         asyncio.run(stub.record_review_vote(event))  # must not raise
@@ -604,8 +604,8 @@ class TestNullSecurityGate:
         stub = NullSecurityGate()
         request = ToolPermissionRequest(
             epoch_id="epoch-1",
-            phase=PhaseId.P9_SLICE,
-            role=RoleId.WORKER,
+            phase=PhaseId.P9_Slice,
+            role=RoleId.Worker,
             tool_name="bash",
             tool_input_summary="ls -la",
         )
@@ -623,8 +623,8 @@ class TestReviewVoteSignalAxis:
         """Given ReviewAxis enum member when used as axis then ReviewVoteSignal created."""
         from aura_protocol.workflow import ReviewVoteSignal
 
-        sig = ReviewVoteSignal(axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="r1")
-        assert sig.axis == ReviewAxis.CORRECTNESS
+        sig = ReviewVoteSignal(axis=ReviewAxis.Correctness, vote=VoteType.Accept, reviewer_id="r1")
+        assert sig.axis == ReviewAxis.Correctness
         assert isinstance(sig.axis, ReviewAxis)
 
     def test_axis_a_b_c_all_valid(self) -> None:
@@ -632,14 +632,14 @@ class TestReviewVoteSignalAxis:
         from aura_protocol.workflow import ReviewVoteSignal
 
         for axis in ReviewAxis:
-            sig = ReviewVoteSignal(axis=axis, vote=VoteType.ACCEPT, reviewer_id="r1")
+            sig = ReviewVoteSignal(axis=axis, vote=VoteType.Accept, reviewer_id="r1")
             assert sig.axis == axis
 
     def test_axis_is_str_compatible(self) -> None:
         """Given ReviewAxis (StrEnum) when compared to str then compatible."""
         from aura_protocol.workflow import ReviewVoteSignal
 
-        sig = ReviewVoteSignal(axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="r1")
+        sig = ReviewVoteSignal(axis=ReviewAxis.Correctness, vote=VoteType.Accept, reviewer_id="r1")
         assert sig.axis == "correctness"  # StrEnum compatibility
 
 
@@ -659,8 +659,8 @@ class TestReviseDrivesBackPhases:
         """Given _REVISE_DRIVES_BACK_PHASES then contains p4 and p10."""
         from aura_protocol.state_machine import _REVISE_DRIVES_BACK_PHASES
 
-        assert PhaseId.P4_REVIEW in _REVISE_DRIVES_BACK_PHASES
-        assert PhaseId.P10_CODE_REVIEW in _REVISE_DRIVES_BACK_PHASES
+        assert PhaseId.P4_Review in _REVISE_DRIVES_BACK_PHASES
+        assert PhaseId.P10_CodeReview in _REVISE_DRIVES_BACK_PHASES
 
     def test_old_name_does_not_exist(self) -> None:
         """Given state_machine module then _REVISE_DRIVES_BACK no longer exported."""

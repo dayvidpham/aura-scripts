@@ -47,18 +47,18 @@ class TestPhaseIdEnum:
         assert values == expected
 
     def test_12_numbered_phases(self) -> None:
-        numbered = [p for p in PhaseId if p != PhaseId.COMPLETE]
+        numbered = [p for p in PhaseId if p != PhaseId.Complete]
         assert len(numbered) == 12
 
     def test_complete_sentinel(self) -> None:
-        assert PhaseId.COMPLETE.value == "complete"
+        assert PhaseId.Complete.value == "complete"
 
     def test_is_str_enum(self) -> None:
-        assert isinstance(PhaseId.P1_REQUEST, str)
-        assert PhaseId.P1_REQUEST == "p1"
+        assert isinstance(PhaseId.P1_Request, str)
+        assert PhaseId.P1_Request == "p1"
 
     def test_json_serializable(self) -> None:
-        encoded = json.dumps({"phase": PhaseId.P9_SLICE})
+        encoded = json.dumps({"phase": PhaseId.P9_Slice})
         decoded = json.loads(encoded)
         assert decoded["phase"] == "p9"
 
@@ -69,13 +69,13 @@ class TestDomainEnum:
         assert values == {"user", "plan", "impl"}
 
     def test_is_str_enum(self) -> None:
-        assert isinstance(Domain.USER, str)
-        assert Domain.USER == "user"
-        assert Domain.PLAN == "plan"
-        assert Domain.IMPL == "impl"
+        assert isinstance(Domain.User, str)
+        assert Domain.User == "user"
+        assert Domain.Plan == "plan"
+        assert Domain.Impl == "impl"
 
     def test_json_serializable(self) -> None:
-        encoded = json.dumps({"domain": Domain.IMPL})
+        encoded = json.dumps({"domain": Domain.Impl})
         decoded = json.loads(encoded)
         assert decoded["domain"] == "impl"
 
@@ -86,11 +86,11 @@ class TestRoleIdEnum:
         assert values == {"epoch", "architect", "reviewer", "supervisor", "worker"}
 
     def test_is_str_enum(self) -> None:
-        assert isinstance(RoleId.WORKER, str)
-        assert RoleId.WORKER == "worker"
+        assert isinstance(RoleId.Worker, str)
+        assert RoleId.Worker == "worker"
 
     def test_json_serializable(self) -> None:
-        encoded = json.dumps({"role": RoleId.SUPERVISOR})
+        encoded = json.dumps({"role": RoleId.Supervisor})
         decoded = json.loads(encoded)
         assert decoded["role"] == "supervisor"
 
@@ -101,12 +101,12 @@ class TestVoteTypeEnum:
         assert values == {"ACCEPT", "REVISE"}
 
     def test_is_str_enum(self) -> None:
-        assert isinstance(VoteType.ACCEPT, str)
-        assert VoteType.ACCEPT == "ACCEPT"
-        assert VoteType.REVISE == "REVISE"
+        assert isinstance(VoteType.Accept, str)
+        assert VoteType.Accept == "ACCEPT"
+        assert VoteType.Revise == "REVISE"
 
     def test_json_serializable(self) -> None:
-        encoded = json.dumps({"vote": VoteType.ACCEPT})
+        encoded = json.dumps({"vote": VoteType.Accept})
         decoded = json.loads(encoded)
         assert decoded["vote"] == "ACCEPT"
 
@@ -117,11 +117,11 @@ class TestSeverityLevelEnum:
         assert values == {"BLOCKER", "IMPORTANT", "MINOR"}
 
     def test_is_str_enum(self) -> None:
-        assert isinstance(SeverityLevel.BLOCKER, str)
-        assert SeverityLevel.BLOCKER == "BLOCKER"
+        assert isinstance(SeverityLevel.Blocker, str)
+        assert SeverityLevel.Blocker == "BLOCKER"
 
     def test_json_serializable(self) -> None:
-        encoded = json.dumps({"severity": SeverityLevel.BLOCKER})
+        encoded = json.dumps({"severity": SeverityLevel.Blocker})
         decoded = json.loads(encoded)
         assert decoded["severity"] == "BLOCKER"
 
@@ -133,12 +133,12 @@ class TestSpecFreezing:
     """Frozen dataclasses must raise FrozenInstanceError on mutation attempts."""
 
     def test_transition_is_frozen(self) -> None:
-        t = Transition(to_phase=PhaseId.P2_ELICIT, condition="test")
+        t = Transition(to_phase=PhaseId.P2_Elicit, condition="test")
         with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
             t.condition = "mutate"  # type: ignore[misc]
 
     def test_phase_spec_is_frozen(self) -> None:
-        spec = PHASE_SPECS[PhaseId.P1_REQUEST]
+        spec = PHASE_SPECS[PhaseId.P1_Request]
         with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
             spec.name = "mutate"  # type: ignore[misc]
 
@@ -155,8 +155,8 @@ class TestSpecFreezing:
     def test_phase_transition_event_is_frozen(self) -> None:
         event = PhaseTransitionEvent(
             epoch_id="test-epoch",
-            from_phase=PhaseId.P1_REQUEST,
-            to_phase=PhaseId.P2_ELICIT,
+            from_phase=PhaseId.P1_Request,
+            to_phase=PhaseId.P2_Elicit,
             triggered_by="architect",
             condition_met="classification confirmed",
         )
@@ -176,29 +176,29 @@ class TestPhaseDomainMapping:
     """PHASE_DOMAIN must cover all 12 phases with correct domain assignments."""
 
     def test_covers_all_12_phases(self) -> None:
-        non_complete = {p for p in PhaseId if p != PhaseId.COMPLETE}
+        non_complete = {p for p in PhaseId if p != PhaseId.Complete}
         assert set(PHASE_DOMAIN.keys()) == non_complete
 
     def test_complete_sentinel_not_in_mapping(self) -> None:
-        assert PhaseId.COMPLETE not in PHASE_DOMAIN
+        assert PhaseId.Complete not in PHASE_DOMAIN
 
     def test_user_domain_phases(self) -> None:
         # p1, p2, p5, p11 are user domain
-        for phase in (PhaseId.P1_REQUEST, PhaseId.P2_ELICIT, PhaseId.P5_UAT, PhaseId.P11_IMPL_UAT):
-            assert PHASE_DOMAIN[phase] == Domain.USER, f"{phase} should be USER domain"
+        for phase in (PhaseId.P1_Request, PhaseId.P2_Elicit, PhaseId.P5_Uat, PhaseId.P11_ImplUat):
+            assert PHASE_DOMAIN[phase] == Domain.User, f"{phase} should be USER domain"
 
     def test_plan_domain_phases(self) -> None:
         # p3, p4, p6, p7 are plan domain
-        for phase in (PhaseId.P3_PROPOSE, PhaseId.P4_REVIEW, PhaseId.P6_RATIFY, PhaseId.P7_HANDOFF):
-            assert PHASE_DOMAIN[phase] == Domain.PLAN, f"{phase} should be PLAN domain"
+        for phase in (PhaseId.P3_Propose, PhaseId.P4_Review, PhaseId.P6_Ratify, PhaseId.P7_Handoff):
+            assert PHASE_DOMAIN[phase] == Domain.Plan, f"{phase} should be PLAN domain"
 
     def test_impl_domain_phases(self) -> None:
         # p8, p9, p10, p12 are impl domain
         for phase in (
-            PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE,
-            PhaseId.P10_CODE_REVIEW, PhaseId.P12_LANDING,
+            PhaseId.P8_ImplPlan, PhaseId.P9_Slice,
+            PhaseId.P10_CodeReview, PhaseId.P12_Landing,
         ):
-            assert PHASE_DOMAIN[phase] == Domain.IMPL, f"{phase} should be IMPL domain"
+            assert PHASE_DOMAIN[phase] == Domain.Impl, f"{phase} should be IMPL domain"
 
     def test_domain_is_domain_enum(self) -> None:
         for phase, domain in PHASE_DOMAIN.items():
@@ -215,10 +215,10 @@ class TestPhaseSpecs:
         assert len(PHASE_SPECS) == 12
 
     def test_no_complete_sentinel_in_specs(self) -> None:
-        assert PhaseId.COMPLETE not in PHASE_SPECS
+        assert PhaseId.Complete not in PHASE_SPECS
 
     def test_all_phase_ids_covered(self) -> None:
-        non_complete = {p for p in PhaseId if p != PhaseId.COMPLETE}
+        non_complete = {p for p in PhaseId if p != PhaseId.Complete}
         assert set(PHASE_SPECS.keys()) == non_complete
 
     def test_phase_numbers_sequential(self) -> None:
@@ -255,20 +255,20 @@ class TestPhaseSpecs:
 
     def test_revision_loop_phases_have_forward_and_backward_transitions(self) -> None:
         # p4 and p10 have review loops back to earlier phases
-        p4 = PHASE_SPECS[PhaseId.P4_REVIEW]
+        p4 = PHASE_SPECS[PhaseId.P4_Review]
         to_phases = {t.to_phase for t in p4.transitions}
-        assert PhaseId.P5_UAT in to_phases  # forward
-        assert PhaseId.P3_PROPOSE in to_phases  # revision loop
+        assert PhaseId.P5_Uat in to_phases  # forward
+        assert PhaseId.P3_Propose in to_phases  # revision loop
 
-        p10 = PHASE_SPECS[PhaseId.P10_CODE_REVIEW]
+        p10 = PHASE_SPECS[PhaseId.P10_CodeReview]
         to_phases_p10 = {t.to_phase for t in p10.transitions}
-        assert PhaseId.P11_IMPL_UAT in to_phases_p10  # forward
-        assert PhaseId.P9_SLICE in to_phases_p10  # revision loop
+        assert PhaseId.P11_ImplUat in to_phases_p10  # forward
+        assert PhaseId.P9_Slice in to_phases_p10  # revision loop
 
     def test_p12_landing_terminates_at_complete(self) -> None:
-        p12 = PHASE_SPECS[PhaseId.P12_LANDING]
+        p12 = PHASE_SPECS[PhaseId.P12_Landing]
         assert len(p12.transitions) == 1
-        assert p12.transitions[0].to_phase == PhaseId.COMPLETE
+        assert p12.transitions[0].to_phase == PhaseId.Complete
 
 
 # ─── CONSTRAINT_SPECS ─────────────────────────────────────────────────────────
@@ -318,16 +318,16 @@ class TestHandoffSpecs:
 
     def test_h1_architect_to_supervisor(self) -> None:
         h1 = HANDOFF_SPECS["h1"]
-        assert h1.source_role == RoleId.ARCHITECT
-        assert h1.target_role == RoleId.SUPERVISOR
-        assert h1.at_phase == PhaseId.P7_HANDOFF
+        assert h1.source_role == RoleId.Architect
+        assert h1.target_role == RoleId.Supervisor
+        assert h1.at_phase == PhaseId.P7_Handoff
         assert h1.content_level == "full-provenance"
 
     def test_h2_supervisor_to_worker(self) -> None:
         h2 = HANDOFF_SPECS["h2"]
-        assert h2.source_role == RoleId.SUPERVISOR
-        assert h2.target_role == RoleId.WORKER
-        assert h2.at_phase == PhaseId.P9_SLICE
+        assert h2.source_role == RoleId.Supervisor
+        assert h2.target_role == RoleId.Worker
+        assert h2.at_phase == PhaseId.P9_Slice
 
     def test_required_fields_are_tuple(self) -> None:
         for hid, spec in HANDOFF_SPECS.items():
@@ -387,40 +387,40 @@ class TestReviewAxisUsedInSignal:
 
     SLICE-2 changed ReviewVoteSignal.axis from plain str to ReviewAxis, making
     the type system enforce valid axis identifiers. UAT amendment #7 renamed the
-    enum values from A/B/C to CORRECTNESS/TEST_QUALITY/ELEGANCE with wire-format
+    enum values from A/B/C to Correctness/TestQuality/Elegance with wire-format
     values "correctness"/"test_quality"/"elegance".
     """
 
     def test_all_three_axis_members_exist(self) -> None:
         from aura_protocol.types import ReviewAxis
 
-        for name in ("CORRECTNESS", "TEST_QUALITY", "ELEGANCE"):
+        for name in ("Correctness", "TestQuality", "Elegance"):
             assert hasattr(ReviewAxis, name), f"ReviewAxis.{name} not found"
 
     def test_is_str_enum(self) -> None:
         from aura_protocol.types import ReviewAxis
 
-        assert isinstance(ReviewAxis.CORRECTNESS, str)
-        assert isinstance(ReviewAxis.TEST_QUALITY, str)
-        assert isinstance(ReviewAxis.ELEGANCE, str)
+        assert isinstance(ReviewAxis.Correctness, str)
+        assert isinstance(ReviewAxis.TestQuality, str)
+        assert isinstance(ReviewAxis.Elegance, str)
 
     def test_values_are_semantic_lowercase(self) -> None:
         from aura_protocol.types import ReviewAxis
 
-        assert ReviewAxis.CORRECTNESS == "correctness"
-        assert ReviewAxis.TEST_QUALITY == "test_quality"
-        assert ReviewAxis.ELEGANCE == "elegance"
+        assert ReviewAxis.Correctness == "correctness"
+        assert ReviewAxis.TestQuality == "test_quality"
+        assert ReviewAxis.Elegance == "elegance"
 
     def test_review_vote_signal_construction_with_review_axis(self) -> None:
         from aura_protocol.types import ReviewAxis, VoteType
         from aura_protocol.workflow import ReviewVoteSignal
 
         signal = ReviewVoteSignal(
-            axis=ReviewAxis.CORRECTNESS,
-            vote=VoteType.ACCEPT,
+            axis=ReviewAxis.Correctness,
+            vote=VoteType.Accept,
             reviewer_id="reviewer-1",
         )
-        assert signal.axis == ReviewAxis.CORRECTNESS
+        assert signal.axis == ReviewAxis.Correctness
         assert signal.axis == "correctness"  # StrEnum equality with str
 
 

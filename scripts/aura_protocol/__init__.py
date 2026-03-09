@@ -176,6 +176,7 @@ from aura_protocol.types import (
     ContentLevel,
     DelegateSpec,
     Domain,
+    EventType,
     ExecutionMode,
     HandoffSpec,
     LabelSpec,
@@ -244,6 +245,7 @@ __all__ = [
     "ConstraintCheckEvent",
     "ReviewVoteEvent",
     "AuditEvent",
+    "EventType",
     "ToolPermissionRequest",
     "PermissionDecision",
     # Canonical lookup dicts

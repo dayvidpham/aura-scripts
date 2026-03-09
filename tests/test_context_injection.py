@@ -49,105 +49,105 @@ class TestGetRoleContextSupervisor:
     """AC5: get_role_context(SUPERVISOR) returns correct RoleContext."""
 
     def test_returns_role_context_type(self) -> None:
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         assert isinstance(ctx, RoleContext)
 
     def test_role_field_is_supervisor(self) -> None:
-        ctx = get_role_context(RoleId.SUPERVISOR)
-        assert ctx.role == RoleId.SUPERVISOR
+        ctx = get_role_context(RoleId.Supervisor)
+        assert ctx.role == RoleId.Supervisor
 
     def test_phases_contains_p7_through_p12(self) -> None:
         """AC5: SUPERVISOR owns phases p7-p12 (from PHASE_SPECS.owner_roles inversion)."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         expected_phases = {
-            PhaseId.P7_HANDOFF,
-            PhaseId.P8_IMPL_PLAN,
-            PhaseId.P9_SLICE,
-            PhaseId.P10_CODE_REVIEW,
-            PhaseId.P11_IMPL_UAT,
-            PhaseId.P12_LANDING,
+            PhaseId.P7_Handoff,
+            PhaseId.P8_ImplPlan,
+            PhaseId.P9_Slice,
+            PhaseId.P10_CodeReview,
+            PhaseId.P11_ImplUat,
+            PhaseId.P12_Landing,
         }
         assert ctx.phases == expected_phases
 
     def test_phases_does_not_include_p1_through_p6(self) -> None:
         """SUPERVISOR does not own early phases (plan phases)."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         early_phases = {
-            PhaseId.P1_REQUEST,
-            PhaseId.P2_ELICIT,
-            PhaseId.P3_PROPOSE,
-            PhaseId.P4_REVIEW,
-            PhaseId.P5_UAT,
-            PhaseId.P6_RATIFY,
+            PhaseId.P1_Request,
+            PhaseId.P2_Elicit,
+            PhaseId.P3_Propose,
+            PhaseId.P4_Review,
+            PhaseId.P5_Uat,
+            PhaseId.P6_Ratify,
         }
         assert ctx.phases.isdisjoint(early_phases)
 
     def test_constraints_is_frozenset_of_constraint_contexts(self) -> None:
         """AC5: constraints must be frozenset[ConstraintContext]."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         assert isinstance(ctx.constraints, frozenset)
         for c in ctx.constraints:
             assert isinstance(c, ConstraintContext)
 
     def test_constraints_non_empty(self) -> None:
         """SUPERVISOR has non-trivial constraints."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         assert len(ctx.constraints) > 0
 
     def test_constraints_have_when_and_then_populated(self) -> None:
         """AC5 (UAT-4): every ConstraintContext has non-empty when and then."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         for c in ctx.constraints:
             assert c.when, f"ConstraintContext {c.id!r} has empty 'when' field"
             assert c.then, f"ConstraintContext {c.id!r} has empty 'then' field"
 
     def test_constraints_have_id_populated(self) -> None:
         """Every ConstraintContext has a non-empty id."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         for c in ctx.constraints:
             assert c.id, "ConstraintContext has empty 'id' field"
 
     def test_constraints_include_supervisor_no_impl(self) -> None:
         """SUPERVISOR must be reminded not to implement code directly."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         ids = {c.id for c in ctx.constraints}
         assert "C-supervisor-no-impl" in ids
 
     def test_constraints_include_review_consensus(self) -> None:
         """SUPERVISOR gates transitions on review consensus."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         ids = {c.id for c in ctx.constraints}
         assert "C-review-consensus" in ids
 
     def test_commands_is_tuple_of_strings(self) -> None:
         """AC5: commands must be tuple[str, ...]."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         assert isinstance(ctx.commands, tuple)
         for cmd in ctx.commands:
             assert isinstance(cmd, str)
 
     def test_commands_non_empty_for_supervisor(self) -> None:
         """SUPERVISOR has associated commands."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         assert len(ctx.commands) > 0
 
     def test_commands_contain_supervisor_command(self) -> None:
         """SUPERVISOR commands include the main aura:supervisor skill."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         assert "aura:supervisor" in ctx.commands
 
     def test_handoffs_is_tuple_of_strings(self) -> None:
         """Handoffs must be tuple[str, ...]."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         assert isinstance(ctx.handoffs, tuple)
         for h in ctx.handoffs:
             assert isinstance(h, str)
 
     def test_role_context_is_frozen(self) -> None:
         """RoleContext must be a frozen dataclass."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         with pytest.raises((AttributeError, TypeError)):
-            ctx.role = RoleId.WORKER  # type: ignore[misc]
+            ctx.role = RoleId.Worker  # type: ignore[misc]
 
 
 # ─── AC5a: Role Context Absence Tests ─────────────────────────────────────────
@@ -158,7 +158,7 @@ class TestRoleContextAbsence:
 
     def test_supervisor_excludes_c_worker_gates(self) -> None:
         """AC5a: SUPERVISOR must NOT include C-worker-gates (worker-specific)."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         ids = {c.id for c in ctx.constraints}
         assert "C-worker-gates" not in ids, (
             "SUPERVISOR context must not include C-worker-gates — "
@@ -167,7 +167,7 @@ class TestRoleContextAbsence:
 
     def test_worker_excludes_c_supervisor_no_impl(self) -> None:
         """AC5a: WORKER must NOT include C-supervisor-no-impl (supervisor-specific)."""
-        ctx = get_role_context(RoleId.WORKER)
+        ctx = get_role_context(RoleId.Worker)
         ids = {c.id for c in ctx.constraints}
         assert "C-supervisor-no-impl" not in ids, (
             "WORKER context must not include C-supervisor-no-impl — "
@@ -176,25 +176,25 @@ class TestRoleContextAbsence:
 
     def test_supervisor_excludes_c_severity_eager(self) -> None:
         """SUPERVISOR is not a reviewer — should not get severity-eager reviewer-specific constraint."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         ids = {c.id for c in ctx.constraints}
         assert "C-severity-eager" not in ids
 
     def test_worker_excludes_c_supervisor_explore_ephemeral(self) -> None:
         """WORKER has no ephemeral explore responsibility."""
-        ctx = get_role_context(RoleId.WORKER)
+        ctx = get_role_context(RoleId.Worker)
         ids = {c.id for c in ctx.constraints}
         assert "C-supervisor-explore-ephemeral" not in ids
 
     def test_worker_excludes_c_review_consensus(self) -> None:
         """WORKER does not gate review consensus."""
-        ctx = get_role_context(RoleId.WORKER)
+        ctx = get_role_context(RoleId.Worker)
         ids = {c.id for c in ctx.constraints}
         assert "C-review-consensus" not in ids
 
     def test_architect_excludes_c_worker_gates(self) -> None:
         """ARCHITECT does not complete worker slices."""
-        ctx = get_role_context(RoleId.ARCHITECT)
+        ctx = get_role_context(RoleId.Architect)
         ids = {c.id for c in ctx.constraints}
         assert "C-worker-gates" not in ids
 
@@ -206,87 +206,87 @@ class TestGetPhaseContextCodeReview:
     """AC6: get_phase_context(P10_CODE_REVIEW) returns correct PhaseContext."""
 
     def test_returns_phase_context_type(self) -> None:
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         assert isinstance(ctx, PhaseContext)
 
     def test_phase_field_is_p10(self) -> None:
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
-        assert ctx.phase == PhaseId.P10_CODE_REVIEW
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
+        assert ctx.phase == PhaseId.P10_CodeReview
 
     def test_constraints_is_frozenset_of_constraint_contexts(self) -> None:
         """AC6: constraints must be frozenset[ConstraintContext]."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         assert isinstance(ctx.constraints, frozenset)
         for c in ctx.constraints:
             assert isinstance(c, ConstraintContext)
 
     def test_constraints_have_when_and_then_populated(self) -> None:
         """AC6 (UAT-4): every ConstraintContext has non-empty when and then."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         for c in ctx.constraints:
             assert c.when, f"ConstraintContext {c.id!r} has empty 'when' field"
             assert c.then, f"ConstraintContext {c.id!r} has empty 'then' field"
 
     def test_constraints_have_id_populated(self) -> None:
         """Every ConstraintContext has a non-empty id."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         for c in ctx.constraints:
             assert c.id, "ConstraintContext has empty 'id' field"
 
     def test_constraints_include_severity_eager(self) -> None:
         """AC6: P10_CODE_REVIEW must include C-severity-eager (code review severity rule)."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         ids = {c.id for c in ctx.constraints}
         assert "C-severity-eager" in ids
 
     def test_constraints_include_review_consensus(self) -> None:
         """AC6: P10_CODE_REVIEW must include C-review-consensus."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         ids = {c.id for c in ctx.constraints}
         assert "C-review-consensus" in ids
 
     def test_constraints_include_blocker_dual_parent(self) -> None:
         """AC6: P10_CODE_REVIEW must include C-blocker-dual-parent (severity constraints)."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         ids = {c.id for c in ctx.constraints}
         assert "C-blocker-dual-parent" in ids
 
     def test_constraints_include_review_binary(self) -> None:
         """P10_CODE_REVIEW uses binary voting — review-binary applies."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         ids = {c.id for c in ctx.constraints}
         assert "C-review-binary" in ids
 
     def test_labels_is_tuple_of_strings(self) -> None:
         """Labels must be tuple[str, ...]."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         assert isinstance(ctx.labels, tuple)
         for label in ctx.labels:
             assert isinstance(label, str)
 
     def test_labels_include_p10_review_label(self) -> None:
         """P10_CODE_REVIEW phase label is present."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         assert "aura:p10-impl:s10-review" in ctx.labels
 
     def test_transitions_is_tuple_of_transitions(self) -> None:
         """PhaseContext.transitions must be tuple from PHASE_SPECS."""
         from aura_protocol.types import Transition
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         assert isinstance(ctx.transitions, tuple)
         for t in ctx.transitions:
             assert isinstance(t, Transition)
 
     def test_transitions_non_empty(self) -> None:
         """P10_CODE_REVIEW has valid transitions."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         assert len(ctx.transitions) > 0
 
     def test_phase_context_is_frozen(self) -> None:
         """PhaseContext must be a frozen dataclass."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         with pytest.raises((AttributeError, TypeError)):
-            ctx.phase = PhaseId.P9_SLICE  # type: ignore[misc]
+            ctx.phase = PhaseId.P9_Slice  # type: ignore[misc]
 
 
 # ─── AC6a: Phase Context Absence Tests ───────────────────────────────────────
@@ -297,7 +297,7 @@ class TestPhaseContextAbsence:
 
     def test_p4_review_excludes_c_severity_eager(self) -> None:
         """AC6a: P4_REVIEW must NOT include C-severity-eager (p10-only severity rule)."""
-        ctx = get_phase_context(PhaseId.P4_REVIEW)
+        ctx = get_phase_context(PhaseId.P4_Review)
         ids = {c.id for c in ctx.constraints}
         assert "C-severity-eager" not in ids, (
             "P4_REVIEW context must not include C-severity-eager — "
@@ -306,7 +306,7 @@ class TestPhaseContextAbsence:
 
     def test_p9_slice_excludes_c_review_consensus(self) -> None:
         """AC6a: P9_SLICE must NOT include C-review-consensus (review phase only)."""
-        ctx = get_phase_context(PhaseId.P9_SLICE)
+        ctx = get_phase_context(PhaseId.P9_Slice)
         ids = {c.id for c in ctx.constraints}
         assert "C-review-consensus" not in ids, (
             "P9_SLICE context must not include C-review-consensus — "
@@ -315,31 +315,31 @@ class TestPhaseContextAbsence:
 
     def test_p4_review_excludes_c_worker_gates(self) -> None:
         """P4_REVIEW is a plan review, not a worker phase — no worker gates."""
-        ctx = get_phase_context(PhaseId.P4_REVIEW)
+        ctx = get_phase_context(PhaseId.P4_Review)
         ids = {c.id for c in ctx.constraints}
         assert "C-worker-gates" not in ids
 
     def test_p4_review_includes_c_severity_not_plan(self) -> None:
         """P4_REVIEW must include C-severity-not-plan (its complementary constraint)."""
-        ctx = get_phase_context(PhaseId.P4_REVIEW)
+        ctx = get_phase_context(PhaseId.P4_Review)
         ids = {c.id for c in ctx.constraints}
         assert "C-severity-not-plan" in ids
 
     def test_p9_slice_excludes_c_severity_eager(self) -> None:
         """P9_SLICE is not a code review phase — no severity-eager requirement."""
-        ctx = get_phase_context(PhaseId.P9_SLICE)
+        ctx = get_phase_context(PhaseId.P9_Slice)
         ids = {c.id for c in ctx.constraints}
         assert "C-severity-eager" not in ids
 
     def test_p1_request_excludes_c_severity_eager(self) -> None:
         """Early phases do not have code review constraints."""
-        ctx = get_phase_context(PhaseId.P1_REQUEST)
+        ctx = get_phase_context(PhaseId.P1_Request)
         ids = {c.id for c in ctx.constraints}
         assert "C-severity-eager" not in ids
 
     def test_p10_code_review_excludes_c_severity_not_plan(self) -> None:
         """P10_CODE_REVIEW is code review, not plan review — no severity-not-plan."""
-        ctx = get_phase_context(PhaseId.P10_CODE_REVIEW)
+        ctx = get_phase_context(PhaseId.P10_CodeReview)
         ids = {c.id for c in ctx.constraints}
         assert "C-severity-not-plan" not in ids
 
@@ -371,21 +371,21 @@ class TestConstraintContextFields:
         for c in ctx.constraints:
             assert c.then, f"Role {role.value}: ConstraintContext {c.id!r} has empty 'then'"
 
-    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.COMPLETE])
+    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.Complete])
     def test_all_phase_constraint_contexts_have_id(self, phase: PhaseId) -> None:
         """Every ConstraintContext returned by get_phase_context has a non-empty id."""
         ctx = get_phase_context(phase)
         for c in ctx.constraints:
             assert c.id, f"Phase {phase.value}: ConstraintContext has empty 'id'"
 
-    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.COMPLETE])
+    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.Complete])
     def test_all_phase_constraint_contexts_have_when(self, phase: PhaseId) -> None:
         """Every ConstraintContext returned by get_phase_context has a non-empty when."""
         ctx = get_phase_context(phase)
         for c in ctx.constraints:
             assert c.when, f"Phase {phase.value}: ConstraintContext {c.id!r} has empty 'when'"
 
-    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.COMPLETE])
+    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.Complete])
     def test_all_phase_constraint_contexts_have_then(self, phase: PhaseId) -> None:
         """Every ConstraintContext returned by get_phase_context has a non-empty then."""
         ctx = get_phase_context(phase)
@@ -408,7 +408,7 @@ class TestConstraintContextFields:
                 f"Role {role.value}: ConstraintContext {c.id!r} has empty 'should_not'"
             )
 
-    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.COMPLETE])
+    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.Complete])
     def test_all_phase_constraint_contexts_have_given(self, phase: PhaseId) -> None:
         """Every ConstraintContext returned by get_phase_context has a non-empty given."""
         ctx = get_phase_context(phase)
@@ -417,7 +417,7 @@ class TestConstraintContextFields:
                 f"Phase {phase.value}: ConstraintContext {c.id!r} has empty 'given'"
             )
 
-    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.COMPLETE])
+    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.Complete])
     def test_all_phase_constraint_contexts_have_should_not(self, phase: PhaseId) -> None:
         """Every ConstraintContext returned by get_phase_context has a non-empty should_not."""
         ctx = get_phase_context(phase)
@@ -458,7 +458,7 @@ class TestConstraintContextFields:
                     f"Role {role.value}: ConstraintContext id {c.id!r} not in CONSTRAINT_SPECS"
                 )
         for phase in PhaseId:
-            if phase == PhaseId.COMPLETE:
+            if phase == PhaseId.Complete:
                 continue
             ctx = get_phase_context(phase)
             for c in ctx.constraints:
@@ -501,7 +501,7 @@ class TestStaticMappingInvariants:
     def test_all_12_phases_have_entries_in_phase_constraints(self) -> None:
         """All 12 protocol phases (not COMPLETE) have entries in _PHASE_CONSTRAINTS."""
         for phase in PhaseId:
-            if phase == PhaseId.COMPLETE:
+            if phase == PhaseId.Complete:
                 continue
             assert phase in _PHASE_CONSTRAINTS, (
                 f"PhaseId.{phase.name} not found in _PHASE_CONSTRAINTS"
@@ -523,7 +523,7 @@ class TestStaticMappingInvariants:
         general = {"C-audit-never-delete", "C-audit-dep-chain", "C-dep-direction",
                    "C-frontmatter-refs", "C-actionable-errors"}
         for phase in PhaseId:
-            if phase == PhaseId.COMPLETE:
+            if phase == PhaseId.Complete:
                 continue
             cids = _PHASE_CONSTRAINTS[phase]
             for gid in general:
@@ -540,33 +540,33 @@ class TestGetRoleContextWorker:
 
     def test_worker_phases_is_p9_only(self) -> None:
         """WORKER only operates in P9_SLICE."""
-        ctx = get_role_context(RoleId.WORKER)
+        ctx = get_role_context(RoleId.Worker)
         # WORKER is in P9_SLICE only (per PHASE_SPECS owner_roles).
         # EPOCH is also owner for all phases but that's EPOCH not WORKER.
-        assert ctx.phases == frozenset({PhaseId.P9_SLICE})
+        assert ctx.phases == frozenset({PhaseId.P9_Slice})
 
     def test_worker_includes_c_worker_gates(self) -> None:
         """WORKER must include C-worker-gates — its quality gate constraint."""
-        ctx = get_role_context(RoleId.WORKER)
+        ctx = get_role_context(RoleId.Worker)
         ids = {c.id for c in ctx.constraints}
         assert "C-worker-gates" in ids
 
     def test_worker_includes_c_agent_commit(self) -> None:
         """WORKER commits code and must use agent-commit."""
-        ctx = get_role_context(RoleId.WORKER)
+        ctx = get_role_context(RoleId.Worker)
         ids = {c.id for c in ctx.constraints}
         assert "C-agent-commit" in ids
 
     def test_worker_constraint_count_is_role_scoped(self) -> None:
         """WORKER role should have 7 role-scoped constraints (not all 23)."""
-        ctx = get_role_context(RoleId.WORKER)
+        ctx = get_role_context(RoleId.Worker)
         assert len(ctx.constraints) == 7, (
             f"Expected 7 role-scoped constraints for worker, got {len(ctx.constraints)}"
         )
 
     def test_supervisor_constraint_count_is_role_scoped(self) -> None:
         """SUPERVISOR role should have 18 role-scoped constraints (not all 26)."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         assert len(ctx.constraints) == 18, (
             f"Expected 18 role-scoped constraints for supervisor, got {len(ctx.constraints)}"
         )
@@ -575,7 +575,7 @@ class TestGetRoleContextWorker:
 class TestGetPhaseContextAllPhases:
     """Smoke test all 12 phases return valid PhaseContext."""
 
-    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.COMPLETE])
+    @pytest.mark.parametrize("phase", [p for p in PhaseId if p != PhaseId.Complete])
     def test_all_phases_return_phase_context(self, phase: PhaseId) -> None:
         """Every protocol phase returns a valid PhaseContext."""
         ctx = get_phase_context(phase)
@@ -594,25 +594,25 @@ class TestGetRoleContextReviewer:
 
     def test_reviewer_includes_c_severity_eager(self) -> None:
         """REVIEWER must include C-severity-eager (p10 code review creates severity tree)."""
-        ctx = get_role_context(RoleId.REVIEWER)
+        ctx = get_role_context(RoleId.Reviewer)
         ids = {c.id for c in ctx.constraints}
         assert "C-severity-eager" in ids
 
     def test_reviewer_includes_c_review_binary(self) -> None:
         """REVIEWER must include C-review-binary (binary ACCEPT/REVISE voting)."""
-        ctx = get_role_context(RoleId.REVIEWER)
+        ctx = get_role_context(RoleId.Reviewer)
         ids = {c.id for c in ctx.constraints}
         assert "C-review-binary" in ids
 
     def test_reviewer_includes_c_review_consensus(self) -> None:
         """REVIEWER must include C-review-consensus (all reviewers must agree)."""
-        ctx = get_role_context(RoleId.REVIEWER)
+        ctx = get_role_context(RoleId.Reviewer)
         ids = {c.id for c in ctx.constraints}
         assert "C-review-consensus" in ids
 
     def test_reviewer_includes_c_blocker_dual_parent(self) -> None:
         """REVIEWER must include C-blocker-dual-parent (BLOCKER findings need dual parents)."""
-        ctx = get_role_context(RoleId.REVIEWER)
+        ctx = get_role_context(RoleId.Reviewer)
         ids = {c.id for c in ctx.constraints}
         assert "C-blocker-dual-parent" in ids
 
@@ -622,7 +622,7 @@ class TestGetRoleContextArchitect:
 
     def test_architect_includes_c_proposal_naming(self) -> None:
         """ARCHITECT must include C-proposal-naming (creates proposals with naming convention)."""
-        ctx = get_role_context(RoleId.ARCHITECT)
+        ctx = get_role_context(RoleId.Architect)
         ids = {c.id for c in ctx.constraints}
         assert "C-proposal-naming" in ids
 
@@ -632,13 +632,13 @@ class TestGetRoleContextEpoch:
 
     def test_epoch_includes_c_review_consensus(self) -> None:
         """EPOCH must include C-review-consensus (gates phase transitions on consensus)."""
-        ctx = get_role_context(RoleId.EPOCH)
+        ctx = get_role_context(RoleId.Epoch)
         ids = {c.id for c in ctx.constraints}
         assert "C-review-consensus" in ids
 
     def test_epoch_includes_c_handoff_skill_invocation(self) -> None:
         """EPOCH must include C-handoff-skill-invocation (master orchestrator creates handoffs)."""
-        ctx = get_role_context(RoleId.EPOCH)
+        ctx = get_role_context(RoleId.Epoch)
         ids = {c.id for c in ctx.constraints}
         assert "C-handoff-skill-invocation" in ids
 
@@ -649,14 +649,14 @@ class TestGetRoleContextEpoch:
 class TestEpochRideTheWaveConstraints:
     """AC-A2-1: EPOCH role context includes all 4 Ride the Wave constraints by id.
 
-    Each test calls get_role_context(RoleId.EPOCH) and asserts a specific
+    Each test calls get_role_context(RoleId.Epoch) and asserts a specific
     Ride the Wave constraint appears in RoleContext.constraints checked by .id.
     No indirect XML assertions or count comparisons are used.
     """
 
     def test_epoch_includes_c_supervisor_explore_ephemeral(self) -> None:
         """EPOCH must include C-supervisor-explore-ephemeral (delegates exploration to ephemeral subagents)."""
-        ctx = get_role_context(RoleId.EPOCH)
+        ctx = get_role_context(RoleId.Epoch)
         ids = {c.id for c in ctx.constraints}
         assert "C-supervisor-explore-ephemeral" in ids, (
             "EPOCH context must include C-supervisor-explore-ephemeral — "
@@ -665,7 +665,7 @@ class TestEpochRideTheWaveConstraints:
 
     def test_epoch_includes_c_integration_points(self) -> None:
         """EPOCH must include C-integration-points (ensures supervisor documents integration points)."""
-        ctx = get_role_context(RoleId.EPOCH)
+        ctx = get_role_context(RoleId.Epoch)
         ids = {c.id for c in ctx.constraints}
         assert "C-integration-points" in ids, (
             "EPOCH context must include C-integration-points — "
@@ -674,7 +674,7 @@ class TestEpochRideTheWaveConstraints:
 
     def test_epoch_includes_c_slice_review_before_close(self) -> None:
         """EPOCH must include C-slice-review-before-close (slices reviewed before closure)."""
-        ctx = get_role_context(RoleId.EPOCH)
+        ctx = get_role_context(RoleId.Epoch)
         ids = {c.id for c in ctx.constraints}
         assert "C-slice-review-before-close" in ids, (
             "EPOCH context must include C-slice-review-before-close — "
@@ -683,7 +683,7 @@ class TestEpochRideTheWaveConstraints:
 
     def test_epoch_includes_c_max_review_cycles(self) -> None:
         """EPOCH must include C-max-review-cycles (caps worker-reviewer cycles at 3)."""
-        ctx = get_role_context(RoleId.EPOCH)
+        ctx = get_role_context(RoleId.Epoch)
         ids = {c.id for c in ctx.constraints}
         assert "C-max-review-cycles" in ids, (
             "EPOCH context must include C-max-review-cycles — "
@@ -711,14 +711,14 @@ class TestRenderRoleContext:
 
     def test_render_text_contains_all_constraints(self) -> None:
         """SUPERVISOR text output contains all 18 constraint IDs."""
-        text = render_role_context_as_text(RoleId.SUPERVISOR)
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        text = render_role_context_as_text(RoleId.Supervisor)
+        ctx = get_role_context(RoleId.Supervisor)
         for c in ctx.constraints:
             assert c.id in text, f"Constraint {c.id!r} missing from text output"
 
     def test_render_text_numbered_format(self) -> None:
         """First constraint starts with ' 1. constraint:'."""
-        text = render_role_context_as_text(RoleId.SUPERVISOR)
+        text = render_role_context_as_text(RoleId.Supervisor)
         lines = text.split("\n")
         # Find the first numbered line (skip header and blank)
         numbered_lines = [ln for ln in lines if ln.strip().startswith("1.")]
@@ -727,7 +727,7 @@ class TestRenderRoleContext:
 
     def test_render_text_all_four_fields(self) -> None:
         """Output contains given:, when:, then:, should not: labels."""
-        text = render_role_context_as_text(RoleId.SUPERVISOR)
+        text = render_role_context_as_text(RoleId.Supervisor)
         assert "given:" in text
         assert "when:" in text
         assert "then:" in text
@@ -736,17 +736,17 @@ class TestRenderRoleContext:
     def test_render_xml_valid_structure(self) -> None:
         """Parse with xml.etree.ElementTree, root tag is role-constraints,
         child count matches constraint count."""
-        xml_str = render_role_context_as_xml(RoleId.SUPERVISOR)
+        xml_str = render_role_context_as_xml(RoleId.Supervisor)
         root = ET.fromstring(xml_str)
         assert root.tag == "role-constraints"
         assert root.attrib["role"] == "supervisor"
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         constraint_elems = root.findall("constraint")
         assert len(constraint_elems) == len(ctx.constraints)
 
     def test_render_xml_contains_all_fields(self) -> None:
         """Each <constraint> has <given>, <when>, <then>, <should-not> children."""
-        xml_str = render_role_context_as_xml(RoleId.SUPERVISOR)
+        xml_str = render_role_context_as_xml(RoleId.Supervisor)
         root = ET.fromstring(xml_str)
         for elem in root.findall("constraint"):
             assert elem.find("given") is not None, f"Missing <given> in {elem.attrib}"
@@ -774,12 +774,12 @@ class TestRenderRoleContext:
 
     def test_render_both_stable(self) -> None:
         """Calling render twice returns identical output (deterministic/sorted)."""
-        text1 = render_role_context_as_text(RoleId.SUPERVISOR)
-        text2 = render_role_context_as_text(RoleId.SUPERVISOR)
+        text1 = render_role_context_as_text(RoleId.Supervisor)
+        text2 = render_role_context_as_text(RoleId.Supervisor)
         assert text1 == text2, "Text render is not deterministic"
 
-        xml1 = render_role_context_as_xml(RoleId.SUPERVISOR)
-        xml2 = render_role_context_as_xml(RoleId.SUPERVISOR)
+        xml1 = render_role_context_as_xml(RoleId.Supervisor)
+        xml2 = render_role_context_as_xml(RoleId.Supervisor)
         assert xml1 == xml2, "XML render is not deterministic"
 
 
@@ -791,43 +791,43 @@ class TestFigurePresence:
 
     def test_supervisor_has_ride_the_wave_figure(self) -> None:
         """get_role_context(SUPERVISOR) has a figure with id RIDE_THE_WAVE and non-empty content."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
+        ctx = get_role_context(RoleId.Supervisor)
         fig_ids = {fig.id for fig in ctx.figures}
-        assert FigureId.RIDE_THE_WAVE in fig_ids, (
+        assert FigureId.RideTheWave in fig_ids, (
             "SUPERVISOR RoleContext must include RIDE_THE_WAVE figure."
         )
-        ride_fig = next(fig for fig in ctx.figures if fig.id == FigureId.RIDE_THE_WAVE)
+        ride_fig = next(fig for fig in ctx.figures if fig.id == FigureId.RideTheWave)
         assert ride_fig.content.strip(), (
             "RIDE_THE_WAVE figure must have non-empty content."
         )
 
     def test_worker_has_layer_cake_figure(self) -> None:
         """get_role_context(WORKER) has a figure with id LAYER_CAKE and non-empty content."""
-        ctx = get_role_context(RoleId.WORKER)
+        ctx = get_role_context(RoleId.Worker)
         fig_ids = {fig.id for fig in ctx.figures}
-        assert FigureId.LAYER_CAKE in fig_ids, (
+        assert FigureId.LayerCake in fig_ids, (
             "WORKER RoleContext must include LAYER_CAKE figure."
         )
-        cake_fig = next(fig for fig in ctx.figures if fig.id == FigureId.LAYER_CAKE)
+        cake_fig = next(fig for fig in ctx.figures if fig.id == FigureId.LayerCake)
         assert cake_fig.content.strip(), (
             "LAYER_CAKE figure must have non-empty content."
         )
 
     def test_architect_has_state_flow_figure(self) -> None:
         """get_role_context(ARCHITECT) has a figure with id ARCHITECT_STATE_FLOW and non-empty content."""
-        ctx = get_role_context(RoleId.ARCHITECT)
+        ctx = get_role_context(RoleId.Architect)
         fig_ids = {fig.id for fig in ctx.figures}
-        assert FigureId.ARCHITECT_STATE_FLOW in fig_ids, (
+        assert FigureId.ArchitectStateFlow in fig_ids, (
             "ARCHITECT RoleContext must include ARCHITECT_STATE_FLOW figure."
         )
-        flow_fig = next(fig for fig in ctx.figures if fig.id == FigureId.ARCHITECT_STATE_FLOW)
+        flow_fig = next(fig for fig in ctx.figures if fig.id == FigureId.ArchitectStateFlow)
         assert flow_fig.content.strip(), (
             "ARCHITECT_STATE_FLOW figure must have non-empty content."
         )
 
     def test_reviewer_has_no_figures(self) -> None:
         """get_role_context(REVIEWER) has empty figures tuple."""
-        ctx = get_role_context(RoleId.REVIEWER)
+        ctx = get_role_context(RoleId.Reviewer)
         assert ctx.figures == (), (
             f"REVIEWER must have no figures, got {len(ctx.figures)} figure(s)."
         )
@@ -842,28 +842,28 @@ class TestFigureLoadErrors:
     def test_figure_load_missing_yaml(self, tmp_path: pathlib.Path) -> None:
         """FigureLoadError when YAML file doesn't exist."""
         with pytest.raises(FigureLoadError, match="Figure YAML not found"):
-            _load_figure_content(FigureId.LAYER_CAKE, tmp_path)
+            _load_figure_content(FigureId.LayerCake, tmp_path)
 
     def test_figure_load_malformed_yaml(self, tmp_path: pathlib.Path) -> None:
         """FigureLoadError when YAML is not valid YAML."""
-        yaml_path = tmp_path / f"{FigureId.LAYER_CAKE.value}.yaml"
+        yaml_path = tmp_path / f"{FigureId.LayerCake.value}.yaml"
         yaml_path.write_text("{{{{invalid yaml: [", encoding="utf-8")
         with pytest.raises(FigureLoadError, match="Malformed YAML"):
-            _load_figure_content(FigureId.LAYER_CAKE, tmp_path)
+            _load_figure_content(FigureId.LayerCake, tmp_path)
 
     def test_figure_load_missing_content_key(self, tmp_path: pathlib.Path) -> None:
         """FigureLoadError when YAML has no 'content' key."""
-        yaml_path = tmp_path / f"{FigureId.LAYER_CAKE.value}.yaml"
+        yaml_path = tmp_path / f"{FigureId.LayerCake.value}.yaml"
         yaml_path.write_text("id: layer-cake\ntitle: test\n", encoding="utf-8")
         with pytest.raises(FigureLoadError, match="Missing 'content' key"):
-            _load_figure_content(FigureId.LAYER_CAKE, tmp_path)
+            _load_figure_content(FigureId.LayerCake, tmp_path)
 
     def test_figure_load_empty_content(self, tmp_path: pathlib.Path) -> None:
         """FigureLoadError when YAML content field is empty string."""
-        yaml_path = tmp_path / f"{FigureId.LAYER_CAKE.value}.yaml"
+        yaml_path = tmp_path / f"{FigureId.LayerCake.value}.yaml"
         yaml_path.write_text("id: layer-cake\ncontent: ''\n", encoding="utf-8")
         with pytest.raises(FigureLoadError, match="Empty 'content'"):
-            _load_figure_content(FigureId.LAYER_CAKE, tmp_path)
+            _load_figure_content(FigureId.LayerCake, tmp_path)
 
 
 # ─── SLICE-2: command_refs preserved through Figure loading ───────────────────
@@ -875,27 +875,27 @@ class TestFigureCommandRefsPreserved:
 
     def test_layer_cake_command_refs_preserved(self) -> None:
         """WORKER's LAYER_CAKE figure preserves command_refs from FIGURE_SPECS."""
-        ctx = get_role_context(RoleId.WORKER)
-        layer_cake = next(fig for fig in ctx.figures if fig.id == FigureId.LAYER_CAKE)
-        expected = FIGURE_SPECS[FigureId.LAYER_CAKE].command_refs
+        ctx = get_role_context(RoleId.Worker)
+        layer_cake = next(fig for fig in ctx.figures if fig.id == FigureId.LayerCake)
+        expected = FIGURE_SPECS[FigureId.LayerCake].command_refs
         assert layer_cake.command_refs == expected, (
             f"LAYER_CAKE command_refs not preserved: {layer_cake.command_refs} != {expected}"
         )
 
     def test_ride_the_wave_command_refs_preserved(self) -> None:
         """SUPERVISOR's RIDE_THE_WAVE figure preserves command_refs from FIGURE_SPECS."""
-        ctx = get_role_context(RoleId.SUPERVISOR)
-        ride_wave = next(fig for fig in ctx.figures if fig.id == FigureId.RIDE_THE_WAVE)
-        expected = FIGURE_SPECS[FigureId.RIDE_THE_WAVE].command_refs
+        ctx = get_role_context(RoleId.Supervisor)
+        ride_wave = next(fig for fig in ctx.figures if fig.id == FigureId.RideTheWave)
+        expected = FIGURE_SPECS[FigureId.RideTheWave].command_refs
         assert ride_wave.command_refs == expected, (
             f"RIDE_THE_WAVE command_refs not preserved: {ride_wave.command_refs} != {expected}"
         )
 
     def test_architect_state_flow_empty_command_refs_preserved(self) -> None:
         """ARCHITECT's ARCHITECT_STATE_FLOW figure preserves empty command_refs."""
-        ctx = get_role_context(RoleId.ARCHITECT)
+        ctx = get_role_context(RoleId.Architect)
         state_flow = next(
-            fig for fig in ctx.figures if fig.id == FigureId.ARCHITECT_STATE_FLOW
+            fig for fig in ctx.figures if fig.id == FigureId.ArchitectStateFlow
         )
         assert state_flow.command_refs == frozenset(), (
             f"ARCHITECT_STATE_FLOW should have empty command_refs, "

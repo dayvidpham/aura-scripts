@@ -50,10 +50,11 @@ from aura_protocol.state_machine import (
     TransitionError,
     TransitionRecord,
 )
-from aura_protocol.types import PhaseId, ReviewAxis, Transition, VoteType
+from aura_protocol.types import EventType, PhaseId, ReviewAxis, Transition, VoteType
 from aura_protocol.workflow import (
     SA_DOMAIN,
     SA_EPOCH_ID,
+    SA_LAST_EVENT_TYPE,
     SA_PHASE,
     SA_ROLE,
     SA_STATUS,
@@ -84,7 +85,12 @@ from temporalio.testing import ActivityEnvironment
 _TEMPORAL_ACTIVITIES: list = [check_constraints, record_transition]
 
 try:
-    from aura_protocol.audit_activities import query_audit_events, record_audit_event
+    from aura_protocol.audit_activities import (
+        InMemoryAuditTrail,
+        init_audit_trail,
+        query_audit_events,
+        record_audit_event,
+    )
 
     _TEMPORAL_ACTIVITIES = [
         check_constraints,
@@ -92,7 +98,9 @@ try:
         record_audit_event,
         query_audit_events,
     ]
+    _HAS_AUDIT_ACTIVITIES = True
 except ImportError:
+    _HAS_AUDIT_ACTIVITIES = False
     pass  # SLICE-3 (aura-plugins-sp6y) not yet merged
 
 
@@ -163,13 +171,13 @@ class TestSignalQueryTypes:
         """EpochResult must be a frozen dataclass with the correct fields."""
         result = EpochResult(
             epoch_id="ep-1",
-            final_phase=PhaseId.COMPLETE,
+            final_phase=PhaseId.Complete,
             transition_count=12,
             successful_transition_count=12,
             constraint_violations_total=0,
         )
         assert result.epoch_id == "ep-1"
-        assert result.final_phase == PhaseId.COMPLETE
+        assert result.final_phase == PhaseId.Complete
         assert result.transition_count == 12
         assert result.successful_transition_count == 12
         assert result.constraint_violations_total == 0
@@ -179,39 +187,39 @@ class TestSignalQueryTypes:
     def test_phase_advance_signal_is_frozen_dataclass(self) -> None:
         """PhaseAdvanceSignal must be a frozen dataclass with to_phase, triggered_by, condition_met."""
         sig = PhaseAdvanceSignal(
-            to_phase=PhaseId.P2_ELICIT,
+            to_phase=PhaseId.P2_Elicit,
             triggered_by="architect",
             condition_met="classification confirmed",
         )
-        assert sig.to_phase == PhaseId.P2_ELICIT
+        assert sig.to_phase == PhaseId.P2_Elicit
         assert sig.triggered_by == "architect"
         assert sig.condition_met == "classification confirmed"
         with pytest.raises((AttributeError, TypeError)):
-            sig.to_phase = PhaseId.P3_PROPOSE  # type: ignore[misc]
+            sig.to_phase = PhaseId.P3_Propose  # type: ignore[misc]
 
     def test_review_vote_signal_is_frozen_dataclass(self) -> None:
         """ReviewVoteSignal must be a frozen dataclass with axis, vote, reviewer_id."""
-        sig = ReviewVoteSignal(axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="reviewer-1")
-        assert sig.axis == ReviewAxis.CORRECTNESS
-        assert sig.vote == VoteType.ACCEPT
+        sig = ReviewVoteSignal(axis=ReviewAxis.Correctness, vote=VoteType.Accept, reviewer_id="reviewer-1")
+        assert sig.axis == ReviewAxis.Correctness
+        assert sig.vote == VoteType.Accept
         assert sig.reviewer_id == "reviewer-1"
         with pytest.raises((AttributeError, TypeError)):
-            sig.axis = ReviewAxis.TEST_QUALITY  # type: ignore[misc]
+            sig.axis = ReviewAxis.TestQuality  # type: ignore[misc]
 
     def test_phase_advance_signal_uses_phase_id_enum(self) -> None:
         """PhaseAdvanceSignal.to_phase must be a PhaseId enum."""
         sig = PhaseAdvanceSignal(
-            to_phase=PhaseId.P9_SLICE,
+            to_phase=PhaseId.P9_Slice,
             triggered_by="supervisor",
             condition_met="slices created",
         )
-        assert sig.to_phase is PhaseId.P9_SLICE
+        assert sig.to_phase is PhaseId.P9_Slice
         assert isinstance(sig.to_phase, PhaseId)
 
     def test_review_vote_signal_uses_vote_type_enum(self) -> None:
         """ReviewVoteSignal.vote must be a VoteType enum."""
-        sig = ReviewVoteSignal(axis=ReviewAxis.TEST_QUALITY, vote=VoteType.REVISE, reviewer_id="reviewer-2")
-        assert sig.vote is VoteType.REVISE
+        sig = ReviewVoteSignal(axis=ReviewAxis.TestQuality, vote=VoteType.Revise, reviewer_id="reviewer-2")
+        assert sig.vote is VoteType.Revise
         assert isinstance(sig.vote, VoteType)
 
 
@@ -269,7 +277,7 @@ class TestCheckConstraintsActivity:
         """
         sm = _make_sm("epoch-test-1")
         env = ActivityEnvironment()
-        violations = await env.run(check_constraints, sm.state, PhaseId.P2_ELICIT)
+        violations = await env.run(check_constraints, sm.state, PhaseId.P2_Elicit)
         assert isinstance(violations, list)
         assert violations == []
 
@@ -280,10 +288,10 @@ class TestCheckConstraintsActivity:
         C-review-consensus: all 3 axes (A, B, C) must ACCEPT before advancing.
         """
         sm = _make_sm("epoch-test-2")
-        _advance_to(sm, PhaseId.P4_REVIEW)
+        _advance_to(sm, PhaseId.P4_Review)
         # No votes recorded — consensus not reached.
         env = ActivityEnvironment()
-        violations = await env.run(check_constraints, sm.state, PhaseId.P5_UAT)
+        violations = await env.run(check_constraints, sm.state, PhaseId.P5_Uat)
         assert len(violations) > 0
         constraint_ids = [v.constraint_id for v in violations]
         assert "C-review-consensus" in constraint_ids
@@ -292,14 +300,14 @@ class TestCheckConstraintsActivity:
     async def test_p4_to_p5_with_consensus_has_no_violations(self) -> None:
         """check_constraints at P4 with all 3 ACCEPT returns no violations."""
         sm = _make_sm("epoch-test-3")
-        _advance_to(sm, PhaseId.P4_REVIEW)
+        _advance_to(sm, PhaseId.P4_Review)
         # Record all 3 ACCEPT votes (satisfied in _advance_to already, but let's be explicit).
         # _advance_to stops before advancing through the gate; re-record.
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.ELEGANCE, VoteType.ACCEPT)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Accept)
+        sm.record_vote(ReviewAxis.Elegance, VoteType.Accept)
         env = ActivityEnvironment()
-        violations = await env.run(check_constraints, sm.state, PhaseId.P5_UAT)
+        violations = await env.run(check_constraints, sm.state, PhaseId.P5_Uat)
         # No consensus violations (only handoff-required violations for actor-change transitions).
         consensus_violations = [v for v in violations if v.constraint_id == "C-review-consensus"]
         assert consensus_violations == []
@@ -309,7 +317,7 @@ class TestCheckConstraintsActivity:
         """check_constraints always returns list[ConstraintViolation]."""
         sm = _make_sm("epoch-test-4")
         env = ActivityEnvironment()
-        result = await env.run(check_constraints, sm.state, PhaseId.P2_ELICIT)
+        result = await env.run(check_constraints, sm.state, PhaseId.P2_Elicit)
         assert isinstance(result, list)
         for item in result:
             assert isinstance(item, ConstraintViolation)
@@ -324,8 +332,8 @@ class TestRecordTransitionActivity:
         from datetime import datetime, timezone
 
         record = TransitionRecord(
-            from_phase=PhaseId.P1_REQUEST,
-            to_phase=PhaseId.P2_ELICIT,
+            from_phase=PhaseId.P1_Request,
+            to_phase=PhaseId.P2_Elicit,
             timestamp=datetime.now(tz=timezone.utc),
             triggered_by="architect",
             condition_met="classification confirmed",
@@ -341,9 +349,9 @@ class TestRecordTransitionActivity:
         from datetime import datetime, timezone
 
         for from_p, to_p in [
-            (PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE),
-            (PhaseId.P9_SLICE, PhaseId.P10_CODE_REVIEW),
-            (PhaseId.P12_LANDING, PhaseId.COMPLETE),
+            (PhaseId.P8_ImplPlan, PhaseId.P9_Slice),
+            (PhaseId.P9_Slice, PhaseId.P10_CodeReview),
+            (PhaseId.P12_Landing, PhaseId.Complete),
         ]:
             record = TransitionRecord(
                 from_phase=from_p,
@@ -376,19 +384,19 @@ class TestAC6AdvancePhaseSignalLogic:
         AC6: state transitions must be atomic — no partial state visible.
         """
         sm = _make_sm("ac6-epoch-1")
-        assert sm.state.current_phase == PhaseId.P1_REQUEST
+        assert sm.state.current_phase == PhaseId.P1_Request
 
         record = sm.advance(
-            PhaseId.P2_ELICIT,
+            PhaseId.P2_Elicit,
             triggered_by="architect",
             condition_met="classification confirmed",
         )
 
         # State updated atomically.
-        assert sm.state.current_phase == PhaseId.P2_ELICIT
-        assert PhaseId.P1_REQUEST in sm.state.completed_phases
-        assert record.from_phase == PhaseId.P1_REQUEST
-        assert record.to_phase == PhaseId.P2_ELICIT
+        assert sm.state.current_phase == PhaseId.P2_Elicit
+        assert PhaseId.P1_Request in sm.state.completed_phases
+        assert record.from_phase == PhaseId.P1_Request
+        assert record.to_phase == PhaseId.P2_Elicit
 
     def test_advance_records_transition_history(self) -> None:
         """Each advance appends to transition_history (audit trail preserved).
@@ -396,14 +404,14 @@ class TestAC6AdvancePhaseSignalLogic:
         AC6: should not have non-deterministic ops — history is deterministic.
         """
         sm = _make_sm("ac6-epoch-2")
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="architect", condition_met="confirmed")
-        sm.advance(PhaseId.P3_PROPOSE, triggered_by="architect", condition_met="URD created")
+        sm.advance(PhaseId.P2_Elicit, triggered_by="architect", condition_met="confirmed")
+        sm.advance(PhaseId.P3_Propose, triggered_by="architect", condition_met="URD created")
 
         assert len(sm.state.transition_history) == 2
-        assert sm.state.transition_history[0].from_phase == PhaseId.P1_REQUEST
-        assert sm.state.transition_history[0].to_phase == PhaseId.P2_ELICIT
-        assert sm.state.transition_history[1].from_phase == PhaseId.P2_ELICIT
-        assert sm.state.transition_history[1].to_phase == PhaseId.P3_PROPOSE
+        assert sm.state.transition_history[0].from_phase == PhaseId.P1_Request
+        assert sm.state.transition_history[0].to_phase == PhaseId.P2_Elicit
+        assert sm.state.transition_history[1].from_phase == PhaseId.P2_Elicit
+        assert sm.state.transition_history[1].to_phase == PhaseId.P3_Propose
 
     def test_invalid_advance_raises_transition_error(self) -> None:
         """Attempting an invalid transition raises TransitionError (not a silent skip).
@@ -413,7 +421,7 @@ class TestAC6AdvancePhaseSignalLogic:
         sm = _make_sm("ac6-epoch-3")
         # P1 cannot directly advance to P9.
         with pytest.raises(TransitionError) as exc_info:
-            sm.advance(PhaseId.P9_SLICE, triggered_by="architect", condition_met="invalid")
+            sm.advance(PhaseId.P9_Slice, triggered_by="architect", condition_met="invalid")
         assert len(exc_info.value.violations) > 0
 
     def test_advance_through_multiple_phases_sequentially(self) -> None:
@@ -425,17 +433,17 @@ class TestAC6AdvancePhaseSignalLogic:
 
         signals = [
             PhaseAdvanceSignal(
-                to_phase=PhaseId.P2_ELICIT,
+                to_phase=PhaseId.P2_Elicit,
                 triggered_by="architect",
                 condition_met="classification confirmed",
             ),
             PhaseAdvanceSignal(
-                to_phase=PhaseId.P3_PROPOSE,
+                to_phase=PhaseId.P3_Propose,
                 triggered_by="architect",
                 condition_met="URD created",
             ),
             PhaseAdvanceSignal(
-                to_phase=PhaseId.P4_REVIEW,
+                to_phase=PhaseId.P4_Review,
                 triggered_by="architect",
                 condition_met="proposal created",
             ),
@@ -448,9 +456,9 @@ class TestAC6AdvancePhaseSignalLogic:
                 condition_met=signal.condition_met,
             )
 
-        assert sm.state.current_phase == PhaseId.P4_REVIEW
+        assert sm.state.current_phase == PhaseId.P4_Review
         assert len(sm.state.transition_history) == 3
-        expected_completed = {PhaseId.P1_REQUEST, PhaseId.P2_ELICIT, PhaseId.P3_PROPOSE}
+        expected_completed = {PhaseId.P1_Request, PhaseId.P2_Elicit, PhaseId.P3_Propose}
         assert expected_completed.issubset(sm.state.completed_phases)
 
     def test_search_attributes_values_are_correct_after_advance(self) -> None:
@@ -464,7 +472,7 @@ class TestAC6AdvancePhaseSignalLogic:
 
         sm = _make_sm("ac6-epoch-5")
         sm.advance(
-            PhaseId.P2_ELICIT,
+            PhaseId.P2_Elicit,
             triggered_by="architect",
             condition_met="confirmed",
         )
@@ -485,13 +493,13 @@ class TestAC6AdvancePhaseSignalLogic:
         before processing the advance signal.
         """
         sm = _make_sm("ac6-epoch-6")
-        _advance_to(sm, PhaseId.P4_REVIEW)
+        _advance_to(sm, PhaseId.P4_Review)
 
         # Simulate 3 ReviewVoteSignals being received.
         vote_signals = [
-            ReviewVoteSignal(axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="reviewer-correctness"),
-            ReviewVoteSignal(axis=ReviewAxis.TEST_QUALITY, vote=VoteType.ACCEPT, reviewer_id="reviewer-test_quality"),
-            ReviewVoteSignal(axis=ReviewAxis.ELEGANCE, vote=VoteType.ACCEPT, reviewer_id="reviewer-elegance"),
+            ReviewVoteSignal(axis=ReviewAxis.Correctness, vote=VoteType.Accept, reviewer_id="reviewer-correctness"),
+            ReviewVoteSignal(axis=ReviewAxis.TestQuality, vote=VoteType.Accept, reviewer_id="reviewer-test_quality"),
+            ReviewVoteSignal(axis=ReviewAxis.Elegance, vote=VoteType.Accept, reviewer_id="reviewer-elegance"),
         ]
 
         # Apply votes (drain, as workflow.run() does).
@@ -501,12 +509,12 @@ class TestAC6AdvancePhaseSignalLogic:
         # Now advance should succeed.
         assert sm.has_consensus()
         record = sm.advance(
-            PhaseId.P5_UAT,
+            PhaseId.P5_Uat,
             triggered_by="reviewer",
             condition_met="all 3 vote ACCEPT",
         )
-        assert record.to_phase == PhaseId.P5_UAT
-        assert sm.state.current_phase == PhaseId.P5_UAT
+        assert record.to_phase == PhaseId.P5_Uat
+        assert sm.state.current_phase == PhaseId.P5_Uat
 
     def test_revise_vote_blocks_forward_advance(self) -> None:
         """A single REVISE vote makes only the backward transition available.
@@ -514,16 +522,16 @@ class TestAC6AdvancePhaseSignalLogic:
         AC6: vote signals must affect available_transitions atomically.
         """
         sm = _make_sm("ac6-epoch-7")
-        _advance_to(sm, PhaseId.P4_REVIEW)
+        _advance_to(sm, PhaseId.P4_Review)
 
         # One REVISE vote — consensus blocked.
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.REVISE)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Revise)
 
         # Forward transition (P4→P5) no longer in available_transitions.
         available = sm.available_transitions
         to_phases = {t.to_phase for t in available}
-        assert PhaseId.P5_UAT not in to_phases
-        assert PhaseId.P3_PROPOSE in to_phases
+        assert PhaseId.P5_Uat not in to_phases
+        assert PhaseId.P3_Propose in to_phases
 
 
 class TestAC7QueryCurrentState:
@@ -538,7 +546,7 @@ class TestAC7QueryCurrentState:
         sm = _make_sm("ac7-epoch-1")
         # current_state() in the workflow returns sm.state directly.
         state = sm.state
-        assert state.current_phase == PhaseId.P1_REQUEST
+        assert state.current_phase == PhaseId.P1_Request
 
     def test_state_after_p9_advance_reflects_p9(self) -> None:
         """AC7: After advancing to P9, current_state query returns P9 phase.
@@ -546,37 +554,37 @@ class TestAC7QueryCurrentState:
         This is the AC7 scenario: AuraPhase='p9' query should return the workflow.
         """
         sm = _make_sm("ac7-epoch-2")
-        _advance_to(sm, PhaseId.P9_SLICE)
+        _advance_to(sm, PhaseId.P9_Slice)
 
         # The workflow current_state() query returns sm.state.
         state = sm.state
-        assert state.current_phase == PhaseId.P9_SLICE
+        assert state.current_phase == PhaseId.P9_Slice
         assert state.current_phase.value == "p9"
 
     def test_current_state_reflects_completed_phases(self) -> None:
         """AC7: current_state includes completed_phases — no stale phase info."""
         sm = _make_sm("ac7-epoch-3")
-        _advance_to(sm, PhaseId.P3_PROPOSE)
+        _advance_to(sm, PhaseId.P3_Propose)
 
         state = sm.state
-        assert PhaseId.P1_REQUEST in state.completed_phases
-        assert PhaseId.P2_ELICIT in state.completed_phases
-        assert PhaseId.P3_PROPOSE not in state.completed_phases  # current, not completed
+        assert PhaseId.P1_Request in state.completed_phases
+        assert PhaseId.P2_Elicit in state.completed_phases
+        assert PhaseId.P3_Propose not in state.completed_phases  # current, not completed
 
     def test_available_transitions_query_correct_at_p9(self) -> None:
         """AC7: available_transitions() at P9 returns P10 as the valid next step."""
         sm = _make_sm("ac7-epoch-4")
-        _advance_to(sm, PhaseId.P9_SLICE)
+        _advance_to(sm, PhaseId.P9_Slice)
 
         # available_transitions() is the same logic the workflow query exposes.
         transitions = sm.available_transitions
         assert len(transitions) == 1
-        assert transitions[0].to_phase == PhaseId.P10_CODE_REVIEW
+        assert transitions[0].to_phase == PhaseId.P10_CodeReview
 
     def test_available_transitions_empty_at_complete(self) -> None:
         """AC7: available_transitions() at COMPLETE returns empty list."""
         sm = _make_sm("ac7-epoch-5")
-        _advance_to(sm, PhaseId.COMPLETE)
+        _advance_to(sm, PhaseId.Complete)
 
         transitions = sm.available_transitions
         assert transitions == []
@@ -584,13 +592,13 @@ class TestAC7QueryCurrentState:
     def test_vote_state_visible_in_current_state(self) -> None:
         """AC7: review votes appear in current_state().review_votes (no stale state)."""
         sm = _make_sm("ac7-epoch-6")
-        _advance_to(sm, PhaseId.P4_REVIEW)
-        sm.record_vote(ReviewAxis.CORRECTNESS, VoteType.ACCEPT)
-        sm.record_vote(ReviewAxis.TEST_QUALITY, VoteType.REVISE)
+        _advance_to(sm, PhaseId.P4_Review)
+        sm.record_vote(ReviewAxis.Correctness, VoteType.Accept)
+        sm.record_vote(ReviewAxis.TestQuality, VoteType.Revise)
 
         state = sm.state
-        assert state.review_votes.get(ReviewAxis.CORRECTNESS) == VoteType.ACCEPT
-        assert state.review_votes.get(ReviewAxis.TEST_QUALITY) == VoteType.REVISE
+        assert state.review_votes.get(ReviewAxis.Correctness) == VoteType.Accept
+        assert state.review_votes.get(ReviewAxis.TestQuality) == VoteType.Revise
 
     def test_state_search_attr_values_match_current_phase(self) -> None:
         """AC7: The phase value used for SA_PHASE upsert matches current state.
@@ -599,7 +607,7 @@ class TestAC7QueryCurrentState:
         sm.state.current_phase.value after each transition.
         """
         sm = _make_sm("ac7-epoch-7")
-        _advance_to(sm, PhaseId.P9_SLICE)
+        _advance_to(sm, PhaseId.P9_Slice)
 
         # This is what the workflow would set for AuraPhase after reaching P9.
         phase_sa_value = sm.state.current_phase.value
@@ -631,7 +639,7 @@ class TestLastErrorObservability:
         sm = _make_sm("last-error-epoch-1")
         # Attempt an invalid advance (P1 cannot go to P9).
         try:
-            sm.advance(PhaseId.P9_SLICE, triggered_by="architect", condition_met="invalid")
+            sm.advance(PhaseId.P9_Slice, triggered_by="architect", condition_met="invalid")
         except TransitionError as e:
             sm.state.last_error = str(e)
 
@@ -651,14 +659,14 @@ class TestLastErrorObservability:
         sm = _make_sm("last-error-epoch-2")
         # First: invalid advance sets last_error.
         try:
-            sm.advance(PhaseId.P9_SLICE, triggered_by="architect", condition_met="invalid")
+            sm.advance(PhaseId.P9_Slice, triggered_by="architect", condition_met="invalid")
         except TransitionError as e:
             sm.state.last_error = str(e)
 
         assert sm.state.last_error is not None
 
         # Then: valid advance clears last_error.
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="architect", condition_met="confirmed")
+        sm.advance(PhaseId.P2_Elicit, triggered_by="architect", condition_met="confirmed")
         assert sm.state.last_error is None
 
     def test_last_error_starts_none_before_any_signals(self) -> None:
@@ -693,16 +701,16 @@ class TestFailedTransitionAuditTrailUnit:
         from datetime import datetime, timezone
 
         sm = _make_sm("audit-trail-epoch-1")
-        assert sm.state.current_phase == PhaseId.P1_REQUEST
+        assert sm.state.current_phase == PhaseId.P1_Request
 
         # Attempt an invalid transition (P1 cannot go to P9).
         try:
-            sm.advance(PhaseId.P9_SLICE, triggered_by="architect", condition_met="invalid")
+            sm.advance(PhaseId.P9_Slice, triggered_by="architect", condition_met="invalid")
         except TransitionError as e:
             # Simulate the workflow's catch block.
             failed_record = TransitionRecord(
                 from_phase=sm.state.current_phase,
-                to_phase=PhaseId.P9_SLICE,
+                to_phase=PhaseId.P9_Slice,
                 timestamp=datetime.now(tz=timezone.utc),
                 triggered_by="architect",
                 condition_met=f"FAILED: {e}",
@@ -714,15 +722,15 @@ class TestFailedTransitionAuditTrailUnit:
         # The failed attempt must appear in transition_history.
         assert len(sm.state.transition_history) == 1
         failed = sm.state.transition_history[0]
-        assert failed.from_phase == PhaseId.P1_REQUEST
-        assert failed.to_phase == PhaseId.P9_SLICE
+        assert failed.from_phase == PhaseId.P1_Request
+        assert failed.to_phase == PhaseId.P9_Slice
         assert failed.condition_met.startswith("FAILED:")
         assert failed.triggered_by == "architect"
         # Programmatic success check: use r.success, not the string prefix.
         assert failed.success is False
 
         # The workflow phase must remain at P1 (transition was rejected).
-        assert sm.state.current_phase == PhaseId.P1_REQUEST
+        assert sm.state.current_phase == PhaseId.P1_Request
 
     def test_failed_attempt_does_not_count_as_successful_transition(self) -> None:
         """Failed records are included in total history but excluded from successful count.
@@ -736,11 +744,11 @@ class TestFailedTransitionAuditTrailUnit:
 
         # Attempt an invalid transition.
         try:
-            sm.advance(PhaseId.P9_SLICE, triggered_by="architect", condition_met="invalid")
+            sm.advance(PhaseId.P9_Slice, triggered_by="architect", condition_met="invalid")
         except TransitionError as e:
             failed_record = TransitionRecord(
                 from_phase=sm.state.current_phase,
-                to_phase=PhaseId.P9_SLICE,
+                to_phase=PhaseId.P9_Slice,
                 timestamp=datetime.now(tz=timezone.utc),
                 triggered_by="architect",
                 condition_met=f"FAILED: {e}",
@@ -749,7 +757,7 @@ class TestFailedTransitionAuditTrailUnit:
             sm.state.transition_history.append(failed_record)
 
         # Then a successful transition.
-        sm.advance(PhaseId.P2_ELICIT, triggered_by="architect", condition_met="confirmed")
+        sm.advance(PhaseId.P2_Elicit, triggered_by="architect", condition_met="confirmed")
 
         history = sm.state.transition_history
         total_count = len(history)
@@ -771,7 +779,7 @@ class TestFailedTransitionAuditTrailUnit:
         from datetime import datetime, timezone
 
         sm = _make_sm("audit-trail-epoch-3")
-        invalid_targets = [PhaseId.P9_SLICE, PhaseId.P12_LANDING, PhaseId.COMPLETE]
+        invalid_targets = [PhaseId.P9_Slice, PhaseId.P12_Landing, PhaseId.Complete]
 
         for target in invalid_targets:
             try:
@@ -794,7 +802,7 @@ class TestFailedTransitionAuditTrailUnit:
             assert record.success is False
 
         # Workflow still at P1 (all transitions were rejected).
-        assert sm.state.current_phase == PhaseId.P1_REQUEST
+        assert sm.state.current_phase == PhaseId.P1_Request
 
 
 # ─── Full Lifecycle Integration ────────────────────────────────────────────────
@@ -806,8 +814,8 @@ class TestFullLifecycleIntegration:
     def test_full_forward_path_completes(self) -> None:
         """The state machine can complete the full 12-phase lifecycle."""
         sm = _make_sm("full-lifecycle-epoch")
-        _advance_to(sm, PhaseId.COMPLETE)
-        assert sm.state.current_phase == PhaseId.COMPLETE
+        _advance_to(sm, PhaseId.Complete)
+        assert sm.state.current_phase == PhaseId.Complete
         assert len(sm.state.transition_history) == 12
 
     def test_transition_count_matches_history_length(self) -> None:
@@ -817,7 +825,7 @@ class TestFullLifecycleIntegration:
         successful_transition_count excludes records where success is False.
         """
         sm = _make_sm("transition-count-epoch")
-        _advance_to(sm, PhaseId.P6_RATIFY)
+        _advance_to(sm, PhaseId.P6_Ratify)
 
         history = sm.state.transition_history
         transition_count = len(history)
@@ -864,13 +872,13 @@ def _temporal_sandbox_works() -> bool:
 
         async def _probe() -> bool:
             async with await WorkflowEnvironment.start_local(
-                search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN]
+                search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN, SA_LAST_EVENT_TYPE]
             ) as env:
                 async with Worker(
                     env.client,
                     task_queue="probe-q",
                     workflows=[EpochWorkflow],
-                    activities=[check_constraints, record_transition],
+                    activities=_TEMPORAL_ACTIVITIES,
                 ):
                     handle = await env.client.start_workflow(
                         EpochWorkflow.run,
@@ -967,6 +975,12 @@ class TestWorkflowEnvironmentSandbox:
                 )
             pytest.skip(_SKIP_REASON)
 
+    @pytest.fixture(autouse=True)
+    def _init_audit_trail(self) -> None:
+        """Ensure audit trail is initialized for sandbox tests."""
+        if _HAS_AUDIT_ACTIVITIES:
+            init_audit_trail(InMemoryAuditTrail())
+
     @pytest.mark.asyncio
     async def test_advance_phase_signal_delivery_e2e(self) -> None:
         """advance_phase signal drives P1→P2 transition end-to-end.
@@ -979,13 +993,13 @@ class TestWorkflowEnvironmentSandbox:
         from temporalio.testing import WorkflowEnvironment
 
         async with await WorkflowEnvironment.start_local(
-            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN]
+            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN, SA_LAST_EVENT_TYPE]
         ) as env:
             async with Worker(
                 env.client,
                 task_queue="test-advance-q",
                 workflows=[EpochWorkflow],
-                activities=[check_constraints, record_transition],
+                activities=_TEMPORAL_ACTIVITIES,
             ):
                 handle = await env.client.start_workflow(
                     EpochWorkflow.run,
@@ -996,25 +1010,25 @@ class TestWorkflowEnvironmentSandbox:
 
                 # Verify initial state via query.
                 initial_state = await handle.query(EpochWorkflow.current_state)
-                assert initial_state.current_phase == PhaseId.P1_REQUEST
+                assert initial_state.current_phase == PhaseId.P1_Request
 
                 # Send advance signal: P1 → P2.
                 await handle.signal(
                     EpochWorkflow.advance_phase,
                     PhaseAdvanceSignal(
-                        to_phase=PhaseId.P2_ELICIT,
+                        to_phase=PhaseId.P2_Elicit,
                         triggered_by="test-agent",
                         condition_met="classification confirmed",
                     ),
                 )
 
                 # Poll until transition is reflected (start_local() is real-time).
-                state = await _poll_query(handle, PhaseId.P2_ELICIT)
-                assert state.current_phase == PhaseId.P2_ELICIT
-                assert PhaseId.P1_REQUEST in state.completed_phases
+                state = await _poll_query(handle, PhaseId.P2_Elicit)
+                assert state.current_phase == PhaseId.P2_Elicit
+                assert PhaseId.P1_Request in state.completed_phases
                 assert len(state.transition_history) == 1
-                assert state.transition_history[0].from_phase == PhaseId.P1_REQUEST
-                assert state.transition_history[0].to_phase == PhaseId.P2_ELICIT
+                assert state.transition_history[0].from_phase == PhaseId.P1_Request
+                assert state.transition_history[0].to_phase == PhaseId.P2_Elicit
 
                 # Terminate workflow to clean up.
                 await handle.terminate("test complete")
@@ -1031,13 +1045,13 @@ class TestWorkflowEnvironmentSandbox:
         from temporalio.testing import WorkflowEnvironment
 
         async with await WorkflowEnvironment.start_local(
-            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN]
+            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN, SA_LAST_EVENT_TYPE]
         ) as env:
             async with Worker(
                 env.client,
                 task_queue="test-vote-q",
                 workflows=[EpochWorkflow],
-                activities=[check_constraints, record_transition],
+                activities=_TEMPORAL_ACTIVITIES,
             ):
                 handle = await env.client.start_workflow(
                     EpochWorkflow.run,
@@ -1048,9 +1062,9 @@ class TestWorkflowEnvironmentSandbox:
 
                 # Advance to P4 (review phase) via signals.
                 for to_phase, condition in [
-                    (PhaseId.P2_ELICIT, "classification confirmed"),
-                    (PhaseId.P3_PROPOSE, "URD created"),
-                    (PhaseId.P4_REVIEW, "proposal created"),
+                    (PhaseId.P2_Elicit, "classification confirmed"),
+                    (PhaseId.P3_Propose, "URD created"),
+                    (PhaseId.P4_Review, "proposal created"),
                 ]:
                     await handle.signal(
                         EpochWorkflow.advance_phase,
@@ -1062,10 +1076,10 @@ class TestWorkflowEnvironmentSandbox:
                     )
 
                 # Poll until phase advances are reflected before submitting votes.
-                await _poll_query(handle, PhaseId.P4_REVIEW)
+                await _poll_query(handle, PhaseId.P4_Review)
 
                 # Submit vote signals.
-                for axis, vote in [(ReviewAxis.CORRECTNESS, VoteType.ACCEPT), (ReviewAxis.TEST_QUALITY, VoteType.REVISE)]:
+                for axis, vote in [(ReviewAxis.Correctness, VoteType.Accept), (ReviewAxis.TestQuality, VoteType.Revise)]:
                     await handle.signal(
                         EpochWorkflow.submit_vote,
                         ReviewVoteSignal(
@@ -1078,9 +1092,9 @@ class TestWorkflowEnvironmentSandbox:
                 # Verify votes appear in state after a small wait.
                 await env.sleep(timedelta(seconds=1))
                 state = await handle.query(EpochWorkflow.current_state)
-                assert state.current_phase == PhaseId.P4_REVIEW
-                assert state.review_votes.get(ReviewAxis.CORRECTNESS) == VoteType.ACCEPT
-                assert state.review_votes.get(ReviewAxis.TEST_QUALITY) == VoteType.REVISE
+                assert state.current_phase == PhaseId.P4_Review
+                assert state.review_votes.get(ReviewAxis.Correctness) == VoteType.Accept
+                assert state.review_votes.get(ReviewAxis.TestQuality) == VoteType.Revise
 
                 await handle.terminate("test complete")
 
@@ -1096,13 +1110,13 @@ class TestWorkflowEnvironmentSandbox:
         from temporalio.testing import WorkflowEnvironment
 
         async with await WorkflowEnvironment.start_local(
-            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN]
+            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN, SA_LAST_EVENT_TYPE]
         ) as env:
             async with Worker(
                 env.client,
                 task_queue="test-query-q",
                 workflows=[EpochWorkflow],
-                activities=[check_constraints, record_transition],
+                activities=_TEMPORAL_ACTIVITIES,
             ):
                 handle = await env.client.start_workflow(
                     EpochWorkflow.run,
@@ -1115,7 +1129,7 @@ class TestWorkflowEnvironmentSandbox:
                 await handle.signal(
                     EpochWorkflow.advance_phase,
                     PhaseAdvanceSignal(
-                        to_phase=PhaseId.P2_ELICIT,
+                        to_phase=PhaseId.P2_Elicit,
                         triggered_by="test",
                         condition_met="ok",
                     ),
@@ -1123,15 +1137,15 @@ class TestWorkflowEnvironmentSandbox:
                 await handle.signal(
                     EpochWorkflow.advance_phase,
                     PhaseAdvanceSignal(
-                        to_phase=PhaseId.P3_PROPOSE,
+                        to_phase=PhaseId.P3_Propose,
                         triggered_by="test",
                         condition_met="URD created",
                     ),
                 )
 
                 # Poll until both transitions are reflected (start_local() is real-time).
-                state = await _poll_query(handle, PhaseId.P3_PROPOSE)
-                assert state.current_phase == PhaseId.P3_PROPOSE
+                state = await _poll_query(handle, PhaseId.P3_Propose)
+                assert state.current_phase == PhaseId.P3_Propose
                 assert state.current_phase.value == "p3"
                 # Transition history should have 2 successful transitions.
                 successful = [
@@ -1154,13 +1168,13 @@ class TestWorkflowEnvironmentSandbox:
         from temporalio.testing import WorkflowEnvironment
 
         async with await WorkflowEnvironment.start_local(
-            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN]
+            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN, SA_LAST_EVENT_TYPE]
         ) as env:
             async with Worker(
                 env.client,
                 task_queue="test-failed-q",
                 workflows=[EpochWorkflow],
-                activities=[check_constraints, record_transition],
+                activities=_TEMPORAL_ACTIVITIES,
             ):
                 handle = await env.client.start_workflow(
                     EpochWorkflow.run,
@@ -1173,7 +1187,7 @@ class TestWorkflowEnvironmentSandbox:
                 await handle.signal(
                     EpochWorkflow.advance_phase,
                     PhaseAdvanceSignal(
-                        to_phase=PhaseId.P9_SLICE,
+                        to_phase=PhaseId.P9_Slice,
                         triggered_by="test-agent",
                         condition_met="invalid attempt",
                     ),
@@ -1181,15 +1195,15 @@ class TestWorkflowEnvironmentSandbox:
 
                 # Poll until the failed attempt appears in history (start_local() is real-time).
                 state = await _poll_history(handle, min_len=1)
-                assert state.current_phase == PhaseId.P1_REQUEST
+                assert state.current_phase == PhaseId.P1_Request
 
                 # The failed attempt must appear in transition_history.
                 failed = [
                     r for r in state.transition_history if not r.success
                 ]
                 assert len(failed) == 1
-                assert failed[0].from_phase == PhaseId.P1_REQUEST
-                assert failed[0].to_phase == PhaseId.P9_SLICE
+                assert failed[0].from_phase == PhaseId.P1_Request
+                assert failed[0].to_phase == PhaseId.P9_Slice
                 assert "FAILED:" in failed[0].condition_met
 
                 # last_error must also be set.
@@ -1197,11 +1211,139 @@ class TestWorkflowEnvironmentSandbox:
 
                 await handle.terminate("test complete")
 
+    @pytest.mark.asyncio
+    async def test_sa_dual_write_after_transition(self) -> None:
+        """SA values include AuraLastEventType after a phase transition.
+
+        Verifies that after a successful transition, the search attributes
+        include SA_LAST_EVENT_TYPE set to "phase_transition".
+        """
+        from temporalio.worker import Worker
+        from temporalio.testing import WorkflowEnvironment
+
+        async with await WorkflowEnvironment.start_local(
+            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN, SA_LAST_EVENT_TYPE]
+        ) as env:
+            async with Worker(
+                env.client,
+                task_queue="test-sa-dual-q",
+                workflows=[EpochWorkflow],
+                activities=_TEMPORAL_ACTIVITIES,
+            ):
+                handle = await env.client.start_workflow(
+                    EpochWorkflow.run,
+                    EpochInput(epoch_id="e2e-sa-dual-1", request_description="test"),
+                    id="e2e-sa-dual-1",
+                    task_queue="test-sa-dual-q",
+                )
+
+                # Send advance signal: P1 → P2.
+                await handle.signal(
+                    EpochWorkflow.advance_phase,
+                    PhaseAdvanceSignal(
+                        to_phase=PhaseId.P2_Elicit,
+                        triggered_by="test-agent",
+                        condition_met="sa dual-write test",
+                    ),
+                )
+
+                # Poll until transition is reflected.
+                state = await _poll_query(handle, PhaseId.P2_Elicit)
+                assert state.current_phase == PhaseId.P2_Elicit
+
+                # Verify SA values via workflow description.
+                desc = await handle.describe()
+                sa = desc.typed_search_attributes
+
+                # AuraPhase should reflect the new phase.
+                phase_val = sa.get(SA_PHASE)
+                assert phase_val is not None, "SA_PHASE should be set after transition"
+                assert phase_val == PhaseId.P2_Elicit.value
+
+                # AuraLastEventType should be "phase_transition".
+                event_val = sa.get(SA_LAST_EVENT_TYPE)
+                assert event_val is not None, "SA_LAST_EVENT_TYPE should be set after transition"
+                assert event_val == "phase_transition"
+
+                # AuraStatus should be "running".
+                status_val = sa.get(SA_STATUS)
+                assert status_val is not None, "SA_STATUS should be set after transition"
+                assert status_val == "running"
+
+                await handle.terminate("test complete")
+
+    @pytest.mark.asyncio
+    async def test_audit_event_recorded_after_transition(self) -> None:
+        """record_audit_event activity is invoked with correct AuditEvent fields.
+
+        Verifies that after a successful transition, the audit trail contains
+        an AuditEvent with the correct epoch_id, event_type, phase, and role.
+        """
+        if not _HAS_AUDIT_ACTIVITIES:
+            pytest.skip("audit_activities not available")
+
+        from temporalio.worker import Worker
+        from temporalio.testing import WorkflowEnvironment
+
+        # Reset audit trail to capture events from this test.
+        trail = InMemoryAuditTrail()
+        init_audit_trail(trail)
+
+        async with await WorkflowEnvironment.start_local(
+            search_attributes=[SA_EPOCH_ID, SA_PHASE, SA_ROLE, SA_STATUS, SA_DOMAIN, SA_LAST_EVENT_TYPE]
+        ) as env:
+            async with Worker(
+                env.client,
+                task_queue="test-audit-evt-q",
+                workflows=[EpochWorkflow],
+                activities=_TEMPORAL_ACTIVITIES,
+            ):
+                handle = await env.client.start_workflow(
+                    EpochWorkflow.run,
+                    EpochInput(epoch_id="e2e-audit-evt-1", request_description="test"),
+                    id="e2e-audit-evt-1",
+                    task_queue="test-audit-evt-q",
+                )
+
+                # Send advance signal: P1 → P2.
+                await handle.signal(
+                    EpochWorkflow.advance_phase,
+                    PhaseAdvanceSignal(
+                        to_phase=PhaseId.P2_Elicit,
+                        triggered_by="test-agent",
+                        condition_met="audit event test",
+                    ),
+                )
+
+                # Poll until transition is reflected.
+                state = await _poll_query(handle, PhaseId.P2_Elicit)
+                assert state.current_phase == PhaseId.P2_Elicit
+
+                # Query audit events for this epoch.
+                events = await trail.query_events(
+                    epoch_id="e2e-audit-evt-1", phase=None, role=None
+                )
+                assert len(events) >= 1, "Expected at least one audit event after transition"
+
+                # Find the phase_transition event.
+                transition_events = [
+                    e for e in events if e.event_type == EventType.PhaseTransition
+                ]
+                assert len(transition_events) >= 1, "Expected a PhaseTransition audit event"
+
+                evt = transition_events[0]
+                assert evt.epoch_id == "e2e-audit-evt-1"
+                assert evt.phase == PhaseId.P2_Elicit
+                assert evt.payload["from"] == PhaseId.P1_Request.value
+                assert evt.payload["to"] == PhaseId.P2_Elicit.value
+
+                await handle.terminate("test complete")
+
 
 # ─── P9 Fail-Fast Pattern Tests ───────────────────────────────────────────────
 
 
-class TestP9SliceFailFastPattern:
+class TestP9_SliceFailFastPattern:
     """Tests for P9_SLICE fail-fast pattern: asyncio.wait(FIRST_EXCEPTION).
 
     Tests the asyncio pattern that the P9 supervisor uses to run parallel slices
@@ -1386,14 +1528,14 @@ class TestReviewPhaseWorkflowTypes:
             phase_id="p10",
             success=True,
             vote_result={
-                ReviewAxis.CORRECTNESS: VoteType.ACCEPT,
-                ReviewAxis.TEST_QUALITY: VoteType.ACCEPT,
-                ReviewAxis.ELEGANCE: VoteType.REVISE,
+                ReviewAxis.Correctness: VoteType.Accept,
+                ReviewAxis.TestQuality: VoteType.Accept,
+                ReviewAxis.Elegance: VoteType.Revise,
             },
         )
         assert result.phase_id == "p10"
         assert result.success is True
-        assert result.vote_result[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
+        assert result.vote_result[ReviewAxis.Correctness] == VoteType.Accept
         with pytest.raises((AttributeError, TypeError)):
             result.success = False  # type: ignore[misc]
 
@@ -1442,8 +1584,8 @@ class TestReviewPhaseWorkflowSignalLogic:
             loop.run_until_complete(
                 wf.submit_vote(
                     ReviewVoteSignal(
-                        axis=ReviewAxis.CORRECTNESS,
-                        vote=VoteType.ACCEPT,
+                        axis=ReviewAxis.Correctness,
+                        vote=VoteType.Accept,
                         reviewer_id="reviewer-a",
                     )
                 )
@@ -1451,8 +1593,8 @@ class TestReviewPhaseWorkflowSignalLogic:
             loop.run_until_complete(
                 wf.submit_vote(
                     ReviewVoteSignal(
-                        axis=ReviewAxis.TEST_QUALITY,
-                        vote=VoteType.REVISE,
+                        axis=ReviewAxis.TestQuality,
+                        vote=VoteType.Revise,
                         reviewer_id="reviewer-b",
                     )
                 )
@@ -1460,8 +1602,8 @@ class TestReviewPhaseWorkflowSignalLogic:
         finally:
             loop.close()
 
-        assert wf._votes[ReviewAxis.CORRECTNESS] == VoteType.ACCEPT
-        assert wf._votes[ReviewAxis.TEST_QUALITY] == VoteType.REVISE
+        assert wf._votes[ReviewAxis.Correctness] == VoteType.Accept
+        assert wf._votes[ReviewAxis.TestQuality] == VoteType.Revise
 
     def test_submit_vote_overwrites_duplicate_axis(self) -> None:
         """A second vote for the same axis overwrites the first."""
@@ -1472,8 +1614,8 @@ class TestReviewPhaseWorkflowSignalLogic:
             loop.run_until_complete(
                 wf.submit_vote(
                     ReviewVoteSignal(
-                        axis=ReviewAxis.ELEGANCE,
-                        vote=VoteType.ACCEPT,
+                        axis=ReviewAxis.Elegance,
+                        vote=VoteType.Accept,
                         reviewer_id="reviewer-c-first",
                     )
                 )
@@ -1481,8 +1623,8 @@ class TestReviewPhaseWorkflowSignalLogic:
             loop.run_until_complete(
                 wf.submit_vote(
                     ReviewVoteSignal(
-                        axis=ReviewAxis.ELEGANCE,
-                        vote=VoteType.REVISE,
+                        axis=ReviewAxis.Elegance,
+                        vote=VoteType.Revise,
                         reviewer_id="reviewer-c-second",
                     )
                 )
@@ -1491,7 +1633,7 @@ class TestReviewPhaseWorkflowSignalLogic:
             loop.close()
 
         # Second vote wins.
-        assert wf._votes[ReviewAxis.ELEGANCE] == VoteType.REVISE
+        assert wf._votes[ReviewAxis.Elegance] == VoteType.Revise
 
     def test_vote_completeness_check(self) -> None:
         """All 3 ReviewAxis values must be present for the wait condition to be satisfied."""
@@ -1506,14 +1648,14 @@ class TestReviewPhaseWorkflowSignalLogic:
             loop.run_until_complete(
                 wf.submit_vote(
                     ReviewVoteSignal(
-                        axis=ReviewAxis.CORRECTNESS, vote=VoteType.ACCEPT, reviewer_id="r1"
+                        axis=ReviewAxis.Correctness, vote=VoteType.Accept, reviewer_id="r1"
                     )
                 )
             )
             loop.run_until_complete(
                 wf.submit_vote(
                     ReviewVoteSignal(
-                        axis=ReviewAxis.TEST_QUALITY, vote=VoteType.ACCEPT, reviewer_id="r2"
+                        axis=ReviewAxis.TestQuality, vote=VoteType.Accept, reviewer_id="r2"
                     )
                 )
             )
@@ -1527,7 +1669,7 @@ class TestReviewPhaseWorkflowSignalLogic:
             loop2.run_until_complete(
                 wf.submit_vote(
                     ReviewVoteSignal(
-                        axis=ReviewAxis.ELEGANCE, vote=VoteType.REVISE, reviewer_id="r3"
+                        axis=ReviewAxis.Elegance, vote=VoteType.Revise, reviewer_id="r3"
                     )
                 )
             )
@@ -1669,7 +1811,7 @@ class TestReviewPhaseWorkflowVotesType:
     """Verify ReviewPhaseWorkflow._votes uses ReviewAxis keys and VoteType values.
 
     AC: Given ReviewPhaseWorkflow when votes then _votes uses ReviewAxis keys
-        and VoteType values — use ReviewAxis.CORRECTNESS (not .value).
+        and VoteType values — use ReviewAxis.Correctness (not .value).
     """
 
     def test_votes_keys_are_review_axis(self) -> None:
@@ -1681,8 +1823,8 @@ class TestReviewPhaseWorkflowVotesType:
             loop.run_until_complete(
                 wf.submit_vote(
                     ReviewVoteSignal(
-                        axis=ReviewAxis.CORRECTNESS,
-                        vote=VoteType.ACCEPT,
+                        axis=ReviewAxis.Correctness,
+                        vote=VoteType.Accept,
                         reviewer_id="r-type-check",
                     )
                 )
@@ -1694,7 +1836,7 @@ class TestReviewPhaseWorkflowVotesType:
         keys = list(wf._votes.keys())
         assert len(keys) == 1
         assert isinstance(keys[0], ReviewAxis)
-        assert keys[0] == ReviewAxis.CORRECTNESS
+        assert keys[0] == ReviewAxis.Correctness
 
     def test_votes_values_are_vote_type(self) -> None:
         """_votes values must be VoteType instances, not plain strings."""
@@ -1705,8 +1847,8 @@ class TestReviewPhaseWorkflowVotesType:
             loop.run_until_complete(
                 wf.submit_vote(
                     ReviewVoteSignal(
-                        axis=ReviewAxis.TEST_QUALITY,
-                        vote=VoteType.REVISE,
+                        axis=ReviewAxis.TestQuality,
+                        vote=VoteType.Revise,
                         reviewer_id="r-value-check",
                     )
                 )
@@ -1717,4 +1859,67 @@ class TestReviewPhaseWorkflowVotesType:
         vals = list(wf._votes.values())
         assert len(vals) == 1
         assert isinstance(vals[0], VoteType)
-        assert vals[0] == VoteType.REVISE
+        assert vals[0] == VoteType.Revise
+
+
+# ─── Session Registration + full_state() Integration (I-7B.1) ────────────────
+
+
+class TestSessionFullStateIntegration:
+    """I-7B.1: register_session → full_state().active_session_count integration."""
+
+    def test_active_session_count_starts_zero(self) -> None:
+        """full_state().active_session_count is 0 before any sessions registered."""
+        from aura_protocol.workflow import SessionRegisterSignal
+
+        wf = EpochWorkflow()
+        wf._sm = _make_sm()
+        result = wf.full_state()
+        assert result.active_session_count == 0
+
+    def test_register_session_increments_active_session_count(self) -> None:
+        """register_session → full_state().active_session_count == 1."""
+        from aura_protocol.workflow import SessionRegisterSignal
+
+        wf = EpochWorkflow()
+        wf._sm = _make_sm()
+        wf.register_session(
+            SessionRegisterSignal(
+                epoch_id="test-epoch",
+                session_id="session-1",
+                role="worker",
+            )
+        )
+        result = wf.full_state()
+        assert result.active_session_count == 1
+
+    def test_duplicate_session_not_counted_twice(self) -> None:
+        """Idempotent: same session_id registered twice → count still 1."""
+        from aura_protocol.workflow import SessionRegisterSignal
+
+        wf = EpochWorkflow()
+        wf._sm = _make_sm()
+        sig = SessionRegisterSignal(
+            epoch_id="test-epoch",
+            session_id="session-dup",
+            role="supervisor",
+        )
+        wf.register_session(sig)
+        wf.register_session(sig)
+        result = wf.full_state()
+        assert result.active_session_count == 1
+
+    def test_multiple_distinct_sessions_counted(self) -> None:
+        """Two distinct sessions → active_session_count == 2."""
+        from aura_protocol.workflow import SessionRegisterSignal
+
+        wf = EpochWorkflow()
+        wf._sm = _make_sm()
+        wf.register_session(
+            SessionRegisterSignal(epoch_id="test-epoch", session_id="s-1", role="worker")
+        )
+        wf.register_session(
+            SessionRegisterSignal(epoch_id="test-epoch", session_id="s-2", role="reviewer")
+        )
+        result = wf.full_state()
+        assert result.active_session_count == 2

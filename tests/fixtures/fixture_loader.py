@@ -36,6 +36,7 @@ import yaml
 from aura_protocol.state_machine import EpochState, TransitionRecord
 from aura_protocol.types import (
     AuditEvent,
+    EventType,
     PhaseId,
     ReviewAxis,
     RoleId,
@@ -107,7 +108,7 @@ class AuditEventTestCase:
 
     event_name: str
     event: AuditEvent
-    event_type: str
+    event_type: EventType
     description: str
     id: str
 
@@ -341,7 +342,7 @@ class ProtocolFixture:
 
             event = AuditEvent(
                 epoch_id=epoch_id,
-                event_type=event_type,
+                event_type=EventType(event_type),
                 phase=phase,
                 role=role,
                 payload=payload,
@@ -350,7 +351,7 @@ class ProtocolFixture:
             yield AuditEventTestCase(
                 event_name=event_name,
                 event=event,
-                event_type=event_type,
+                event_type=EventType(event_type),
                 description=description,
                 id=f"audit:{event_name}",
             )
@@ -452,9 +453,9 @@ class ProtocolFixture:
             severity_groups: dict[SeverityLevel, set[str]] = {}
             if vs.get("severity_groups_present", False):
                 severity_groups = {
-                    SeverityLevel.BLOCKER: set(),
-                    SeverityLevel.IMPORTANT: set(),
-                    SeverityLevel.MINOR: set(),
+                    SeverityLevel.Blocker: set(),
+                    SeverityLevel.Important: set(),
+                    SeverityLevel.Minor: set(),
                 }
 
             transition_history: list[TransitionRecord] = []

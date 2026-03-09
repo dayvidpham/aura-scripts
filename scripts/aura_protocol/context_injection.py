@@ -179,7 +179,7 @@ _GENERAL_CONSTRAINTS: frozenset[str] = frozenset({
 #   C-actionable-errors       → ALL (see _GENERAL_CONSTRAINTS)
 
 _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
-    RoleId.EPOCH: frozenset(_GENERAL_CONSTRAINTS | {
+    RoleId.Epoch: frozenset(_GENERAL_CONSTRAINTS | {
         # Epoch orchestrates all phases — review consensus gating applies to advance
         "C-review-consensus",
         # Epoch creates handoffs as master orchestrator
@@ -193,7 +193,7 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
         # Epoch enforces: max 3 worker-reviewer cycles; remaining IMPORTANT → FOLLOWUP
         "C-max-review-cycles",
     }),
-    RoleId.ARCHITECT: frozenset(_GENERAL_CONSTRAINTS | {
+    RoleId.Architect: frozenset(_GENERAL_CONSTRAINTS | {
         # Architect creates proposals → must follow naming convention
         "C-proposal-naming",
         # Architect runs user interviews (URE/UAT) → must capture verbatim
@@ -203,7 +203,7 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
         # Architect commits code outputs occasionally (ratified docs)
         "C-agent-commit",
     }),
-    RoleId.REVIEWER: frozenset(_GENERAL_CONSTRAINTS | {
+    RoleId.Reviewer: frozenset(_GENERAL_CONSTRAINTS | {
         # Reviewer checks consensus in review phases
         "C-review-consensus",
         # Reviewer must use binary ACCEPT/REVISE
@@ -217,7 +217,7 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
         # Reviewer creates review task names
         "C-review-naming",
     }),
-    RoleId.SUPERVISOR: frozenset(_GENERAL_CONSTRAINTS | {
+    RoleId.Supervisor: frozenset(_GENERAL_CONSTRAINTS | {
         # Supervisor gates transition on consensus
         "C-review-consensus",
         # Supervisor must not implement code directly
@@ -245,7 +245,7 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
         # Supervisor adopts leaf tasks into follow-up slices
         "C-followup-leaf-adoption",
     }),
-    RoleId.WORKER: frozenset(_GENERAL_CONSTRAINTS | {
+    RoleId.Worker: frozenset(_GENERAL_CONSTRAINTS | {
         # Worker must pass quality gates before closing slice
         "C-worker-gates",
         # Worker commits code with agent-commit
@@ -287,17 +287,17 @@ _ROLE_CONSTRAINTS: dict[RoleId, frozenset[str]] = {
 #   C-actionable-errors       → ALL phases
 
 _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
-    PhaseId.P1_REQUEST: frozenset(_GENERAL_CONSTRAINTS),
-    PhaseId.P2_ELICIT: frozenset(_GENERAL_CONSTRAINTS | {
+    PhaseId.P1_Request: frozenset(_GENERAL_CONSTRAINTS),
+    PhaseId.P2_Elicit: frozenset(_GENERAL_CONSTRAINTS | {
         # User interviews happen in elicitation
         "C-ure-verbatim",
         # Proposals may begin forming here → naming awareness
     }),
-    PhaseId.P3_PROPOSE: frozenset(_GENERAL_CONSTRAINTS | {
+    PhaseId.P3_Propose: frozenset(_GENERAL_CONSTRAINTS | {
         # Proposals created in p3
         "C-proposal-naming",
     }),
-    PhaseId.P4_REVIEW: frozenset(_GENERAL_CONSTRAINTS | {
+    PhaseId.P4_Review: frozenset(_GENERAL_CONSTRAINTS | {
         # Plan review → consensus required
         "C-review-consensus",
         # Plan review → binary voting only
@@ -307,16 +307,16 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         # Review tasks created in p4
         "C-review-naming",
     }),
-    PhaseId.P5_UAT: frozenset(_GENERAL_CONSTRAINTS | {
+    PhaseId.P5_Uat: frozenset(_GENERAL_CONSTRAINTS | {
         # User acceptance test → verbatim capture
         "C-ure-verbatim",
     }),
-    PhaseId.P6_RATIFY: frozenset(_GENERAL_CONSTRAINTS),
-    PhaseId.P7_HANDOFF: frozenset(_GENERAL_CONSTRAINTS | {
+    PhaseId.P6_Ratify: frozenset(_GENERAL_CONSTRAINTS),
+    PhaseId.P7_Handoff: frozenset(_GENERAL_CONSTRAINTS | {
         # Handoff document required at p7 transition
         "C-handoff-skill-invocation",
     }),
-    PhaseId.P8_IMPL_PLAN: frozenset(_GENERAL_CONSTRAINTS | {
+    PhaseId.P8_ImplPlan: frozenset(_GENERAL_CONSTRAINTS | {
         # Implementation decomposition into vertical slices
         "C-vertical-slices",
         # Supervisor must not implement directly
@@ -328,7 +328,7 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         # Each slice must have leaf tasks
         "C-slice-leaf-tasks",
     }),
-    PhaseId.P9_SLICE: frozenset(_GENERAL_CONSTRAINTS | {
+    PhaseId.P9_Slice: frozenset(_GENERAL_CONSTRAINTS | {
         # Worker quality gates before slice completion
         "C-worker-gates",
         # Commits happen in slice phase
@@ -344,7 +344,7 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         # Slices must be reviewed before closure; workers notify, supervisor closes
         "C-slice-review-before-close",
     }),
-    PhaseId.P10_CODE_REVIEW: frozenset(_GENERAL_CONSTRAINTS | {
+    PhaseId.P10_CodeReview: frozenset(_GENERAL_CONSTRAINTS | {
         # Code review → consensus required (all 3 reviewers ACCEPT)
         "C-review-consensus",
         # Code review → binary voting
@@ -368,16 +368,16 @@ _PHASE_CONSTRAINTS: dict[PhaseId, frozenset[str]] = {
         # Review-fix cycles capped at 3; remaining IMPORTANTs move to FOLLOWUP
         "C-max-review-cycles",
     }),
-    PhaseId.P11_IMPL_UAT: frozenset(_GENERAL_CONSTRAINTS | {
+    PhaseId.P11_ImplUat: frozenset(_GENERAL_CONSTRAINTS | {
         # Implementation UAT → verbatim capture
         "C-ure-verbatim",
     }),
-    PhaseId.P12_LANDING: frozenset(_GENERAL_CONSTRAINTS | {
+    PhaseId.P12_Landing: frozenset(_GENERAL_CONSTRAINTS | {
         # Landing phase commits code
         "C-agent-commit",
     }),
     # Terminal state — intentionally empty: no constraints apply after landing
-    PhaseId.COMPLETE: frozenset(),
+    PhaseId.Complete: frozenset(),
 }
 
 
@@ -526,7 +526,7 @@ def get_role_context(role: RoleId) -> RoleContext:
     # Review axes only for reviewer role; empty for all others.
     review_axes: tuple[ReviewAxisSpec, ...] = (
         tuple(REVIEW_AXIS_SPECS.values())
-        if role == RoleId.REVIEWER
+        if role == RoleId.Reviewer
         else ()
     )
 

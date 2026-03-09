@@ -40,12 +40,24 @@ from pathlib import Path
 from types import ModuleType
 from typing import Generator
 
+import logging
+
 import pytest
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 AURAD_PATH = Path(__file__).parent.parent / "bin" / "aurad.py"
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
+
+
+def _test_env() -> dict[str, str]:
+    """Curated env for subprocess tests."""
+    env = {"PYTHONPATH": str(SCRIPTS_DIR)}
+    for key in ("HOME", "PATH", "VIRTUAL_ENV", "PYTHONHOME"):
+        if key in os.environ:
+            env[key] = os.environ[key]
+    return env
+
 
 # Temporal env vars controlled by aurad.py
 _TEMPORAL_ENV_VARS = ("TEMPORAL_NAMESPACE", "TEMPORAL_TASK_QUEUE", "TEMPORAL_ADDRESS")
@@ -161,19 +173,19 @@ class TestArgParsingDefaults:
         module = _load_aurad()
         with _clean_env():
             args = module.parse_args([])
-        assert args.namespace == "default"
+        assert args.connection.namespace == "default"
 
     def test_default_task_queue(self) -> None:
         module = _load_aurad()
         with _clean_env():
             args = module.parse_args([])
-        assert args.task_queue == "aura"
+        assert args.connection.task_queue == "aura"
 
     def test_default_server_address(self) -> None:
         module = _load_aurad()
         with _clean_env():
             args = module.parse_args([])
-        assert args.server_address == "localhost:7233"
+        assert args.connection.server_address == "localhost:7233"
 
 
 # ─── Arg parsing: CLI overrides ───────────────────────────────────────────────
@@ -186,19 +198,19 @@ class TestArgParsingCLI:
         module = _load_aurad()
         with _clean_env():
             args = module.parse_args(["--namespace", "my-namespace"])
-        assert args.namespace == "my-namespace"
+        assert args.connection.namespace == "my-namespace"
 
     def test_cli_task_queue(self) -> None:
         module = _load_aurad()
         with _clean_env():
             args = module.parse_args(["--task-queue", "my-queue"])
-        assert args.task_queue == "my-queue"
+        assert args.connection.task_queue == "my-queue"
 
     def test_cli_server_address(self) -> None:
         module = _load_aurad()
         with _clean_env():
             args = module.parse_args(["--server-address", "remote-host:7233"])
-        assert args.server_address == "remote-host:7233"
+        assert args.connection.server_address == "remote-host:7233"
 
     def test_all_cli_args_together(self) -> None:
         module = _load_aurad()
@@ -208,9 +220,9 @@ class TestArgParsingCLI:
                 "--task-queue", "aura-prod",
                 "--server-address", "temporal.example.com:7233",
             ])
-        assert args.namespace == "prod"
-        assert args.task_queue == "aura-prod"
-        assert args.server_address == "temporal.example.com:7233"
+        assert args.connection.namespace == "prod"
+        assert args.connection.task_queue == "aura-prod"
+        assert args.connection.server_address == "temporal.example.com:7233"
 
 
 # ─── Arg parsing: env var fallbacks ──────────────────────────────────────────
@@ -223,19 +235,19 @@ class TestArgParsingEnvVars:
         module = _load_aurad()
         with _clean_env(TEMPORAL_NAMESPACE="env-namespace"):
             args = module.parse_args([])
-        assert args.namespace == "env-namespace"
+        assert args.connection.namespace == "env-namespace"
 
     def test_env_task_queue(self) -> None:
         module = _load_aurad()
         with _clean_env(TEMPORAL_TASK_QUEUE="env-queue"):
             args = module.parse_args([])
-        assert args.task_queue == "env-queue"
+        assert args.connection.task_queue == "env-queue"
 
     def test_env_server_address(self) -> None:
         module = _load_aurad()
         with _clean_env(TEMPORAL_ADDRESS="env-host:7233"):
             args = module.parse_args([])
-        assert args.server_address == "env-host:7233"
+        assert args.connection.server_address == "env-host:7233"
 
     def test_all_env_vars(self) -> None:
         module = _load_aurad()
@@ -245,9 +257,9 @@ class TestArgParsingEnvVars:
             TEMPORAL_ADDRESS="env-addr:7233",
         ):
             args = module.parse_args([])
-        assert args.namespace == "env-ns"
-        assert args.task_queue == "env-q"
-        assert args.server_address == "env-addr:7233"
+        assert args.connection.namespace == "env-ns"
+        assert args.connection.task_queue == "env-q"
+        assert args.connection.server_address == "env-addr:7233"
 
 
 # ─── Arg parsing: CLI wins over env var ──────────────────────────────────────
@@ -260,19 +272,19 @@ class TestArgParsingPriority:
         module = _load_aurad()
         with _clean_env(TEMPORAL_NAMESPACE="env-ns"):
             args = module.parse_args(["--namespace", "cli-ns"])
-        assert args.namespace == "cli-ns"
+        assert args.connection.namespace == "cli-ns"
 
     def test_cli_task_queue_wins_over_env(self) -> None:
         module = _load_aurad()
         with _clean_env(TEMPORAL_TASK_QUEUE="env-queue"):
             args = module.parse_args(["--task-queue", "cli-queue"])
-        assert args.task_queue == "cli-queue"
+        assert args.connection.task_queue == "cli-queue"
 
     def test_cli_address_wins_over_env(self) -> None:
         module = _load_aurad()
         with _clean_env(TEMPORAL_ADDRESS="env-host:7233"):
             args = module.parse_args(["--server-address", "cli-host:7233"])
-        assert args.server_address == "cli-host:7233"
+        assert args.connection.server_address == "cli-host:7233"
 
     def test_only_overridden_flag_wins(self) -> None:
         """CLI overrides only the flag it specifies; env var wins for the rest."""
@@ -282,8 +294,8 @@ class TestArgParsingPriority:
             TEMPORAL_TASK_QUEUE="env-queue",
         ):
             args = module.parse_args(["--namespace", "cli-ns"])
-        assert args.namespace == "cli-ns"       # CLI wins
-        assert args.task_queue == "env-queue"   # env var wins (no CLI flag)
+        assert args.connection.namespace == "cli-ns"       # CLI wins
+        assert args.connection.task_queue == "env-queue"   # env var wins (no CLI flag)
 
 
 # ─── --help output ────────────────────────────────────────────────────────────
@@ -297,7 +309,7 @@ class TestAuradHelp:
             [sys.executable, str(AURAD_PATH), "--help"],
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTHONPATH": str(SCRIPTS_DIR)},
+            env=_test_env(),
         )
         assert result.returncode == 0, f"--help exited {result.returncode}: {result.stderr}"
 
@@ -306,7 +318,7 @@ class TestAuradHelp:
             [sys.executable, str(AURAD_PATH), "--help"],
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTHONPATH": str(SCRIPTS_DIR)},
+            env=_test_env(),
         )
         assert "--namespace" in result.stdout, "--namespace not in --help output"
 
@@ -315,7 +327,7 @@ class TestAuradHelp:
             [sys.executable, str(AURAD_PATH), "--help"],
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTHONPATH": str(SCRIPTS_DIR)},
+            env=_test_env(),
         )
         assert "--task-queue" in result.stdout, "--task-queue not in --help output"
 
@@ -324,6 +336,58 @@ class TestAuradHelp:
             [sys.executable, str(AURAD_PATH), "--help"],
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTHONPATH": str(SCRIPTS_DIR)},
+            env=_test_env(),
         )
         assert "--server-address" in result.stdout, "--server-address not in --help output"
+
+
+# ─── --audit-db-path config ─────────────────────────────────────────────────
+
+
+class TestAuditDbPath:
+    """R-7: audit_db_path is configurable via CLI > env > YAML > default."""
+
+    def test_cli_audit_db_path(self) -> None:
+        module = _load_aurad()
+        with _clean_env():
+            config = module.parse_args(["--audit-db-path", "/tmp/custom.db"])
+        assert config.audit_db_path == Path("/tmp/custom.db")
+
+    def test_default_audit_db_path(self) -> None:
+        module = _load_aurad()
+        with _clean_env():
+            config = module.parse_args([])
+        # Default should be a Path (exact value from resolve_aurad_config defaults)
+        assert isinstance(config.audit_db_path, Path)
+        assert str(config.audit_db_path).endswith("audit.db")
+
+
+# ─── --verbose config resolution ────────────────────────────────────────────
+
+
+class TestVerboseResolution:
+    """R-8: --verbose logs which source each config value came from."""
+
+    def test_verbose_logs_resolution(self, caplog: pytest.LogCaptureFixture) -> None:
+        module = _load_aurad()
+        with _clean_env(), caplog.at_level(logging.INFO):
+            module.parse_args(["--verbose"])
+        output = caplog.text
+        assert "config resolution" in output
+        assert "namespace" in output
+        assert "task_queue" in output
+        assert "server_address" in output
+        assert "audit_trail" in output
+        assert "audit_db_path" in output
+
+    def test_verbose_shows_cli_source(self, caplog: pytest.LogCaptureFixture) -> None:
+        module = _load_aurad()
+        with _clean_env(), caplog.at_level(logging.INFO):
+            module.parse_args(["--verbose", "--namespace", "my-ns"])
+        assert "CLI --namespace" in caplog.text
+
+    def test_verbose_shows_default_source(self, caplog: pytest.LogCaptureFixture) -> None:
+        module = _load_aurad()
+        with _clean_env(), caplog.at_level(logging.INFO):
+            module.parse_args(["--verbose"])
+        assert "default" in caplog.text

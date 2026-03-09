@@ -72,14 +72,14 @@ from datetime import datetime, timezone
 
 def _make_state_at_p4_with_votes(**votes: VoteType) -> EpochState:
     """Return an EpochState at P4_REVIEW with the given axis->vote mapping."""
-    state = _make_state(phase=PhaseId.P4_REVIEW)
+    state = _make_state(phase=PhaseId.P4_Review)
     state.review_votes.update(votes)
     return state
 
 
 def _make_state_at_p10_with_votes(**votes: VoteType) -> EpochState:
     """Return an EpochState at P10_CODE_REVIEW with the given axis->vote mapping."""
-    state = _make_state(phase=PhaseId.P10_CODE_REVIEW)
+    state = _make_state(phase=PhaseId.P10_CodeReview)
     state.review_votes.update(votes)
     return state
 
@@ -92,7 +92,7 @@ def _make_checker() -> RuntimeConstraintChecker:
 def _all_accept_state(phase: PhaseId) -> EpochState:
     """Return an EpochState at the given phase with all 3 axes ACCEPT."""
     state = _make_state(phase=phase)
-    state.review_votes = {ReviewAxis.CORRECTNESS: VoteType.ACCEPT, ReviewAxis.TEST_QUALITY: VoteType.ACCEPT, ReviewAxis.ELEGANCE: VoteType.ACCEPT}
+    state.review_votes = {ReviewAxis.Correctness: VoteType.Accept, ReviewAxis.TestQuality: VoteType.Accept, ReviewAxis.Elegance: VoteType.Accept}
     return state
 
 
@@ -183,9 +183,9 @@ class TestRuntimeConstraintCheckerConstructor:
         custom_handoffs = {
             "h-test": HandoffSpec(
                 id="h-test",
-                source_role=RoleId.ARCHITECT,
-                target_role=RoleId.SUPERVISOR,
-                at_phase=PhaseId.P7_HANDOFF,
+                source_role=RoleId.Architect,
+                target_role=RoleId.Supervisor,
+                at_phase=PhaseId.P7_Handoff,
                 content_level="summary-with-ids",
                 required_fields=("request",),
             )
@@ -220,7 +220,7 @@ class TestAC4CheckState:
     def test_check_state_returns_violations_for_p10_with_blockers(self) -> None:
         """At p10 with blockers, check_state should include C-worker-gates violation."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=2)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=2)
         violations = checker.check_state(state)
         constraint_ids = {v.constraint_id for v in violations}
         assert "C-worker-gates" in constraint_ids
@@ -228,7 +228,7 @@ class TestAC4CheckState:
     def test_check_state_returns_empty_for_clean_p1_state(self) -> None:
         """A fresh p1 state with no violations should return empty list."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P1_REQUEST)
+        state = _make_state(phase=PhaseId.P1_Request)
         violations = checker.check_state(state)
         assert violations == []
 
@@ -236,7 +236,7 @@ class TestAC4CheckState:
         """check_state must aggregate ALL violations — not stop at first."""
         checker = _make_checker()
         # p10 with blockers AND no consensus AND no severity groups AND no audit trail
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=3)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=3)
         violations = checker.check_state(state)
         constraint_ids = {v.constraint_id for v in violations}
         # All 4 violations should appear:
@@ -251,7 +251,7 @@ class TestAC4CheckState:
 
     def test_check_state_violations_have_non_empty_messages(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW)
+        state = _make_state(phase=PhaseId.P4_Review)
         violations = checker.check_state(state)
         for v in violations:
             assert v.message, f"Empty message in violation: {v.constraint_id}"
@@ -259,7 +259,7 @@ class TestAC4CheckState:
     def test_check_state_violations_have_valid_constraint_ids(self) -> None:
         """All violation constraint_ids must match a known C-* constraint."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW, blocker_count=1)
+        state = _make_state(phase=PhaseId.P4_Review, blocker_count=1)
         violations = checker.check_state(state)
         for v in violations:
             assert v.constraint_id in CONSTRAINT_SPECS, (
@@ -269,45 +269,45 @@ class TestAC4CheckState:
     def test_check_state_p4_constraint_id_c_review_consensus(self) -> None:
         """AC4: check_state asserts C-review-consensus constraint_id individually."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW)
+        state = _make_state(phase=PhaseId.P4_Review)
         constraint_ids = {v.constraint_id for v in checker.check_state(state)}
         assert "C-review-consensus" in constraint_ids
 
     def test_check_state_p4_constraint_id_c_severity_not_plan(self) -> None:
         """AC4: check_state asserts C-severity-not-plan constraint_id individually (via check_severity_tree)."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW)
+        state = _make_state(phase=PhaseId.P4_Review)
         constraint_ids = {v.constraint_id for v in checker.check_state(state)}
         assert "C-severity-not-plan" in constraint_ids
 
     def test_check_state_p10_constraint_id_c_severity_eager(self) -> None:
         """AC4: check_state asserts C-severity-eager constraint_id individually (p10, no severity groups)."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW)
+        state = _make_state(phase=PhaseId.P10_CodeReview)
         constraint_ids = {v.constraint_id for v in checker.check_state(state)}
         assert "C-severity-eager" in constraint_ids
 
     def test_check_state_p10_constraint_id_c_worker_gates(self) -> None:
         """AC4: check_state asserts C-worker-gates constraint_id individually (p10 with blockers)."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=1)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=1)
         constraint_ids = {v.constraint_id for v in checker.check_state(state)}
         assert "C-worker-gates" in constraint_ids
 
     def test_check_state_p2_constraint_id_c_audit_never_delete(self) -> None:
         """AC4: check_state asserts C-audit-never-delete constraint_id individually (p2 empty history)."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P2_ELICIT)
+        state = _make_state(phase=PhaseId.P2_Elicit)
         constraint_ids = {v.constraint_id for v in checker.check_state(state)}
         assert "C-audit-never-delete" in constraint_ids
 
     def test_check_state_constraint_id_c_audit_dep_chain(self) -> None:
         """AC4: check_state asserts C-audit-dep-chain constraint_id individually (missing triggered_by)."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P2_ELICIT)
+        state = _make_state(phase=PhaseId.P2_Elicit)
         record = TransitionRecord(
-            from_phase=PhaseId.P1_REQUEST,
-            to_phase=PhaseId.P2_ELICIT,
+            from_phase=PhaseId.P1_Request,
+            to_phase=PhaseId.P2_Elicit,
             timestamp=datetime.now(tz=timezone.utc),
             triggered_by="",  # missing
             condition_met="test condition",
@@ -319,7 +319,7 @@ class TestAC4CheckState:
     def test_check_state_constraint_id_c_vertical_slices(self) -> None:
         """AC4: check_state asserts C-vertical-slices constraint_id individually (unknown role)."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P9_SLICE, current_role="unknown-role")
+        state = _make_state(phase=PhaseId.P9_Slice, current_role="unknown-role")
         constraint_ids = {v.constraint_id for v in checker.check_state(state)}
         assert "C-vertical-slices" in constraint_ids
 
@@ -327,23 +327,23 @@ class TestAC4CheckState:
         """check_state returns empty for valid p10 state (all groups present, no blockers)."""
         checker = _make_checker()
         state = _make_state(
-            phase=PhaseId.P10_CODE_REVIEW,
+            phase=PhaseId.P10_CodeReview,
             severity_groups={
-                SeverityLevel.BLOCKER: set(),
-                SeverityLevel.IMPORTANT: set(),
-                SeverityLevel.MINOR: set(),
+                SeverityLevel.Blocker: set(),
+                SeverityLevel.Important: set(),
+                SeverityLevel.Minor: set(),
             },
         )
         state.review_votes = {
-            ReviewAxis.CORRECTNESS: VoteType.ACCEPT,
-            ReviewAxis.TEST_QUALITY: VoteType.ACCEPT,
-            ReviewAxis.ELEGANCE: VoteType.ACCEPT,
+            ReviewAxis.Correctness: VoteType.Accept,
+            ReviewAxis.TestQuality: VoteType.Accept,
+            ReviewAxis.Elegance: VoteType.Accept,
         }
         # Add a transition record so audit trail is satisfied
         state.transition_history.append(
             TransitionRecord(
-                from_phase=PhaseId.P9_SLICE,
-                to_phase=PhaseId.P10_CODE_REVIEW,
+                from_phase=PhaseId.P9_Slice,
+                to_phase=PhaseId.P10_CodeReview,
                 timestamp=datetime.now(tz=timezone.utc),
                 triggered_by="worker",
                 condition_met="slice complete",
@@ -376,7 +376,7 @@ class TestAC5CheckStateConstraints:
     def test_check_state_constraints_returns_violations_for_p10_with_blockers(self) -> None:
         """At p10 with blockers, check_state_constraints should include C-worker-gates violation."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=2)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=2)
         violations = checker.check_state_constraints(state)
         constraint_ids = {v.constraint_id for v in violations}
         assert "C-worker-gates" in constraint_ids
@@ -384,7 +384,7 @@ class TestAC5CheckStateConstraints:
     def test_check_state_constraints_returns_empty_for_clean_p1_state(self) -> None:
         """A fresh p1 state with no violations should return empty list."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P1_REQUEST)
+        state = _make_state(phase=PhaseId.P1_Request)
         violations = checker.check_state_constraints(state)
         assert violations == []
 
@@ -392,7 +392,7 @@ class TestAC5CheckStateConstraints:
         """check_state_constraints must aggregate ALL violations — not stop at first."""
         checker = _make_checker()
         # p10 with blockers AND no consensus — should get both violations
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=3)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=3)
         # no votes recorded
         violations = checker.check_state_constraints(state)
         constraint_ids = {v.constraint_id for v in violations}
@@ -402,7 +402,7 @@ class TestAC5CheckStateConstraints:
 
     def test_check_state_constraints_violations_have_non_empty_messages(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW)
+        state = _make_state(phase=PhaseId.P4_Review)
         violations = checker.check_state_constraints(state)
         for v in violations:
             assert v.message, f"Empty message in violation: {v.constraint_id}"
@@ -410,7 +410,7 @@ class TestAC5CheckStateConstraints:
     def test_check_state_constraints_violations_have_valid_constraint_ids(self) -> None:
         """All violation constraint_ids must match a known C-* constraint."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW, blocker_count=1)
+        state = _make_state(phase=PhaseId.P4_Review, blocker_count=1)
         violations = checker.check_state_constraints(state)
         for v in violations:
             assert v.constraint_id in CONSTRAINT_SPECS, (
@@ -420,7 +420,7 @@ class TestAC5CheckStateConstraints:
     def test_check_state_constraints_delegates_to_check_state(self) -> None:
         """check_state_constraints must produce the same result as check_state."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW, blocker_count=1)
+        state = _make_state(phase=PhaseId.P4_Review, blocker_count=1)
         assert checker.check_state_constraints(state) == checker.check_state(state)
 
 
@@ -434,68 +434,68 @@ class TestCheckTransitionConstraints:
 
     def test_p4_to_p5_without_consensus_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state_at_p4_with_votes(A=VoteType.ACCEPT)  # only 1 axis
-        violations = checker.check_transition_constraints(state, PhaseId.P5_UAT)
+        state = _make_state_at_p4_with_votes(A=VoteType.Accept)  # only 1 axis
+        violations = checker.check_transition_constraints(state, PhaseId.P5_Uat)
         ids = {v.constraint_id for v in violations}
         assert "C-review-consensus" in ids
 
     def test_p4_to_p5_with_consensus_returns_no_consensus_violation(self) -> None:
         checker = _make_checker()
-        state = _all_accept_state(PhaseId.P4_REVIEW)
-        violations = checker.check_transition_constraints(state, PhaseId.P5_UAT)
+        state = _all_accept_state(PhaseId.P4_Review)
+        violations = checker.check_transition_constraints(state, PhaseId.P5_Uat)
         ids = {v.constraint_id for v in violations}
         assert "C-review-consensus" not in ids
 
     def test_p10_to_p11_without_consensus_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state_at_p10_with_votes(A=VoteType.ACCEPT, B=VoteType.ACCEPT)
-        violations = checker.check_transition_constraints(state, PhaseId.P11_IMPL_UAT)
+        state = _make_state_at_p10_with_votes(A=VoteType.Accept, B=VoteType.Accept)
+        violations = checker.check_transition_constraints(state, PhaseId.P11_ImplUat)
         ids = {v.constraint_id for v in violations}
         assert "C-review-consensus" in ids
 
     def test_p10_to_p11_with_consensus_returns_no_consensus_violation(self) -> None:
         checker = _make_checker()
-        state = _all_accept_state(PhaseId.P10_CODE_REVIEW)
-        violations = checker.check_transition_constraints(state, PhaseId.P11_IMPL_UAT)
+        state = _all_accept_state(PhaseId.P10_CodeReview)
+        violations = checker.check_transition_constraints(state, PhaseId.P11_ImplUat)
         ids = {v.constraint_id for v in violations}
         assert "C-review-consensus" not in ids
 
     def test_p1_to_p2_returns_no_violations(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P1_REQUEST)
-        violations = checker.check_transition_constraints(state, PhaseId.P2_ELICIT)
+        state = _make_state(phase=PhaseId.P1_Request)
+        violations = checker.check_transition_constraints(state, PhaseId.P2_Elicit)
         assert violations == []
 
     def test_handoff_required_transition_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P7_HANDOFF)
-        violations = checker.check_transition_constraints(state, PhaseId.P8_IMPL_PLAN)
+        state = _make_state(phase=PhaseId.P7_Handoff)
+        violations = checker.check_transition_constraints(state, PhaseId.P8_ImplPlan)
         ids = {v.constraint_id for v in violations}
         assert "C-handoff-skill-invocation" in ids
 
     def test_same_actor_transition_returns_no_handoff_violation(self) -> None:
         checker = _make_checker()
         # p5→p6 and p6→p7 are same-actor (no handoff needed)
-        state = _make_state(phase=PhaseId.P5_UAT)
-        violations = checker.check_transition_constraints(state, PhaseId.P6_RATIFY)
+        state = _make_state(phase=PhaseId.P5_Uat)
+        violations = checker.check_transition_constraints(state, PhaseId.P6_Ratify)
         ids = {v.constraint_id for v in violations}
         assert "C-handoff-skill-invocation" not in ids
 
     def test_p10_to_p11_with_blockers_returns_blocker_gate_violation(self) -> None:
         """p10→p11 transition is blocked while blocker_count > 0."""
         checker = _make_checker()
-        state = _all_accept_state(PhaseId.P10_CODE_REVIEW)
+        state = _all_accept_state(PhaseId.P10_CodeReview)
         state.blocker_count = 2
-        violations = checker.check_transition_constraints(state, PhaseId.P11_IMPL_UAT)
+        violations = checker.check_transition_constraints(state, PhaseId.P11_ImplUat)
         ids = {v.constraint_id for v in violations}
         assert "C-worker-gates" in ids
 
     def test_p10_to_p11_with_zero_blockers_no_blocker_gate_violation(self) -> None:
         """p10→p11 is not blocked when blocker_count is 0."""
         checker = _make_checker()
-        state = _all_accept_state(PhaseId.P10_CODE_REVIEW)
+        state = _all_accept_state(PhaseId.P10_CodeReview)
         state.blocker_count = 0
-        violations = checker.check_transition_constraints(state, PhaseId.P11_IMPL_UAT)
+        violations = checker.check_transition_constraints(state, PhaseId.P11_ImplUat)
         ids = {v.constraint_id for v in violations}
         assert "C-worker-gates" not in ids
 
@@ -503,17 +503,17 @@ class TestCheckTransitionConstraints:
         """check_transition_constraints must aggregate all transition violations."""
         checker = _make_checker()
         # p10→p11 with no consensus AND blockers: both violations should appear
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=3)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=3)
         # no votes recorded
-        violations = checker.check_transition_constraints(state, PhaseId.P11_IMPL_UAT)
+        violations = checker.check_transition_constraints(state, PhaseId.P11_ImplUat)
         ids = {v.constraint_id for v in violations}
         assert "C-review-consensus" in ids
         assert "C-worker-gates" in ids
 
     def test_returns_list(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P1_REQUEST)
-        result = checker.check_transition_constraints(state, PhaseId.P2_ELICIT)
+        state = _make_state(phase=PhaseId.P1_Request)
+        result = checker.check_transition_constraints(state, PhaseId.P2_Elicit)
         assert isinstance(result, list)
 
 
@@ -525,59 +525,59 @@ class TestCheckTransition:
 
     def test_p4_to_p5_without_consensus_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state_at_p4_with_votes(A=VoteType.ACCEPT)  # only 1 axis
-        violations = checker.check_transition(state, PhaseId.P5_UAT)
+        state = _make_state_at_p4_with_votes(A=VoteType.Accept)  # only 1 axis
+        violations = checker.check_transition(state, PhaseId.P5_Uat)
         ids = {v.constraint_id for v in violations}
         assert "C-review-consensus" in ids
 
     def test_p4_to_p5_with_consensus_returns_no_consensus_violation(self) -> None:
         checker = _make_checker()
-        state = _all_accept_state(PhaseId.P4_REVIEW)
-        violations = checker.check_transition(state, PhaseId.P5_UAT)
+        state = _all_accept_state(PhaseId.P4_Review)
+        violations = checker.check_transition(state, PhaseId.P5_Uat)
         ids = {v.constraint_id for v in violations}
         assert "C-review-consensus" not in ids
 
     def test_p10_to_p11_without_consensus_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state_at_p10_with_votes(A=VoteType.ACCEPT, B=VoteType.ACCEPT)
-        violations = checker.check_transition(state, PhaseId.P11_IMPL_UAT)
+        state = _make_state_at_p10_with_votes(A=VoteType.Accept, B=VoteType.Accept)
+        violations = checker.check_transition(state, PhaseId.P11_ImplUat)
         ids = {v.constraint_id for v in violations}
         assert "C-review-consensus" in ids
 
     def test_p10_to_p11_with_consensus_returns_no_consensus_violation(self) -> None:
         checker = _make_checker()
-        state = _all_accept_state(PhaseId.P10_CODE_REVIEW)
-        violations = checker.check_transition(state, PhaseId.P11_IMPL_UAT)
+        state = _all_accept_state(PhaseId.P10_CodeReview)
+        violations = checker.check_transition(state, PhaseId.P11_ImplUat)
         ids = {v.constraint_id for v in violations}
         assert "C-review-consensus" not in ids
 
     def test_p1_to_p2_returns_no_violations(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P1_REQUEST)
-        violations = checker.check_transition(state, PhaseId.P2_ELICIT)
+        state = _make_state(phase=PhaseId.P1_Request)
+        violations = checker.check_transition(state, PhaseId.P2_Elicit)
         assert violations == []
 
     def test_handoff_required_transition_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P7_HANDOFF)
-        violations = checker.check_transition(state, PhaseId.P8_IMPL_PLAN)
+        state = _make_state(phase=PhaseId.P7_Handoff)
+        violations = checker.check_transition(state, PhaseId.P8_ImplPlan)
         ids = {v.constraint_id for v in violations}
         assert "C-handoff-skill-invocation" in ids
 
     def test_same_actor_transition_returns_no_handoff_violation(self) -> None:
         checker = _make_checker()
         # p5→p6 and p6→p7 are same-actor (no handoff needed)
-        state = _make_state(phase=PhaseId.P5_UAT)
-        violations = checker.check_transition(state, PhaseId.P6_RATIFY)
+        state = _make_state(phase=PhaseId.P5_Uat)
+        violations = checker.check_transition(state, PhaseId.P6_Ratify)
         ids = {v.constraint_id for v in violations}
         assert "C-handoff-skill-invocation" not in ids
 
     def test_check_transition_constraints_delegates_to_check_transition(self) -> None:
         """check_transition_constraints (alias) must produce same result as check_transition (primary)."""
         checker = _make_checker()
-        state = _make_state_at_p4_with_votes(A=VoteType.ACCEPT)
-        assert checker.check_transition_constraints(state, PhaseId.P5_UAT) == \
-            checker.check_transition(state, PhaseId.P5_UAT)
+        state = _make_state_at_p4_with_votes(A=VoteType.Accept)
+        assert checker.check_transition_constraints(state, PhaseId.P5_Uat) == \
+            checker.check_transition(state, PhaseId.P5_Uat)
 
 
 # ─── C-review-consensus ───────────────────────────────────────────────────────
@@ -588,14 +588,14 @@ class TestCheckReviewConsensus:
 
     def test_p4_no_votes_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW)
+        state = _make_state(phase=PhaseId.P4_Review)
         violations = checker.check_review_consensus(state)
         assert len(violations) == 1
         assert violations[0].constraint_id == "C-review-consensus"
 
     def test_p4_partial_votes_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state_at_p4_with_votes(A=VoteType.ACCEPT, B=VoteType.ACCEPT)
+        state = _make_state_at_p4_with_votes(A=VoteType.Accept, B=VoteType.Accept)
         violations = checker.check_review_consensus(state)
         assert len(violations) == 1
         assert violations[0].constraint_id == "C-review-consensus"
@@ -603,7 +603,7 @@ class TestCheckReviewConsensus:
     def test_p4_with_revise_vote_returns_violation(self) -> None:
         checker = _make_checker()
         state = _make_state_at_p4_with_votes(
-            A=VoteType.ACCEPT, B=VoteType.ACCEPT, C=VoteType.REVISE
+            A=VoteType.Accept, B=VoteType.Accept, C=VoteType.Revise
         )
         violations = checker.check_review_consensus(state)
         assert len(violations) == 1
@@ -611,28 +611,28 @@ class TestCheckReviewConsensus:
 
     def test_p4_all_accept_returns_empty(self) -> None:
         checker = _make_checker()
-        state = _all_accept_state(PhaseId.P4_REVIEW)
+        state = _all_accept_state(PhaseId.P4_Review)
         violations = checker.check_review_consensus(state)
         assert violations == []
 
     def test_p10_no_votes_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW)
+        state = _make_state(phase=PhaseId.P10_CodeReview)
         violations = checker.check_review_consensus(state)
         assert len(violations) == 1
         assert violations[0].constraint_id == "C-review-consensus"
 
     def test_p10_all_accept_returns_empty(self) -> None:
         checker = _make_checker()
-        state = _all_accept_state(PhaseId.P10_CODE_REVIEW)
+        state = _all_accept_state(PhaseId.P10_CodeReview)
         violations = checker.check_review_consensus(state)
         assert violations == []
 
     def test_non_review_phase_returns_empty(self) -> None:
         checker = _make_checker()
         for phase in (
-            PhaseId.P1_REQUEST, PhaseId.P2_ELICIT, PhaseId.P3_PROPOSE,
-            PhaseId.P5_UAT, PhaseId.P9_SLICE, PhaseId.P12_LANDING,
+            PhaseId.P1_Request, PhaseId.P2_Elicit, PhaseId.P3_Propose,
+            PhaseId.P5_Uat, PhaseId.P9_Slice, PhaseId.P12_Landing,
         ):
             state = _make_state(phase=phase)
             violations = checker.check_review_consensus(state)
@@ -640,13 +640,13 @@ class TestCheckReviewConsensus:
 
     def test_violation_message_mentions_consensus(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW)
+        state = _make_state(phase=PhaseId.P4_Review)
         violations = checker.check_review_consensus(state)
         assert "consensus" in violations[0].message.lower() or "accept" in violations[0].message.lower()
 
     def test_violation_context_contains_phase(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW)
+        state = _make_state(phase=PhaseId.P4_Review)
         violations = checker.check_review_consensus(state)
         assert "phase" in violations[0].context
         assert violations[0].context["phase"] == "p4"
@@ -706,7 +706,7 @@ class TestCheckSeverityTree:
     def test_p4_returns_violation_for_severity_not_plan(self) -> None:
         """Plan review (p4) must NOT have severity trees."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW)
+        state = _make_state(phase=PhaseId.P4_Review)
         violations = checker.check_severity_tree(state)
         assert len(violations) == 1
         assert violations[0].constraint_id == "C-severity-not-plan"
@@ -714,8 +714,8 @@ class TestCheckSeverityTree:
     def test_non_review_phase_returns_empty(self) -> None:
         checker = _make_checker()
         for phase in (
-            PhaseId.P1_REQUEST, PhaseId.P2_ELICIT, PhaseId.P3_PROPOSE,
-            PhaseId.P5_UAT, PhaseId.P8_IMPL_PLAN, PhaseId.P9_SLICE,
+            PhaseId.P1_Request, PhaseId.P2_Elicit, PhaseId.P3_Propose,
+            PhaseId.P5_Uat, PhaseId.P8_ImplPlan, PhaseId.P9_Slice,
         ):
             state = _make_state(phase=phase)
             violations = checker.check_severity_tree(state)
@@ -724,7 +724,7 @@ class TestCheckSeverityTree:
     def test_p10_without_severity_groups_returns_violation(self) -> None:
         """AC5: p10 without severity_groups → C-severity-eager violation."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW)
+        state = _make_state(phase=PhaseId.P10_CodeReview)
         # severity_groups defaults to empty dict — no groups present
         violations = checker.check_severity_tree(state)
         assert len(violations) == 1
@@ -734,11 +734,11 @@ class TestCheckSeverityTree:
         """p10 with all 3 SeverityLevel keys → no violation (positive case)."""
         checker = _make_checker()
         state = _make_state(
-            phase=PhaseId.P10_CODE_REVIEW,
+            phase=PhaseId.P10_CodeReview,
             severity_groups={
-                SeverityLevel.BLOCKER: set(),
-                SeverityLevel.IMPORTANT: set(),
-                SeverityLevel.MINOR: set(),
+                SeverityLevel.Blocker: set(),
+                SeverityLevel.Important: set(),
+                SeverityLevel.Minor: set(),
             },
         )
         violations = checker.check_severity_tree(state)
@@ -748,8 +748,8 @@ class TestCheckSeverityTree:
         """p10 with only 1 or 2 severity groups → C-severity-eager violation."""
         checker = _make_checker()
         state = _make_state(
-            phase=PhaseId.P10_CODE_REVIEW,
-            severity_groups={SeverityLevel.BLOCKER: set()},
+            phase=PhaseId.P10_CodeReview,
+            severity_groups={SeverityLevel.Blocker: set()},
         )
         violations = checker.check_severity_tree(state)
         assert len(violations) == 1
@@ -758,7 +758,7 @@ class TestCheckSeverityTree:
     def test_p10_severity_eager_violation_context_has_missing_levels(self) -> None:
         """Violation context includes which severity levels are missing."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW)
+        state = _make_state(phase=PhaseId.P10_CodeReview)
         violations = checker.check_severity_tree(state)
         assert violations[0].context.get("phase") == "p10"
         missing = violations[0].context.get("missing_severity_levels", "")
@@ -767,7 +767,7 @@ class TestCheckSeverityTree:
     def test_p10_state_machine_advance_populates_severity_groups(self) -> None:
         """Advancing to p10 via EpochStateMachine auto-populates all 3 severity groups."""
         sm = EpochStateMachine("test-p10-severity")
-        _advance_to(sm, PhaseId.P10_CODE_REVIEW)
+        _advance_to(sm, PhaseId.P10_CodeReview)
         state = sm.state
         checker = _make_checker()
         violations = checker.check_severity_tree(state)
@@ -778,13 +778,13 @@ class TestCheckSeverityTree:
 
     def test_severity_not_plan_violation_mentions_plan_review(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW)
+        state = _make_state(phase=PhaseId.P4_Review)
         violations = checker.check_severity_tree(state)
         assert "p4" in violations[0].message or "plan" in violations[0].message.lower()
 
     def test_severity_not_plan_violation_context_has_phase(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW)
+        state = _make_state(phase=PhaseId.P4_Review)
         violations = checker.check_severity_tree(state)
         assert violations[0].context.get("phase") == "p4"
 
@@ -797,46 +797,46 @@ class TestCheckHandoffRequired:
 
     def test_p7_to_p8_requires_handoff(self) -> None:
         checker = _make_checker()
-        violations = checker.check_handoff_required(PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN)
+        violations = checker.check_handoff_required(PhaseId.P7_Handoff, PhaseId.P8_ImplPlan)
         assert len(violations) == 1
         assert violations[0].constraint_id == "C-handoff-skill-invocation"
 
     def test_p9_to_p10_requires_handoff(self) -> None:
         checker = _make_checker()
-        violations = checker.check_handoff_required(PhaseId.P9_SLICE, PhaseId.P10_CODE_REVIEW)
+        violations = checker.check_handoff_required(PhaseId.P9_Slice, PhaseId.P10_CodeReview)
         assert len(violations) == 1
         assert violations[0].constraint_id == "C-handoff-skill-invocation"
 
     def test_p5_to_p6_same_actor_no_handoff(self) -> None:
         checker = _make_checker()
-        violations = checker.check_handoff_required(PhaseId.P5_UAT, PhaseId.P6_RATIFY)
+        violations = checker.check_handoff_required(PhaseId.P5_Uat, PhaseId.P6_Ratify)
         assert violations == []
 
     def test_p6_to_p7_same_actor_no_handoff(self) -> None:
         checker = _make_checker()
-        violations = checker.check_handoff_required(PhaseId.P6_RATIFY, PhaseId.P7_HANDOFF)
+        violations = checker.check_handoff_required(PhaseId.P6_Ratify, PhaseId.P7_Handoff)
         assert violations == []
 
     def test_non_actor_change_transitions_no_handoff(self) -> None:
         checker = _make_checker()
         for from_p, to_p in (
-            (PhaseId.P1_REQUEST, PhaseId.P2_ELICIT),
-            (PhaseId.P2_ELICIT, PhaseId.P3_PROPOSE),
-            (PhaseId.P3_PROPOSE, PhaseId.P4_REVIEW),
+            (PhaseId.P1_Request, PhaseId.P2_Elicit),
+            (PhaseId.P2_Elicit, PhaseId.P3_Propose),
+            (PhaseId.P3_Propose, PhaseId.P4_Review),
         ):
             violations = checker.check_handoff_required(from_p, to_p)
             assert violations == [], f"Unexpected handoff violation for {from_p} -> {to_p}"
 
     def test_violation_context_contains_from_and_to_phase(self) -> None:
         checker = _make_checker()
-        violations = checker.check_handoff_required(PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN)
+        violations = checker.check_handoff_required(PhaseId.P7_Handoff, PhaseId.P8_ImplPlan)
         ctx = violations[0].context
         assert ctx.get("from_phase") == "p7"
         assert ctx.get("to_phase") == "p8"
 
     def test_violation_message_mentions_skill_invocation(self) -> None:
         checker = _make_checker()
-        violations = checker.check_handoff_required(PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN)
+        violations = checker.check_handoff_required(PhaseId.P7_Handoff, PhaseId.P8_ImplPlan)
         msg = violations[0].message.lower()
         assert "skill" in msg or "handoff" in msg
 
@@ -849,32 +849,32 @@ class TestCheckBlockerGate:
 
     def test_p10_with_blockers_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=1)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=1)
         violations = checker.check_blocker_gate(state)
         assert len(violations) == 1
         assert violations[0].constraint_id == "C-worker-gates"
 
     def test_p10_with_zero_blockers_returns_empty(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=0)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=0)
         violations = checker.check_blocker_gate(state)
         assert violations == []
 
     def test_non_p10_with_blockers_returns_empty(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P9_SLICE, blocker_count=5)
+        state = _make_state(phase=PhaseId.P9_Slice, blocker_count=5)
         violations = checker.check_blocker_gate(state)
         assert violations == []
 
     def test_violation_context_contains_blocker_count(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=3)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=3)
         violations = checker.check_blocker_gate(state)
         assert violations[0].context.get("blocker_count") == "3"
 
     def test_violation_message_mentions_blocker(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=2)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=2)
         violations = checker.check_blocker_gate(state)
         assert "blocker" in violations[0].message.lower()
 
@@ -888,7 +888,7 @@ class TestCheckAuditTrail:
     def test_p2_with_empty_history_returns_violation(self) -> None:
         checker = _make_checker()
         # At p2 but no transitions recorded — audit trail problem
-        state = _make_state(phase=PhaseId.P2_ELICIT)
+        state = _make_state(phase=PhaseId.P2_Elicit)
         state.transition_history.clear()
         violations = checker.check_audit_trail(state)
         ids = {v.constraint_id for v in violations}
@@ -897,17 +897,17 @@ class TestCheckAuditTrail:
     def test_p1_with_empty_history_no_violation(self) -> None:
         checker = _make_checker()
         # At p1 (start), empty history is expected
-        state = _make_state(phase=PhaseId.P1_REQUEST)
+        state = _make_state(phase=PhaseId.P1_Request)
         violations = checker.check_audit_trail(state)
         ids = {v.constraint_id for v in violations}
         assert "C-audit-never-delete" not in ids
 
     def test_transition_record_missing_triggered_by_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P2_ELICIT)
+        state = _make_state(phase=PhaseId.P2_Elicit)
         record = TransitionRecord(
-            from_phase=PhaseId.P1_REQUEST,
-            to_phase=PhaseId.P2_ELICIT,
+            from_phase=PhaseId.P1_Request,
+            to_phase=PhaseId.P2_Elicit,
             timestamp=datetime.now(tz=timezone.utc),
             triggered_by="",  # missing
             condition_met="test condition",
@@ -919,10 +919,10 @@ class TestCheckAuditTrail:
 
     def test_transition_record_missing_condition_met_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P2_ELICIT)
+        state = _make_state(phase=PhaseId.P2_Elicit)
         record = TransitionRecord(
-            from_phase=PhaseId.P1_REQUEST,
-            to_phase=PhaseId.P2_ELICIT,
+            from_phase=PhaseId.P1_Request,
+            to_phase=PhaseId.P2_Elicit,
             timestamp=datetime.now(tz=timezone.utc),
             triggered_by="architect",
             condition_met="",  # missing
@@ -934,10 +934,10 @@ class TestCheckAuditTrail:
 
     def test_valid_history_returns_empty(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P2_ELICIT)
+        state = _make_state(phase=PhaseId.P2_Elicit)
         record = TransitionRecord(
-            from_phase=PhaseId.P1_REQUEST,
-            to_phase=PhaseId.P2_ELICIT,
+            from_phase=PhaseId.P1_Request,
+            to_phase=PhaseId.P2_Elicit,
             timestamp=datetime.now(tz=timezone.utc),
             triggered_by="architect",
             condition_met="classification confirmed",
@@ -955,19 +955,19 @@ class TestCheckRoleOwnership:
 
     def test_valid_worker_role_returns_empty(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P9_SLICE, current_role=RoleId.WORKER)
+        state = _make_state(phase=PhaseId.P9_Slice, current_role=RoleId.Worker)
         violations = checker.check_role_ownership(state)
         assert violations == []
 
     def test_valid_supervisor_role_returns_empty(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P8_IMPL_PLAN, current_role=RoleId.SUPERVISOR)
+        state = _make_state(phase=PhaseId.P8_ImplPlan, current_role=RoleId.Supervisor)
         violations = checker.check_role_ownership(state)
         assert violations == []
 
     def test_unknown_role_returns_violation(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P9_SLICE, current_role="unknown-role")
+        state = _make_state(phase=PhaseId.P9_Slice, current_role="unknown-role")
         violations = checker.check_role_ownership(state)
         assert len(violations) >= 1
         ids = {v.constraint_id for v in violations}
@@ -989,11 +989,11 @@ class TestCheckReviewBinary:
 
     def test_accept_vote_returns_empty(self) -> None:
         checker = _make_checker()
-        assert checker.check_review_binary(VoteType.ACCEPT) == []
+        assert checker.check_review_binary(VoteType.Accept) == []
 
     def test_revise_vote_returns_empty(self) -> None:
         checker = _make_checker()
-        assert checker.check_review_binary(VoteType.REVISE) == []
+        assert checker.check_review_binary(VoteType.Revise) == []
 
     def test_approve_vote_returns_violation(self) -> None:
         checker = _make_checker()
@@ -1508,14 +1508,14 @@ class TestCheckSupervisorExploreEphemeral:
     def test_p8_with_ephemeral_task_returns_empty(self) -> None:
         checker = _make_checker()
         violations = checker.check_supervisor_explore_ephemeral(
-            PhaseId.P8_IMPL_PLAN, exploration_method="ephemeral_task"
+            PhaseId.P8_ImplPlan, exploration_method="ephemeral_task"
         )
         assert violations == []
 
     def test_p8_without_ephemeral_task_returns_violation(self) -> None:
         checker = _make_checker()
         violations = checker.check_supervisor_explore_ephemeral(
-            PhaseId.P8_IMPL_PLAN, exploration_method="direct"
+            PhaseId.P8_ImplPlan, exploration_method="direct"
         )
         assert len(violations) == 1
         assert violations[0].constraint_id == "C-supervisor-explore-ephemeral"
@@ -1523,14 +1523,14 @@ class TestCheckSupervisorExploreEphemeral:
     def test_non_p8_phase_returns_empty_regardless_of_method(self) -> None:
         checker = _make_checker()
         for phase in (
-            PhaseId.P1_REQUEST, PhaseId.P9_SLICE, PhaseId.P10_CODE_REVIEW
+            PhaseId.P1_Request, PhaseId.P9_Slice, PhaseId.P10_CodeReview
         ):
             violations = checker.check_supervisor_explore_ephemeral(phase, exploration_method="direct")
             assert violations == [], f"Unexpected violation at {phase}"
 
     def test_violation_context_contains_phase(self) -> None:
         checker = _make_checker()
-        violations = checker.check_supervisor_explore_ephemeral(PhaseId.P8_IMPL_PLAN, "direct")
+        violations = checker.check_supervisor_explore_ephemeral(PhaseId.P8_ImplPlan, "direct")
         assert violations[0].context.get("phase") == "p8"
 
 
@@ -1675,14 +1675,14 @@ class TestCrossConstraintIntegration:
 
     def test_p4_with_no_votes_check_state_constraints_is_non_empty(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P4_REVIEW)
+        state = _make_state(phase=PhaseId.P4_Review)
         violations = checker.check_state_constraints(state)
         # AC5: should NOT silently pass
         assert violations, "check_state_constraints should return violations for p4 without consensus"
 
     def test_p10_with_blockers_and_no_consensus_check_state_constraints_is_non_empty(self) -> None:
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=2)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=2)
         violations = checker.check_state_constraints(state)
         assert violations, "check_state_constraints should return violations for p10 with blockers"
 
@@ -1690,7 +1690,7 @@ class TestCrossConstraintIntegration:
         """Every constraint_id in a violation must be a known C-* constraint."""
         checker = _make_checker()
         # Create a state with multiple potential violations
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=1)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=1)
         violations = checker.check_state_constraints(state)
         for v in violations:
             assert v.constraint_id in CONSTRAINT_SPECS, (
@@ -1701,14 +1701,14 @@ class TestCrossConstraintIntegration:
     def test_clean_p1_state_produces_no_violations(self) -> None:
         """A fresh p1 state should not produce any violations."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P1_REQUEST)
+        state = _make_state(phase=PhaseId.P1_Request)
         violations = checker.check_state_constraints(state)
         assert violations == [], f"Unexpected violations for clean p1 state: {violations}"
 
     def test_check_state_constraints_aggregates_not_short_circuits(self) -> None:
         """check_state_constraints must return violations from multiple checks, not just the first."""
         checker = _make_checker()
-        state = _make_state(phase=PhaseId.P10_CODE_REVIEW, blocker_count=5)
+        state = _make_state(phase=PhaseId.P10_CodeReview, blocker_count=5)
         # p10 has both C-review-consensus (no votes) and C-worker-gates (blockers)
         violations = checker.check_state_constraints(state)
         constraint_ids = {v.constraint_id for v in violations}
@@ -1730,16 +1730,16 @@ class TestSameActorModuleLevelConstant:
 
     def test_same_actor_contains_p5_to_p6(self) -> None:
         """p5→p6 is a same-actor transition (no handoff needed)."""
-        assert (PhaseId.P5_UAT, PhaseId.P6_RATIFY) in _SAME_ACTOR
+        assert (PhaseId.P5_Uat, PhaseId.P6_Ratify) in _SAME_ACTOR
 
     def test_same_actor_contains_p6_to_p7(self) -> None:
         """p6→p7 is a same-actor transition (no handoff needed)."""
-        assert (PhaseId.P6_RATIFY, PhaseId.P7_HANDOFF) in _SAME_ACTOR
+        assert (PhaseId.P6_Ratify, PhaseId.P7_Handoff) in _SAME_ACTOR
 
     def test_same_actor_does_not_contain_actor_change_transitions(self) -> None:
         """Actor-change transitions (p7→p8, p9→p10) must NOT be in _SAME_ACTOR."""
-        assert (PhaseId.P7_HANDOFF, PhaseId.P8_IMPL_PLAN) not in _SAME_ACTOR
-        assert (PhaseId.P9_SLICE, PhaseId.P10_CODE_REVIEW) not in _SAME_ACTOR
+        assert (PhaseId.P7_Handoff, PhaseId.P8_ImplPlan) not in _SAME_ACTOR
+        assert (PhaseId.P9_Slice, PhaseId.P10_CodeReview) not in _SAME_ACTOR
 
     def test_same_actor_length(self) -> None:
         """_SAME_ACTOR has exactly 2 transitions (p5→p6 and p6→p7)."""
@@ -1937,7 +1937,7 @@ class TestCheckStructural:
     def test_supervisor_explore_ephemeral_violation_at_p8(self) -> None:
         checker = _make_checker()
         violations = checker.check_structural(
-            phase=PhaseId.P8_IMPL_PLAN,
+            phase=PhaseId.P8_ImplPlan,
             exploration_method="direct",
         )
         ids = {v.constraint_id for v in violations}
