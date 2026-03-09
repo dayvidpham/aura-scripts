@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1] - 2026-03-09
+
+### Added
+- feat(aura-protocol): un-stub aurad + aura-msg with full protocol wiring
+
+### Other
+- Merge branch 'aura-protocol'
+
 ## [0.10.0] - 2026-03-09
 
 ### Added
