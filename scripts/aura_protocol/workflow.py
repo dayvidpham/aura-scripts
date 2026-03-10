@@ -83,6 +83,53 @@ SA_STATUS: SearchAttributeKey = SearchAttributeKey.for_keyword("AuraStatus")
 SA_DOMAIN: SearchAttributeKey = SearchAttributeKey.for_keyword("AuraDomain")
 SA_LAST_EVENT_TYPE: SearchAttributeKey = SearchAttributeKey.for_keyword("AuraLastEventType")
 
+# Canonical list of all required search attributes and their indexed value types.
+# Used by ensure_search_attributes() to auto-register on aurad startup.
+_REQUIRED_SEARCH_ATTRIBUTES: dict[str, int] = {
+    "AuraEpochId": 1,        # IndexedValueType.INDEXED_VALUE_TYPE_TEXT
+    "AuraPhase": 2,          # IndexedValueType.INDEXED_VALUE_TYPE_KEYWORD
+    "AuraRole": 2,
+    "AuraStatus": 2,
+    "AuraDomain": 2,
+    "AuraLastEventType": 2,
+}
+
+
+async def ensure_search_attributes(client: "Client") -> None:
+    """Idempotently register all required search attributes with Temporal.
+
+    Compares _REQUIRED_SEARCH_ATTRIBUTES against the namespace's existing
+    custom attributes and adds any that are missing. Safe to call on every
+    aurad startup — already-registered attributes are skipped.
+    """
+    from temporalio.api.operatorservice.v1 import (
+        AddSearchAttributesRequest,
+        ListSearchAttributesRequest,
+    )
+
+    resp = await client.operator_service.list_search_attributes(
+        ListSearchAttributesRequest(namespace=client.namespace),
+    )
+    existing = set(resp.custom_attributes.keys())
+    missing = {
+        name: iv_type
+        for name, iv_type in _REQUIRED_SEARCH_ATTRIBUTES.items()
+        if name not in existing
+    }
+    if not missing:
+        return
+
+    await client.operator_service.add_search_attributes(
+        AddSearchAttributesRequest(
+            namespace=client.namespace,
+            search_attributes=missing,
+        ),
+    )
+    import logging
+    logging.getLogger(__name__).info(
+        "Registered search attributes: %s", ", ".join(sorted(missing)),
+    )
+
 
 # ─── Signal / Query Types (frozen dataclasses) ────────────────────────────────
 

@@ -52,6 +52,7 @@ from aura_protocol.workflow import (
     ReviewPhaseWorkflow,
     SliceWorkflow,
     check_constraints,
+    ensure_search_attributes,
     record_transition,
 )
 
@@ -225,6 +226,7 @@ async def run_worker(namespace: str, task_queue: str, server_address: str) -> No
         server_address: Temporal server address (host:port).
     """
     client = await Client.connect(server_address, namespace=namespace)
+    await ensure_search_attributes(client)
 
     async with Worker(
         client,
