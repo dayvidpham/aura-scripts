@@ -7,6 +7,11 @@ Yes. This is good. Perform handoff, then for the IMPL_PLAN phase, let's not use 
 </launch_supervisor>
 
 
+<user-uat>
+  - Need to invoke the /user-uat skill and /user-elicit skills when running the various interviewing phases. Frequently skips and interview questions are shitty as a result.
+  - Frequently fails to understand what is supposed to be "deferred" and what the user is saying FIX NOW.
+</user-uat>
+
 <parallelization>
 Should capture user input verbatim during the URE/UAT phases. If displaying code in an example via AskUserQuestion, need to capture that as well. We want to capture ALL STIMULI that is presented to the user during these interviewing phases, for archival purposes, and for understanding why users made certain choices at the time.
 
