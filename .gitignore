@@ -12,3 +12,7 @@ __pycache__/
 dist/
 build/
 .claude/worktrees/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
