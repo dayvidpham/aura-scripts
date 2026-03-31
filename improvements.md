@@ -2031,3 +2031,9 @@ Request/URE/URD/UAT phases, our design decisions, and match the template at
 
      DESC
 </documentation>
+
+<validation-fixes>
+When we implement a fix, we need to have validation cases in mind that we check before and after. For proposals made for fix requests, we should have an interviewing phase in the URE to elicit those validation cases, and we also ask the user to confirm whether the cases we've proposed are correct in the UAT.
+
+Then during the implementation, and during interactive iterations with the user that try to improve the fix, we need to establish a set of validations that we will test against. Implementations of the fixes should be evaluating these valdiations to determine whether it was valid or not. Failing cases on real data can be stored and used as test fixture data.
+</validation-fixes>
