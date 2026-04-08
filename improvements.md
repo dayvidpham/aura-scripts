@@ -2407,3 +2407,197 @@ MUST end on a clean review round. Can't simply just implement fixes for a previo
   in 2e5e54a. Those fixes haven't been reviewed yet. Let me send round 6.
 
 </clean-review>
+
+<capture-user-input-verbatim>
+● All requirements clarified. Let me create the URD now.
+
+● Bash(bd update unified-schema-hgr0o --notes "URE responses captured:
+      Q1 (OpenCode handling): User said 'we need to add a Harness concept to the Bestiary repo. Harness examples: opencode, claude-code, gemini-cli, codex'
+      Q2 (DB migration): Single UPDATE migration (but deferred to follow-up epoch for peasant)
+      Q3 (Type strategy): Direct import — use bestiary.Provider directly, no alias
+      Q4 (Harness names): claude-code, gemini-cli, codex, opencode — codex without -cli suffix since that's OpenAI's official tool name
+      Q5 (Harness design): Typed enum like Provider — IsKnown(), String(), MarshalText/UnmarshalText
+      Q6 (Scope): Split — this epoch=bestiary Harness only, follow-up epoch=peasant refactor
+      Q7 (Post-ratification): File URE+URD+proposal as comprehensive GitHub issue to dayvidpham/bestiary")
+  ⎿  ✓ Updated issue: unified-schema-hgr0o — ELICIT: Requirements for bestiary integration + Provider unification
+
+● Bash(bd create --title "URD: Add Harness type to bestiary" --description "---
+      references:
+        request: unified-schema-9elgu
+        elicit: unified-schema-hgr0o
+      ---
+      Requirements document for adding the Harness concept to the bestiary repo. This is the first half of the bestiary integration — peasant refactor is a follow-up epoch." --type=task --priority=2 --labels "aura:p2-user:s2_2-urd" && bd dep add
+      unified-schema-hgr0o --blocked-by $(bd list --label aura:p2-user:s2_2-urd --format=ids 2>/dev/null | head -1))
+  ⎿  Error: Exit code 1
+     warning: beads.role not configured. Run 'bd init' to set.
+     ✓ Created issue: unified-schema-9tyem — URD: Add Harness type to bestiary
+       Priority: P2
+       Status: open
+     Error: flag needs an argument: --blocked-by
+     Usage:
+       bd dep add [issue-id] [depends-on-id] [flags]
+
+     Flags:
+           --blocked-by string   Issue ID that blocks the first issue (alternative to positional arg)
+           --depends-on string   Issue ID that the first issue depends on (alias for --blocked-by)
+       -h, --help                help for add
+       -t, --type string         Dependency type (blocks|tracks|related|parent-child|discovered-from|until|caused-by|validates|relates-to|supersedes) (default "blocks")
+
+     Global Flags:
+           --actor string              Actor name for audit trail (default: $BD_ACTOR, git user.name, $USER)
+           --allow-stale               Allow operations on potentially stale data (skip staleness check)
+           --db string                 Database path (default: auto-discover .beads/*.db)
+           --dolt-auto-commit string   Dolt auto-commit policy (off|on|batch). 'on': commit after each write. 'batch': defer commits to bd sync / bd dolt commit; uncommitted changes persist in the working set until then. SIGTERM/SIGHUP flush pending
+     batch commits. Default: off. Override via config key dolt.auto-commit
+           --json                      Output in JSON format
+           --profile                   Generate CPU profile for performance analysis
+       -q, --quiet                     Suppress non-essential output (errors only)
+           --readonly                  Read-only mode: block write operations (for worker sandboxes)
+           --sandbox                   Sandbox mode: disables auto-sync
+       -v, --verbose                   Enable verbose/debug output
+
+● Bash(bd dep add unified-schema-hgr0o --blocked-by unified-schema-9tyem)
+  ⎿  ✓ Added dependency: unified-schema-hgr0o (ELICIT: Requirements for bestiary integration + Provider unification) depends on unified-schema-9tyem (URD: Add Harness type to bestiary) (blocks)
+
+● Now let me write the URD content.
+  ⎿  Interrupted · What should Claude do instead?
+
+❯ URE responses require all the hints given in the AskUserQuestion tool as well.
+
+● You're right — I need to record the full option descriptions (not just labels) from the AskUserQuestion responses. Let me fix that.
+
+● Bash(bd update unified-schema-hgr0o --notes "CORRECTED URE responses with full option descriptions:
+
+      Q1: How deep should the bestiary integration go?
+        CHOSEN: Adapter pattern (Recommended) -- Keep ingest.ModelInfo and peasant's DB schema unchanged. Add a thin adapter (bestiaryToIngestModel) like provenance's RegistryFromBestiary. Delete models_client.go + models_data.go, replace with bestiary
+       calls. Lowest risk, provenance-proven pattern.
+        REJECTED: Full type replacement -- Replace ingest.ModelInfo with bestiary.ModelInfo everywhere. Touches metrics engine, store layer, test fixtures, DB scanners. Higher blast radius.
+        REJECTED: Minimal: CLI only -- Only change cmd_models.go to call bestiary. Keep internal store layer entirely unchanged.
+
+      Q2: Should bestiary also replace the peasant Provider type (schema.Provider)?
+        CHOSEN: Yes, unify on bestiary.Provider -- Replace schema.Provider with bestiary.Provider everywhere. Would require mapping claude→anthropic, gemini→google, etc. throughout the codebase. High blast radius.
+        USER NOTE: 'We will need a migration of some sort to change these keys.'
+        REJECTED: No, keep separate (Recommended) -- Peasant's Provider type differs from bestiary's. They serve different purposes.
+
+      Q3: How should 'opencode' be handled?
+        USER CHOSE OTHER: 'Right: so we need to add a Harness concept to the Bestiary repo that we will use in this. The Harness examples would be: opencode, claude-code, gemini-cli, codex'
+        OPTION A: Add ProviderLocal to bestiary -- Map OpenCode to bestiary.ProviderLocal ('local'). Changes DB values from 'opencode' to 'local'.
+        OPTION B: Keep 'opencode' as-is -- Don't migrate opencode to a bestiary provider. Add 'opencode' as an additional Provider constant in peasant.
+        OPTION C: Drop opencode support -- Remove opencode as a provider entirely. Attribute to actual model provider.
+
+      Q4: What DB migration strategy for provider key renames?
+        CHOSEN: Single UPDATE migration (Recommended) -- Add a V29 migration that runs UPDATE statements: SET provider='anthropic' WHERE provider='claude', etc. Simple, fast, reversible. Covers all affected tables in one migration.
+        REJECTED: Dual-write + backfill -- Add new provider_v2 columns, write both old and new values, then flip reads. More complex but zero-downtime.
+        REJECTED: Re-ingest from scratch -- Drop and recreate tables. Users re-run peasant ingest to rebuild. Loses user data.
+
+      Q5: Should bestiary.Provider become the ONLY Provider type?
+        CHOSEN: Direct import (Recommended) -- schema.Provider becomes a type alias for bestiary.Provider. Provider constants come from bestiary. One type, one source of truth.
+        USER NOTE: 'What's the point of aliasing when we can just use the import directly?'
+        REJECTED: Value-compatible newtype -- Keep schema.Provider as its own type but use same string values as bestiary. No import dependency but requires manual sync.
+
+      Q6: Confirm harness name mapping for bestiary:
+        CHOSEN: claude-code, gemini-cli, codex, opencode -- Keep 'codex' without suffix since that's OpenAI's official tool name (no separate CLI branding).
+        USER NOTE on gemini: 'Should be tool names: but is the product name for gemini really aistudio?' (Resolved: gemini-cli is the CLI tool, AI Studio is the web interface)
+        REJECTED: claude-code, gemini-cli, codex-cli, opencode -- codex gets -cli suffix to match pattern.
+        REJECTED: claude, gemini, codex, opencode (unchanged) -- Simpler but ambiguous.
+
+      Q7: What should the Harness type look like in bestiary?
+        CHOSEN: Typed enum like Provider -- type Harness string with named constants (HarnessClaude, HarnessGemini, etc.), IsKnown(), String(), MarshalText/UnmarshalText. Follows the existing Provider pattern.
+        REJECTED: Typed enum + DefaultProvider mapping -- Same as above plus a method DefaultProvider() Provider that maps each harness to its primary model provider. Useful for enrichment.
+
+      Q8: Priority split — both in one epoch or split?
+        CHOSEN: Split: bestiary first -- This epoch only adds Harness to bestiary. A follow-up epoch handles the peasant refactor. Cleaner separation but slower delivery.
+        USER NOTE: 'Once we've arrived at a ratified proposal, we should file the URE, URD, and proposal as a comprehensive issue to the dayvidpham/bestiary repo.'
+        REJECTED: Both in one epoch -- Add Harness to bestiary then refactor peasant. One coherent deliverable but spans two repos.")
+  ⎿  ✓ Updated issue: unified-schema-hgr0o — ELICIT: Requirements for bestiary integration + Provider unification
+
+● URE responses updated with full option labels and descriptions for all 8 questions. Now let me write the URD.
+
+● Bash(bd update unified-schema-9tyem --status=in_progress)
+  ⎿  ✓ Updated issue: unified-schema-9tyem — URD: Add Harness type to bestiary
+
+● Bash(bd update unified-schema-9tyem --design "# URD: Add Harness Type to Bestiary
+
+      ## References
+      - REQUEST: unified-schema-9elgu
+      - ELICIT: unified-schema-hgr0o
+
+      ## Background
+
+      Peasant's \`schema.Provider\` type conflates two distinct concepts:
+      1. **Model Provider** — the organization that hosts/publishes an AI model (Anthropic, Google, OpenAI). Already correctly modeled in bestiary as \`bestiary.Provider\`.
+      2. **Harness** — the coding tool/agent that uses those models (Claude Code, Gemini CLI, Codex, OpenCode).
+
+      The bestiary repo currently defines Provider but has no concept of Harness. Peasant needs both concepts to be first-class types in bestiary so it can import them directly.
+
+      ## Scope
+
+      This URD covers **only** the bestiary changes. The peasant-side refactor (replacing \`schema.Provider\`, adapting \`ingest.ModelInfo\`, DB migration) is a follow-up epoch.
+
+      ## Requirements
+
+      ### R1: Harness Type
+      Add \`type Harness string\` to the bestiary package, following the exact pattern of \`Provider\`:
+      - Named constants for known harnesses
+      - \`IsKnown() bool\` method
+      - \`String() string\` method
+      - \`MarshalText()\` / \`UnmarshalText()\` for encoding round-trips
+      - \`knownHarnesses\` internal registry array
+
+      ### R2: Harness Constants
+      Four harnesses, using CLI product names:
+
+      | Constant | Value | Tool |
+      |----------|-------|------|
+      | \`HarnessClaudeCode\` | \`\"claude-code\"\` | Anthropic's Claude Code CLI |
+      | \`HarnessGeminiCLI\` | \`\"gemini-cli\"\` | Google's Gemini CLI |
+      | \`HarnessCodex\` | \`\"codex\"\` | OpenAI's Codex |
+      | \`HarnessOpenCode\` | \`\"opencode\"\` | Community OpenCode agent |
+
+      ### R3: No DefaultProvider Mapping
+      Harness does NOT have a \`DefaultProvider()\` method. The relationship between harness and provider is the consumer's concern (e.g., peasant maps it via session metadata + model lookup).
+
+      ### R4: File Location
+      New file: \`harness.go\` in the bestiary package root, mirroring \`provider.go\` in structure.
+
+      ### R5: Tests
+      New file: \`harness_test.go\` with:
+      - \`IsKnown()\` for all four constants + unknown value
+      - \`String()\` round-trip
+      - \`MarshalText/UnmarshalText\` encoding fidelity
+      - Unknown/empty values handled gracefully
+
+      ### R6: No Store Changes
+      The bestiary SQLite store tracks models by Provider, not by Harness. No schema changes needed in bestiary's store.
+
+      ### R7: Deliverable
+      After ratification: the URE, URD, and ratified PROPOSAL are filed as a single comprehensive GitHub issue to \`dayvidpham/bestiary\`, then the Harness code is implemented on that repo's main branch.
+
+      ## Non-Requirements (Deferred to Follow-up Epoch)
+      - Peasant \`schema.Provider\` → \`bestiary.Provider\` migration
+      - Peasant DB migration (model_harness CHECK constraint, provider_key values)
+      - \`ingest.ModelInfo\` adapter from \`bestiary.ModelInfo\`
+      - Deletion of peasant's \`models_client.go\` / \`models_data.go\`
+
+      ## Acceptance Criteria
+      1. \`bestiary.Harness\` type exists with all four constants
+      2. \`go test ./...\` passes in the bestiary repo
+      3. API follows identical pattern to \`bestiary.Provider\`
+      4. GitHub issue filed to dayvidpham/bestiary with full context")
+  ⎿  ✓ Updated issue: unified-schema-9tyem — URD: Add Harness type to bestiary
+
+❯ Not just hints, but there is an additional field where the harness can show the user a UI mockup alongside the option, and the user can provide notes on them.
+
+● You're right — the AskUserQuestion tool has a preview field on options (for mockups/code snippets) and the user can add notes (annotations) per question. Let me update the URE record with the full annotations including user notes that were captured.
+
+  Looking back at the responses, the user notes were:
+
+  - Q2: User notes: "We will need a migration of some sort to change these keys."
+  - Q3: User notes: "Right: so we need to add a Harness concept to the Bestiary repo..."
+  - Q5: User notes: "What's the point of aliasing when we can just use the import directly?"
+  - Q6: User notes: "Should be tool names: but is the product name for gemini really aistudio?"
+  - Q8: User notes: "Once we've arrived at a ratified proposal, we should file the URE, URD, and proposal as a comprehensive issue to the dayvidpham/bestiary repo."
+
+  These were already captured in my corrected URE record under USER NOTE: lines. I didn't use preview on any of the options (no mockups were needed for these questions). Let me verify the URE notes are complete and accurate.
+
+</capture-user-input-verbatim>
